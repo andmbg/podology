@@ -6,10 +6,13 @@ services:
       - discovery.type=single-node
       - ELASTIC_PASSWORD=aoeidrns
       - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+
     ports:
       - 9200:9200
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./certs:/usr/share/elasticsearch/config/certs
     mem_limit: 2g
 
 volumes:

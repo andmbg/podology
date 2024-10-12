@@ -39,7 +39,7 @@ index_settings = {
 # we go productive.
 es = Elasticsearch(
     "http://localhost:9200",
-    # basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
+    basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
     # verify_certs=True,
     # ca_certs="http_ca.crt",
 )

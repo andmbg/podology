@@ -1,4 +1,4 @@
-.PHONY: data, elastic-up, elastic-down
+.PHONY: data, elastic-up, elastic-down, run, test
 
 data: data/interim/poe.json
 
@@ -10,3 +10,9 @@ elastic-up:
 
 elastic-down:
 	docker-compose down
+
+run:
+	poetry run python -m kfsearch.dashboard
+
+test:
+	poetry run python -m kfsearch.search.use_es
