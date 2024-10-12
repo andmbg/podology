@@ -1,11 +1,14 @@
+import re
 import sys
 from pathlib import Path
 import logging
 
 # from flask import Flask
 import pandas as pd
-from dash import Dash, dcc, html, Input, Output, State, dash_table  # , callback
+from dash import Dash, dcc, html, Input, Output, State, callback_context  # , callback
 import dash_bootstrap_components as dbc
+
+from kfsearch.search.utils import process_highlighted_text
 
 # import from config relatively, so it remains portable:
 dashapp_rootdir = Path(__file__).resolve().parents[1]
@@ -52,7 +55,9 @@ def init_dashboard(flask_app, route, es_client):
                         ),
                         dbc.Col(
                             dbc.Button(
-                                "Search", id="search-button", name="search"
+                                "Search",
+                                id="search-button",
+                                n_clicks=0,
                             ),
                             xs=2,
                             md=1,
@@ -153,59 +158,93 @@ def init_callbacks(app):
         Output("pagination", "max_value"),
         Output("pagination", "active_page"),
         Input("input", "n_submit"),
+        Input("search-button", "n_clicks"),
         Input("pagination", "active_page"),
         State("input", "value"),
     )
-    def perform_search(n_submit, active_page, search_term):
-        if (n_submit is not None and n_submit > 0) or active_page:
+    def perform_search(n_submit, n_clicks, active_page, search_term):
+        ctx = callback_context
+        if not ctx.triggered:
+            return [], 1, 1
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if trigger_id in ["input", "search-button"]:
+            page = 1
+        else:
             page = active_page or 1
-            results = app.es_client.search(
-                index="poe_index",
-                body={
-                    "query": {"match": {"text": search_term}},
-                    "from": (page - 1) * 10,
-                    "size": 10
-                }
-            )
 
-            hits = results["hits"]["hits"]
-            total_hits = results["hits"]["total"]["value"]
-            max_pages = -(-total_hits // 10)  # Ceiling division
+        if search_term:
 
-            result_cards = [
-                dbc.Card(
-                    dbc.CardBody([
-                        dbc.Row([
-                            dbc.Col(
-                                html.P(
-                                    hit['_source'].get('title', 'No title'),
-                                    className="result-card-location-text text-secondary",
-                                ),
-                                width=8,
-                            ),
-                            dbc.Col(
-                                html.P(
-                                    f"ch. {hit["_source"].get("chapter", "--")}, "
-                                    f"para. {hit["_source"].get("paragraph", "--")}, "
-                                    f"sent. {hit["_source"].get("sentence", "--")}",
-                                    className="result-card-location-text text-secondary",
-                                ),
-                                width=4,
-                            )
-                        ]),
-                        dbc.Row([
-                            dbc.Col(
-                                html.P(
-                                    hit['_source'].get('text', 'No text')[:100] + '...',
-                                    className="result-card-citation-text"
-                                ),
-                                width=12
-                            ),
-                        ]),
-                    ], className="result-card-body"), className="mb-1"
-                ) for hit in hits
-            ]
+            if (n_submit is not None and n_submit > 0) or active_page:
+                page = active_page or 1
+                results = app.es_client.search(
+                    index="poe_index",
+                    body={
+                        "query": {"match": {"text": search_term}},
+                        "from": (page - 1) * 10,
+                        "size": 10,
+                        "highlight": {
+                            "fields": {
+                                "text": {
+                                    "number_of_fragments": 0,
+                                    "pre_tags": ["<bling>"],
+                                    "post_tags": ["</bling>"],
+                                }
+                            }
+                        },
+                    },
+                )
 
-            return result_cards, max_pages, page
+                hits = results["hits"]["hits"]
+                total_hits = results["hits"]["total"]["value"]
+                max_pages = -(-total_hits // 10)  # Ceiling division
+
+                result_cards = [
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                dbc.Row(
+                                    [
+                                        dbc.Col(
+                                            html.P(
+                                                hit["_source"].get("title", "No title"),
+                                                className="result-card-location-text text-secondary",
+                                            ),
+                                            width=8,
+                                        ),
+                                        dbc.Col(
+                                            html.P(
+                                                f"ch. {hit["_source"].get("chapter", "--")}, "
+                                                f"para. {hit["_source"].get("paragraph", "--")}, "
+                                                f"sent. {hit["_source"].get("sentence", "--")}",
+                                                className="result-card-location-text text-secondary text-end",
+                                            ),
+                                            width=4,
+                                        ),
+                                    ]
+                                ),
+                                dbc.Row(
+                                    [
+                                        dbc.Col(
+                                            html.Div(
+                                                process_highlighted_text(
+                                                    hit["highlight"]["text"][0]
+                                                ),
+                                                className="result-card-citation-text",
+                                            ),
+                                            width=12,
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            className="result-card-body",
+                        ),
+                        className="mb-1",
+                    )
+                    for hit in hits
+                ]
+
+                return result_cards, max_pages, page
 
         return [], 0, 1

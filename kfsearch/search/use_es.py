@@ -20,9 +20,28 @@ else:
     print("Could not connect to Elasticsearch")
     quit()
 
+def format_search_hit(hit):
+    raw = hit["highlight"]["text"][0]
+
+    
+
 
 def search_by_term(term):
-    response = es.search(index="poe_index", body={"query": {"match": {"text": term}}})
+    response = es.search(
+        index="poe_index",
+        body={
+            "query": {
+                "match": {"text": term}
+            },
+            "highlight": {
+                "fields": {
+                    "text": {
+                        "number_of_fragments": 0,
+                    }
+                }
+            },
+        }
+    )
 
     # Print results
     for hit in response["hits"]["hits"]:
@@ -31,5 +50,5 @@ def search_by_term(term):
         print("\n---------------")
 
 if __name__ == "__main__":
-    search_by_term("raven")
+    search_by_term("car")
 

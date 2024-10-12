@@ -5,8 +5,13 @@
 
 .result-card-citation-text {
     margin-bottom: 0;
+    font-size: small;
 }
 
 .result-card-location-text {
     margin-bottom: 0;
+}
+
+bling {
+    font-weight: bold;;
 }
