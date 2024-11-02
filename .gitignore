@@ -1,8 +1,13 @@
 .env
 .venv
+data/**/*
+!data/
+!data/*/
+!data/*/*/
+!data/*/*/*/
 **/*/__pycache__/
-data/*/*
-!**/.gitkeep
+!**/*/.gitkeep
+!data/raw/mp3/.gitkeep
 launch.json
 *.crt
 *.log

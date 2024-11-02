@@ -1,14 +1,14 @@
-import re
 import sys
+import json
 from pathlib import Path
 import logging
 
 # from flask import Flask
 import pandas as pd
-from dash import Dash, dcc, html, Input, Output, State, callback_context  # , callback
+from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
-from kfsearch.search.utils import process_highlighted_text
+from kfsearch.search.utils import process_highlighted_text, get_para
 
 # import from config relatively, so it remains portable:
 dashapp_rootdir = Path(__file__).resolve().parents[1]
@@ -86,6 +86,11 @@ def init_dashboard(flask_app, route, es_client):
                             [
                                 dbc.Row(
                                     # context
+                                    dbc.Col(
+                                        [
+                                            html.Div(id="context"),
+                                        ],
+                                    )
                                 ),
                                 dbc.Row(
                                     # episode info
@@ -163,7 +168,6 @@ def init_callbacks(app):
         State("input", "value"),
     )
     def perform_search(n_submit, n_clicks, active_page, search_term):
-        ctx = callback_context
         if not ctx.triggered:
             return [], 1, 1
 
@@ -200,51 +204,83 @@ def init_callbacks(app):
                 total_hits = results["hits"]["total"]["value"]
                 max_pages = -(-total_hits // 10)  # Ceiling division
 
-                result_cards = [
-                    dbc.Card(
-                        dbc.CardBody(
-                            [
-                                dbc.Row(
+                result_cards = []
+                for i, hit in enumerate(hits):
+
+                    result_cards.append(
+                        dbc.Button(
+                            dbc.Card(
+                                dbc.CardBody(
                                     [
-                                        dbc.Col(
-                                            html.P(
-                                                hit["_source"].get("title", "No title"),
-                                                className="result-card-location-text text-secondary",
-                                            ),
-                                            width=8,
-                                        ),
-                                        dbc.Col(
-                                            html.P(
-                                                f"ch. {hit["_source"].get("chapter", "--")}, "
-                                                f"para. {hit["_source"].get("paragraph", "--")}, "
-                                                f"sent. {hit["_source"].get("sentence", "--")}",
-                                                className="result-card-location-text text-secondary text-end",
-                                            ),
-                                            width=4,
-                                        ),
-                                    ]
-                                ),
-                                dbc.Row(
-                                    [
-                                        dbc.Col(
-                                            html.Div(
-                                                process_highlighted_text(
-                                                    hit["highlight"]["text"][0]
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.P(
+                                                        hit["_source"].get("title", "No title"),
+                                                        className="result-card-location-text text-secondary",
+                                                    ),
+                                                    width=8,
                                                 ),
-                                                className="result-card-citation-text",
-                                            ),
-                                            width=12,
+                                                dbc.Col(
+                                                    html.P(
+                                                        f"ch. {hit["_source"].get("chapter", "--")}, "
+                                                        f"para. {hit["_source"].get("paragraph", "--")}, "
+                                                        f"sent. {hit["_source"].get("sentence", "--")}",
+                                                        className="result-card-location-text text-secondary text-end",
+                                                    ),
+                                                    width=4,
+                                                ),
+                                            ]
                                         ),
-                                    ]
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.Div(
+                                                        process_highlighted_text(
+                                                            hit["highlight"]["text"][0]
+                                                        ),
+                                                        className="result-card-citation-text",
+                                                    ),
+                                                    width=12,
+                                                ),
+                                            ]
+                                        ),
+                                    ],
+                                    className="result-card-body",
                                 ),
-                            ],
-                            className="result-card-body",
-                        ),
-                        className="mb-1",
+                                # className="mb-1",
+                                # style={"cursor": "pointer"},
+                            ),
+                        id={"type": "result-card", "index": i},
+                        class_name="card-button mb-1",
+                        )
                     )
-                    for hit in hits
-                ]
 
                 return result_cards, max_pages, page
 
         return [], 0, 1
+
+    @app.callback(
+        Output("context", "children"),
+        Input({"type": "result-card", "index": ALL}, "n_clicks"),
+        State("search-results", "children"),
+    )
+    def display_additional_info(click_timestamps, search_results):
+        if not ctx.triggered:
+            return "Click on a result card to see more information."
+        
+        clicked_result = get_para(ctx.triggered_id, search_results, ctx)
+
+        # clicked_result = search_results[clicked_index]['props']['children']['props']['children']
+        # clicked_result = cx.triggered
+        
+        return html.Div([
+            clicked_result
+            # json.dumps(ctx.triggered)
+            # html.H4(clicked_result[0]['props']['children'][0]['props']['children']),
+            # html.P(f"Chapter: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[0]}"),
+            # html.P(f"Paragraph: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[1]}"),
+            # html.P(f"Sentence: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[2]}"),
+            # html.Div(clicked_result[1]['props']['children'])
+        ])
+    

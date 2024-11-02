@@ -12,6 +12,21 @@
     margin-bottom: 0;
 }
 
-bling {
-    font-weight: bold;;
+.card-button {
+    color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    background-color: transparent;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 0;
 }
+/* .card-button :active {
+    box-shadow: none;
+    background-color: transparent;
+}
+.card-button :hover {
+    box-shadow: none;
+    background-color: transparent;
+} */

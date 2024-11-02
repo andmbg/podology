@@ -3,7 +3,10 @@ from pathlib import Path
 from flask import Flask
 from elasticsearch import Elasticsearch
 from . import init_dashboard
+from dotenv import find_dotenv, load_dotenv
 
+
+load_dotenv(find_dotenv())
 
 basedir = Path().cwd().parent
 
