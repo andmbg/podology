@@ -1,7 +1,5 @@
 .PHONY: data, elastic-up, elastic-down, run, test
 
-data: data/interim/poe.json
-
 data/interim/poe.json: data/raw/poe.html
 	python convert_to_json.py data/raw/poe.html data/interim/poe.json
 

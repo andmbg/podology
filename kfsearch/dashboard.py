@@ -8,8 +8,6 @@ from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
-basedir = Path().cwd().parent
-
 es = Elasticsearch(
     "http://localhost:9200",
     basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),

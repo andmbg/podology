@@ -8,18 +8,13 @@ import pandas as pd
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
-from kfsearch.search.utils import process_highlighted_text, get_para
+from kfsearch.search.utils import get_para
+from kfsearch.frontend.results import get_result_cards, process_highlighted_text
+from kfsearch.search.setup_es import INDEX_NAME
 
 # import from config relatively, so it remains portable:
 dashapp_rootdir = Path(__file__).resolve().parents[1]
 sys.path.append(str(dashapp_rootdir))
-
-logging.basicConfig(
-    filename=dashapp_rootdir / "logs" / "kfsearch.log",
-    filemode="w",
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-)
 
 
 def init_dashboard(flask_app, route, es_client):
@@ -183,7 +178,7 @@ def init_callbacks(app):
             if (n_submit is not None and n_submit > 0) or active_page:
                 page = active_page or 1
                 results = app.es_client.search(
-                    index="poe_index",
+                    index=INDEX_NAME,
                     body={
                         "query": {"match": {"text": search_term}},
                         "from": (page - 1) * 10,
@@ -200,61 +195,11 @@ def init_callbacks(app):
                     },
                 )
 
-                hits = results["hits"]["hits"]
+                this_page_hits = results["hits"]["hits"]
                 total_hits = results["hits"]["total"]["value"]
                 max_pages = -(-total_hits // 10)  # Ceiling division
 
-                result_cards = []
-                for i, hit in enumerate(hits):
-
-                    result_cards.append(
-                        dbc.Button(
-                            dbc.Card(
-                                dbc.CardBody(
-                                    [
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    html.P(
-                                                        hit["_source"].get("title", "No title"),
-                                                        className="result-card-location-text text-secondary",
-                                                    ),
-                                                    width=8,
-                                                ),
-                                                dbc.Col(
-                                                    html.P(
-                                                        f"ch. {hit["_source"].get("chapter", "--")}, "
-                                                        f"para. {hit["_source"].get("paragraph", "--")}, "
-                                                        f"sent. {hit["_source"].get("sentence", "--")}",
-                                                        className="result-card-location-text text-secondary text-end",
-                                                    ),
-                                                    width=4,
-                                                ),
-                                            ]
-                                        ),
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    html.Div(
-                                                        process_highlighted_text(
-                                                            hit["highlight"]["text"][0]
-                                                        ),
-                                                        className="result-card-citation-text",
-                                                    ),
-                                                    width=12,
-                                                ),
-                                            ]
-                                        ),
-                                    ],
-                                    className="result-card-body",
-                                ),
-                                # className="mb-1",
-                                # style={"cursor": "pointer"},
-                            ),
-                        id={"type": "result-card", "index": i},
-                        class_name="card-button mb-1",
-                        )
-                    )
+                result_cards = get_result_cards(this_page_hits)
 
                 return result_cards, max_pages, page
 
@@ -268,19 +213,20 @@ def init_callbacks(app):
     def display_additional_info(click_timestamps, search_results):
         if not ctx.triggered:
             return "Click on a result card to see more information."
-        
+
         clicked_result = get_para(ctx.triggered_id, search_results, ctx)
 
         # clicked_result = search_results[clicked_index]['props']['children']['props']['children']
         # clicked_result = cx.triggered
-        
-        return html.Div([
-            clicked_result
-            # json.dumps(ctx.triggered)
-            # html.H4(clicked_result[0]['props']['children'][0]['props']['children']),
-            # html.P(f"Chapter: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[0]}"),
-            # html.P(f"Paragraph: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[1]}"),
-            # html.P(f"Sentence: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[2]}"),
-            # html.Div(clicked_result[1]['props']['children'])
-        ])
-    
+
+        return html.Div(
+            [
+                clicked_result
+                # json.dumps(ctx.triggered)
+                # html.H4(clicked_result[0]['props']['children'][0]['props']['children']),
+                # html.P(f"Chapter: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[0]}"),
+                # html.P(f"Paragraph: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[1]}"),
+                # html.P(f"Sentence: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[2]}"),
+                # html.Div(clicked_result[1]['props']['children'])
+            ]
+        )
