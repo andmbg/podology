@@ -3,7 +3,7 @@ import re
 import dash_bootstrap_components as dbc
 from dash import html
 from kfsearch.data.models import EpisodeStore
-from kfsearch.frontend.utils import sec_to_time
+from kfsearch.frontend.utils import sec_to_time, split_highlight_string
 
 store = EpisodeStore(name="Knowledge Fight")
 HLTAG = "bling"
@@ -72,33 +72,31 @@ def get_context(detail_level, sid, eid, highlight):
     EpisodeStore and return it as a dict.
     """
     global store, HLTAG
-    len_prefix = len_suffix = {"S": 30, "M": 40, "L": 200}[detail_level]
-
-    excerpt = "lorem <bling>ipsum</bling> dolor sit amet"
+    len_context = {"S": 100, "M": 400, "L": 600}[detail_level]
 
     episode = store.episodes(eid)[0]
     transcript = episode.get_transcript()["segments"]
 
-    hl_prefix = highlight.split(f"<{HLTAG}>")[0]
-    hl = highlight.split(f"<{HLTAG}>")[1].split(f"</{HLTAG}>")[0]
-    hl_suffix = highlight.split(f"</{HLTAG}>")[1]
+    # Split the highlight string into prefix, mid, and suffix:
+    (hl_prefix, hl, hl_suffix), len_hl = split_highlight_string(highlight, HLTAG)
 
     # Add prior segments until prefix length of len_prefix is reached or beginning
     # of transcript:
     cur_id = sid
-    while len(hl_prefix) < len_prefix and cur_id > 0:
+    while len(hl_prefix) + len_hl / 2 < len_context / 2 and cur_id > 0:
         cur_id -= 1
         hl_prefix = transcript[cur_id]["text"] + " " + hl_prefix
-    hl_prefix = hl_prefix[-len_prefix:]
+    # Crop prefix to be half the desired context length minus half the highlight length:
+    hl_prefix = hl_prefix[-(int((len_context - len_hl) / 2)) :]
 
-    # Same for suffix:
+    # Analogously for suffix:
     cur_id = sid
-    while len(hl_suffix) < len_suffix and cur_id < len(transcript):
+    while len(hl_suffix) + len_hl / 2 < len_context / 2 and cur_id < len(transcript):
         cur_id += 1
         hl_suffix += " " + transcript[cur_id]["text"]
-    hl_suffix = hl_suffix[:len_suffix]
+    hl_suffix = hl_suffix[: int((len_context - len_hl) / 2)]
 
-    excerpt = [html.B(hl_prefix), html.Mark(hl), html.I(hl_suffix)]
+    excerpt = [hl_prefix] + hl + [hl_suffix]
 
     return excerpt
 
@@ -114,7 +112,7 @@ def get_result_cards(hits, detail_level="L"):
         excerpt = get_context(
             eid=hit["_source"].get("eid"),
             sid=hit["_source"].get("id"),
-            detail_level="L",
+            detail_level="S",
             highlight=hit["highlight"]["text"][0],
         )
 
@@ -129,7 +127,11 @@ def get_result_cards(hits, detail_level="L"):
     return result_cards
 
 
-def process_highlighted_text(text):
+def highlight_to_html_elements(text):
+    """
+    Turn a string with 1 or more <bling>highlighted</bling> parts into a list of
+    Dash HTML elements, where the highlighted parts are wrapped in a Mark element.
+    """
     parts = re.split(r"(<bling>.*?</bling>)", text)
     result = []
 

@@ -9,7 +9,7 @@ from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
 from kfsearch.search.utils import get_para
-from kfsearch.frontend.results import get_result_cards, process_highlighted_text
+from kfsearch.frontend.results import get_result_cards
 from kfsearch.search.setup_es import INDEX_NAME
 
 # import from config relatively, so it remains portable:
