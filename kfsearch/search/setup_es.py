@@ -58,7 +58,7 @@ else:
     n = 0
     for episode in episode_store.episodes(script=True):
         logger.debug(f"Indexing episode {episode.eid}")
-        transcript_path = episode.transcript_path
+        transcript_path = Path(episode.transcript_path)
         if transcript_path.exists():
             with open(transcript_path, "r") as f:
                 transcript_data = json.load(f)

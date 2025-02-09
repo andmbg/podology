@@ -52,4 +52,11 @@ class LemonfoxTranscriber(Transcriber):
             if "words" in s:
                 del s["words"]
 
+        # Remove the single-string text transcript from the response, redundant:
+        del response_json["text"]
+
+        # Prepare a list of speakers identified in this episode:
+        speakers = list(set([seg["speaker"] for seg in response_json["segments"]]))
+        response_json["speakers"] = speakers
+
         return response_json

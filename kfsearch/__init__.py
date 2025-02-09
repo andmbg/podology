@@ -1,20 +1,19 @@
 import sys
-import json
 from pathlib import Path
-import logging
 
-# from flask import Flask
-import pandas as pd
+import json
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
+from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.utils import get_para
-from kfsearch.frontend.results import get_result_cards
+from kfsearch.search.search_classes import ResultSet, ResultsPage, diarize_transcript
 from kfsearch.search.setup_es import INDEX_NAME
 
-# import from config relatively, so it remains portable:
-dashapp_rootdir = Path(__file__).resolve().parents[1]
-sys.path.append(str(dashapp_rootdir))
+# # import from config relatively, so it remains portable:
+# dashapp_rootdir = Path(__file__).resolve().parents[1]
+# sys.path.append(str(dashapp_rootdir))
+store = EpisodeStore(name="Knowledge Fight")
 
 
 def init_dashboard(flask_app, route, es_client):
@@ -65,16 +64,22 @@ def init_dashboard(flask_app, route, es_client):
                     # results
                     [
                         dbc.Col(
+                            [
+                                html.Div(id="transcript-hits"),
+                            ],
+                            width=5,
+                        ),
+                        dbc.Col(
                             # match list
                             [
-                                html.Div(id="search-results"),
+                                html.Div(id="episode-hits"),
                                 dbc.Pagination(
                                     id="pagination",
                                     max_value=5,
                                     first_last=True,
                                 ),
                             ],
-                            width=6,
+                            width=5,
                         ),
                         dbc.Col(
                             # result information
@@ -90,7 +95,8 @@ def init_dashboard(flask_app, route, es_client):
                                 dbc.Row(
                                     # episode info
                                 ),
-                            ]
+                            ],
+                            width=2,
                         ),
                     ],
                     className="mt-3",
@@ -154,17 +160,19 @@ def init_callbacks(app):
 
     #     return "Enter a search term and click 'Search'"
     @app.callback(
-        Output("search-results", "children"),
+        Output("episode-hits", "children"),
+        Output("transcript-hits", "children"),
         Output("pagination", "max_value"),
         Output("pagination", "active_page"),
         Input("input", "n_submit"),
         Input("search-button", "n_clicks"),
+        Input({"type": "result-card", "index": ALL}, "n_clicks"),
         Input("pagination", "active_page"),
         State("input", "value"),
     )
-    def perform_search(n_submit, n_clicks, active_page, search_term):
+    def perform_search(n_submit, src_nclicks, card_nclicks, active_page, search_term):
         if not ctx.triggered:
-            return [], 1, 1
+            return [], [], 1, 1
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
@@ -177,56 +185,36 @@ def init_callbacks(app):
 
             if (n_submit is not None and n_submit > 0) or active_page:
                 page = active_page or 1
-                results = app.es_client.search(
-                    index=INDEX_NAME,
-                    body={
-                        "query": {"match": {"text": search_term}},
-                        "from": (page - 1) * 10,
-                        "size": 10,
-                        "highlight": {
-                            "fields": {
-                                "text": {
-                                    "number_of_fragments": 0,
-                                    "pre_tags": ["<bling>"],
-                                    "post_tags": ["</bling>"],
-                                }
-                            }
-                        },
-                    },
+
+                result_set = ResultSet(
+                    es_client=app.es_client,
+                    index_name=INDEX_NAME,
+                    search_term=search_term,
+                    page_size=10,
                 )
 
-                this_page_hits = results["hits"]["hits"]
-                total_hits = results["hits"]["total"]["value"]
+                this_page = result_set.get_page(page - 1)
+                if this_page is None:
+                    return [], [], 1, 1
+
+                this_page_hits = this_page.hits
+                total_hits = result_set.total_hits
                 max_pages = -(-total_hits // 10)  # Ceiling division
 
-                result_cards = get_result_cards(this_page_hits)
+                results_page = ResultsPage(this_page_hits)
+                result_cards = [c.to_html() for c in results_page.cards]
 
-                return result_cards, max_pages, page
+                diarized_transcript = []
 
-        return [], 0, 1
+                if "result-card" in trigger_id:
+                    card_index = int(json.loads(trigger_id)["index"])
+                    episode_id = [
+                        i for i in this_page_hits if i["_source"]["id"] == card_index
+                    ][0]["_source"]["eid"]
+                    episode = [i for i in store.episodes() if i.eid == episode_id][0]
 
-    @app.callback(
-        Output("context", "children"),
-        Input({"type": "result-card", "index": ALL}, "n_clicks"),
-        State("search-results", "children"),
-    )
-    def display_additional_info(click_timestamps, search_results):
-        if not ctx.triggered:
-            return "Click on a result card to see more information."
+                    diarized_transcript = diarize_transcript(eid=episode_id)
 
-        clicked_result = get_para(ctx.triggered_id, search_results, ctx)
+                return result_cards, diarized_transcript, max_pages, page
 
-        # clicked_result = search_results[clicked_index]['props']['children']['props']['children']
-        # clicked_result = cx.triggered
-
-        return html.Div(
-            [
-                clicked_result
-                # json.dumps(ctx.triggered)
-                # html.H4(clicked_result[0]['props']['children'][0]['props']['children']),
-                # html.P(f"Chapter: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[0]}"),
-                # html.P(f"Paragraph: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[1]}"),
-                # html.P(f"Sentence: {clicked_result[0]['props']['children'][1]['props']['children'].split(', ')[2]}"),
-                # html.Div(clicked_result[1]['props']['children'])
-            ]
-        )
+        return [], [], 0, 1
