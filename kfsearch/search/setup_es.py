@@ -7,6 +7,7 @@ import os
 import json
 from loguru import logger
 from pathlib import Path
+from datetime import datetime
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv, find_dotenv
 from config import STORAGE_NAME
@@ -24,6 +25,7 @@ index_settings = {
     "mappings": {
         "properties": {
             "eid": {"type": "keyword"},
+            "pub_date": {"type": "date"},
             "episode_title": {"type": "text"},
             "text": {"type": "text"},
             "start_time": {"type": "keyword"},
@@ -65,6 +67,7 @@ else:
                 for entry in transcript_data["segments"]:
                     doc = {
                         "eid": episode.eid,
+                        "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
                         "episode_title": episode.title,
                         "id": entry["id"],
                         "text": entry["text"],

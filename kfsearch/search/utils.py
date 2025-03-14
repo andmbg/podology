@@ -26,19 +26,12 @@ def find_nested_dict_by_key_value(data, target_key, target_value):
     return None
 
 
-def get_para(triggered_id, search_results, ctx):
+def format_time(seconds: float) -> str:
     """
-    Extract from a clicked result card the chapter and paragraph. Retrieve the whole paragraph text.
+    Convert seconds into HH:MM:SS format.
+    Example: 3665.5 -> "01:01:05"
     """
-    # Get clicked card:
-    res = find_nested_dict_by_key_value(search_results, "id", triggered_id)
-    res = res["children"]["props"]["children"]["props"]["children"][0]["props"][
-        "children"
-    ][1]["props"]["children"]["props"]["children"]
-
-    ch, para, sent = (int(re.findall(r"\d+$", i)[0]) for i in res.split(", "))
-    para = [s["text"] for s in book if s["chapter"] == ch and s["paragraph"] == para]
-
-    restext = "".join(para)
-
-    return restext
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"

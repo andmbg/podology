@@ -22,6 +22,8 @@
     text-align: left;
     margin-bottom: 0;
 }
+
+
 /* .card-button :active {
     box-shadow: none;
     background-color: transparent;
@@ -30,3 +32,28 @@
     box-shadow: none;
     background-color: transparent;
 } */
+
+
+.speaker-00 {
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-01 {
+    background-color: #fff3e0;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-02 {
+    background-color: #ffebee;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-03 {
+    background-color: #f1f8e9;
+    border-radius: 4px;
+    padding: 8px;
+}

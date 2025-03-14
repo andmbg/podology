@@ -1,9 +1,11 @@
 import re
+from collections import defaultdict
+from datetime import datetime
 
 import dash_bootstrap_components as dbc
 from dash import html
 
-from kfsearch.frontend.utils import sec_to_time, split_highlight_string
+from kfsearch.search.utils import format_time
 
 
 HLTAG = "bling"
@@ -17,14 +19,15 @@ class ResultSet:
         self.search_term = search_term
         self.page_size = page_size
         self.hits, self.total_hits = self._perform_search()
+        self.episodes = self._group_by_episode()
         self.pages = self._create_pages()
 
     def _perform_search(self):
         results = self.es_client.search(
             index=self.index_name,
             body={
-                "query": {"match": {"text": self.search_term}},
-                "size": 10000,  # Adjust the size as needed
+                "query": {"match_phrase": {"text": self.search_term}},
+                "size": 10000,
                 "highlight": {
                     "fields": {
                         "text": {
@@ -40,16 +43,19 @@ class ResultSet:
         total_hits = results["hits"]["total"]["value"]
         return hits, total_hits
 
+    def _group_by_episode(self):
+        episodes = defaultdict(list)
+        for hit in self.hits:
+            eid = hit["_source"]["eid"]
+            episodes[eid].append(hit)
+        return episodes
+
     def _create_pages(self):
+        episode_list = list(self.episodes.items())
         pages = []
-        for i in range(0, len(self.hits), self.page_size):
-            pages.append(
-                ResultsPage(
-                    self.hits[i : i + self.page_size],
-                    self.episode_store,
-                    hltag=HLTAG,
-                )
-            )
+        for i in range(0, len(episode_list), self.page_size):
+            page_episodes = dict(episode_list[i:i + self.page_size])
+            pages.append(ResultsPage(page_episodes, self.episode_store))
         return pages
 
     def get_page(self, page_number):
@@ -59,102 +65,63 @@ class ResultSet:
 
 
 class ResultsPage:
-    def __init__(self, hits, episode_store, hltag):
-        self.hits = hits
+    def __init__(self, episodes, episode_store):
+        self.episodes = episodes
         self.episode_store = episode_store
-        self.hltag = hltag
         self.cards = self._create_cards()
 
     def _create_cards(self):
-        return [ResultCard(hit, self.episode_store, self.hltag) for hit in self.hits]
+        return [ResultCard(eid, hits, self.episode_store)
+                for eid, hits in self.episodes.items()]
 
 
 class ResultCard:
-    def __init__(self, hit, episode_store, hltag):
+    def __init__(self, eid, within_ep_hitlist, episode_store):
         self.episode_store = episode_store
-        self.title = hit["_source"].get("episode_title", "No title")
-        self.start_time = sec_to_time(int(hit["_source"].get("start_time", "--")))
-        self.content = self._get_context(hit, hltag)
-        self.id = hit["_source"].get("id")
+        self.title = within_ep_hitlist[0]["_source"]["episode_title"]
+        self.pub_date = within_ep_hitlist[0]["_source"]["pub_date"]
+        self.hit_count = len(within_ep_hitlist)
+        self.id = eid
 
-    def _get_context(self, hit, hltag):
-        """
-        Return a context string for a hit in the transcript.
-        """
-        eid = hit["_source"].get("eid")
-        sid = hit["_source"].get("id")
-        detail_level = "M"
-        highlight = hit["highlight"]["text"][0]
-        len_context = {"S": 100, "M": 300, "L": 600}[detail_level]
-
-        episode = [i for i in self.episode_store.episodes() if i.eid == eid][0]
-        segments = episode.get_transcript()["segments"]
-
-        # Split the highlight string into prefix, mid, and suffix:
-        (hl_prefix, hl, hl_suffix), len_hl = split_highlight_string(highlight, hltag)
-
-        # Add prior segments until desired prefix length is reached or beginning
-        # of transcript:
-        cur_id = sid
-        while len(hl_prefix) + len_hl / 2 < len_context / 2 and cur_id > 0:
-            cur_id -= 1
-            hl_prefix = segments[cur_id]["text"] + " " + hl_prefix
-        # Crop prefix to be half the desired context length minus half the highlight length:
-        hl_prefix = hl_prefix[-(int((len_context - len_hl) / 2)) :]
-
-        # Analogously for suffix:
-        cur_id = sid
-        while (
-            len(hl_suffix) + len_hl / 2 < len_context / 2 and cur_id < len(segments) - 1
-        ):
-            cur_id += 1
-            hl_suffix += " " + segments[cur_id]["text"]
-        hl_suffix = hl_suffix[: int((len_context - len_hl) / 2)]
-
-        excerpt = [hl_prefix] + hl + [hl_suffix]
-
-        return excerpt
 
     def to_html(self):
+        formatted_date = datetime.strptime(self.pub_date, "%Y-%m-%dT%H:%M:%S%z").strftime("%d.%m.%Y")
+
         return dbc.Button(
             dbc.Card(
                 dbc.CardBody(
-                    [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    html.P(
-                                        self.title,
-                                        className="result-card-location-text text-secondary",
-                                    ),
-                                    width=8,
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                html.P(
+                                    formatted_date,
+                                    className="text-secondary mb-0 me-1 text-nowrap",
                                 ),
-                                dbc.Col(
-                                    html.P(
-                                        f"{self.start_time}, ",
-                                        className="result-card-location-text text-secondary text-end",
-                                    ),
-                                    width=4,
+                                width="auto",
+                                className="text-start fs-6",
+                            ),
+                            dbc.Col(
+                                html.B(
+                                    self.title,
+                                    className="mb-0 text-truncate text-primary",
                                 ),
-                            ]
-                        ),
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    html.Div(
-                                        self.content,
-                                        className="result-card-citation-text",
-                                    ),
-                                    width=12,
+                            ),
+                            dbc.Col(
+                                html.P(
+                                    f"{self.hit_count} hits",
+                                    className="text-secondary mb-0 text-nowrap",
                                 ),
-                            ]
-                        ),
-                    ],
-                    className="result-card-body",
+                                width="auto",
+                                className="text-end",
+                            ),
+                        ],
+                        className="g-0",
+                    ),
+                    className="py-2",
                 ),
             ),
             id={"type": "result-card", "index": self.id},
-            class_name="card-button mb-1",
+            class_name="card-button mb-1 w-100",
         )
 
 
@@ -184,32 +151,78 @@ def highlight_to_html_elements(text):
     return html.Div(result)
 
 
-def diarize_transcript(eid, episode_store) -> list:
+# def diarize_transcript(eid, episode_store, search_term) -> list:
+#     """
+#     Given an episode ID, load the episode transcript and return a list of turns where
+#     each turn contains a contiguous list of segments from one speaker.
+#     """
+#
+#     # Pick episode based on eid, then its segment-wise transcript:
+#     episode = [i for i in episode_store.episodes() if i.eid == eid][0]
+#     segments = episode.get_transcript()["segments"]
+#
+#     turns = []
+#
+#     while segments:
+#         # Start new turn:
+#         turn_segments = []
+#         this_speaker = segments[0]["speaker"]
+#
+#         while segments and segments[0]["speaker"] == this_speaker:
+#             # Add segments to this turn while speaker doesn't change:
+#             turn_segments.append(segments.pop(0)["text"])
+#
+#         # Make turn into a paragraph and add to result:
+#         turn = html.P(
+#             [html.B(this_speaker), ": ", " ".join(turn_segments)],
+#             className="this_speake",
+#         )
+#         turns.append(turn)
+#
+#     return turns
+def diarize_transcript(eid, episode_store, search_term) -> list:
     """
-    Given an episode ID, load the episode transcript and return a list of turns where
-    each turn contains a contiguous list of segments from one speaker.
+    Create a diarized transcript with highlighted search terms.
     """
+    def speaker_class(speaker):
+        return f"speaker-{speaker[-2:]}"
 
     # Pick episode based on eid, then its segment-wise transcript:
     episode = [i for i in episode_store.episodes() if i.eid == eid][0]
     segments = episode.get_transcript()["segments"]
 
-    turns = []
+    # Compile search term pattern for case-insensitive matching
+    search_term = rf"\b{search_term}\b"
+    pattern = re.compile(search_term, re.IGNORECASE)
 
+    turns = []
     while segments:
-        # Start new turn:
         turn_segments = []
         this_speaker = segments[0]["speaker"]
+        this_start = segments[0]["start"]
 
         while segments and segments[0]["speaker"] == this_speaker:
-            # Add segments to this turn while speaker doesn't change:
-            turn_segments.append(segments.pop(0)["text"])
+            # Highlight search terms in segment text
+            text = segments.pop(0)["text"]
+            highlighted_text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
+            turn_segments.append(highlighted_text)
 
-        # Make turn into a paragraph and add to result:
-        turn = html.P(
-            [html.B(this_speaker), ": ", " ".join(turn_segments)],
-            className="this_speake",
+        # Convert highlighted text to HTML elements
+        highlighted_turn = highlight_to_html_elements(" ".join(turn_segments))
+        turn_header = dbc.Row(
+            children=[
+                dbc.Col([html.B([this_speaker + ":"])], className="text-start text-bf", width=6),
+                dbc.Col([format_time(this_start)], className="text-end text-secondary", width=6),
+            ],
+            className="mt-2"
         )
-        turns.append(turn)
+        turn_body = dbc.Row(
+            children=[
+                html.Div([highlighted_turn], className=speaker_class(this_speaker))
+            ]
+        )
+
+        turns.append(turn_header)
+        turns.append(turn_body)
 
     return turns
