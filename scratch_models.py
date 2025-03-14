@@ -8,7 +8,7 @@ rss_extractor = PodcastRSSExtractor(
     rss_link="https://knowledgefight.libsyn.com/rss",
     store=store,
 )
-rss_extractor.download_rss()
+rss_extractor.download_rss(force=True)
 
 for ep in rss_extractor.extract_episodes():
     episode = Episode(
@@ -20,8 +20,6 @@ for ep in rss_extractor.extract_episodes():
         duration=ep["duration"],
     )
 
-episode = [ep for ep in store.episodes() if ep.eid == "2iPRY"][0]
-
-episode.transcribe()
-
-store.to_json()
+for i in [0, 2, 3]:
+    episode = store.episodes()[i]
+    episode.transcribe()

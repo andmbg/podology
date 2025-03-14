@@ -26,11 +26,10 @@ class PodcastRSSExtractor:
         response = requests.get(self.rss_link)
         response.raise_for_status()  # Raise an error for bad status codes
 
-        file_path = self.rss_file
-
-        with open(file_path, "wb") as file:
+        with open(self.rss_file, "wb") as file:
             file.write(response.content)
-        self.rss_file = file_path
+
+        self.populate_store()
 
     def extract_episodes(self) -> list[dict]:
         if not self.rss_file:

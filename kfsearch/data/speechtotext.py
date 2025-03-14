@@ -45,12 +45,10 @@ class LemonfoxTranscriber(Transcriber):
         }
         logger.debug(f"Requesting transcription at Lemonfox for audio at URL: {url}")
         response = requests.post(self.api_url, headers=self._headers, data=data)
+        logger.debug(f"Success status: {response.status_code}")
 
         # Remove the "words" key from the response, probably too verbose:
         response_json = response.json()
-        for s in response_json["segments"]:
-            if "words" in s:
-                del s["words"]
 
         # Remove the single-string text transcript from the response, redundant:
         del response_json["text"]

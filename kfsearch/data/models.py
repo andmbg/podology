@@ -29,8 +29,10 @@ class Episode:
     transcript: dict = None
 
     def __post_init__(self):
-        # Generate an 8-character alphanumeric hash from the URL
+        # Generate a 5-character alphanumeric hash from the URL
         self.eid = episode_hash(self.audio_url.encode())
+
+        # Use file name stem for audio and transcript files
         name = self.audio_url.split("/")[-1].split(".")[0][:50]
 
         # If a transcript file already exists, set its name as attribute:
@@ -226,7 +228,10 @@ class EpisodeStore:
                 return episode
 
     def episodes(self, script: bool = None, audio: bool = None):
-
+        """
+        Episode getter. Return all episodes or filter by them having audio or
+        transcripts.
+        """
         out = []
 
         for ep in self._episodes:

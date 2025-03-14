@@ -13,7 +13,7 @@ from kfsearch.search.setup_es import INDEX_NAME
 # # import from config relatively, so it remains portable:
 # dashapp_rootdir = Path(__file__).resolve().parents[1]
 # sys.path.append(str(dashapp_rootdir))
-store = EpisodeStore(name="Knowledge Fight")
+episode_store = EpisodeStore(name="Knowledge Fight")
 
 
 def init_dashboard(flask_app, route, es_client):
@@ -188,6 +188,7 @@ def init_callbacks(app):
 
                 result_set = ResultSet(
                     es_client=app.es_client,
+                    episode_store=episode_store,
                     index_name=INDEX_NAME,
                     search_term=search_term,
                     page_size=10,
@@ -201,7 +202,7 @@ def init_callbacks(app):
                 total_hits = result_set.total_hits
                 max_pages = -(-total_hits // 10)  # Ceiling division
 
-                results_page = ResultsPage(this_page_hits)
+                results_page = ResultsPage(this_page_hits, episode_store, hltag="bling")
                 result_cards = [c.to_html() for c in results_page.cards]
 
                 diarized_transcript = []
@@ -211,9 +212,14 @@ def init_callbacks(app):
                     episode_id = [
                         i for i in this_page_hits if i["_source"]["id"] == card_index
                     ][0]["_source"]["eid"]
-                    episode = [i for i in store.episodes() if i.eid == episode_id][0]
+                    episode = [
+                        i for i in episode_store.episodes() if i.eid == episode_id
+                    ][0]
 
-                    diarized_transcript = diarize_transcript(eid=episode_id)
+                    diarized_transcript = diarize_transcript(
+                        eid=episode_id,
+                        episode_store=episode_store,
+                    )
 
                 return result_cards, diarized_transcript, max_pages, page
 

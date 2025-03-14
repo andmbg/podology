@@ -1,0 +1,12 @@
+#+title: Analyses
+
+* Mögliche korpusling. Analysen
+
+** Topic Modeling (Latent Dirichlet Allocation)
+
+- Latent Dirichlet Allocation (LDA): This technique can uncover the underlying themes or topics discussed in each episode. You can track how topics evolve across multiple episodes.
+- Dynamic Topic Modeling: A time series-based approach to LDA that tracks the evolution of topics across episodes.
+
+** Clustering of similar episodes
+
+- Use techniques like k-means clustering or hierarchical clustering to group episodes with similar topics or semantic content.
