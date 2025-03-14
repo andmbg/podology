@@ -102,7 +102,7 @@ def init_dashboard(flask_app, route, es_client):
                                         "max-height": "calc(100vh - 300px)",
                                         "overflow-y": "auto",
                                         "padding": "1rem",
-                                        "box-shadow": "inset 0 4px 6px rgba(0, 0, 0, 0.1)",
+                                        "box-shadow": "inset 0 6px 12px rgba(0, 0, 0, 0.2)",
                                     },
                                 ),
                             ],
@@ -122,21 +122,29 @@ def init_dashboard(flask_app, route, es_client):
                                         )
                                     ],
                                 ),
-                                dbc.Row([
-                                    html.Div(
-                                        id="episode-list",
-                                        children=["Episodes"]
+                                dbc.Row(
+                                    children=[
+                                        html.Div(
+                                            id="episode-list",
+                                            children=["Episodes"]
+                                        )
+                                    ]
+                                ),
+                                dbc.Row(
+                                    dbc.Col(
+                                        dbc.Pagination(
+                                            id="pagination",
+                                            max_value=5,
+                                            first_last=True,
+                                        ),
+                                        width="auto"
                                     ),
-                                    dbc.Pagination(
-                                        id="pagination",
-                                        max_value=5,
-                                        first_last=True,
-                                    ),
-                                ]),
+                                    align="center",
+                                    justify="center"
+                                ),
                             ],
                             xs=10,
                             md=5,
-                            style={"border": "1px dashed #008800"},
                         ),
 
                         dbc.Col(
@@ -208,7 +216,7 @@ def init_callbacks(app):
 
         # Nothing has happened yet, fill target components with defaults:
         if not ctx.triggered:
-            return [], [], 1, 1
+            return [], [], 0, 0
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
