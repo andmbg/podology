@@ -23,6 +23,12 @@
     margin-bottom: 0;
 }
 
+/* Remove top border from dbc.Card element that contains all Tab contents */
+.no-top-border {
+    border-top: none !important;
+    border-radius: 0 0 10px 10px;
+    border-color: rgb(222, 226, 230);
+}
 
 /* .card-button :active {
     box-shadow: none;
@@ -57,3 +63,44 @@
     border-radius: 4px;
     padding: 8px;
 }
+
+/*
+Search term tags
+*/
+.term-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0 8px 32px;
+    margin: 4px 0;
+    border: 1px solid #ccc;
+    border-radius: 20px 4px 4px 20px;
+    background-color: #f9f9f9;
+    position: relative;
+    cursor: pointer;
+    white-space: nowrap;  /* Prevent text from wrapping */
+    overflow: hidden;     /* Hide overflow text */
+    text-overflow: ellipsis;  /* Add ellipsis to cropped text */
+    flex-shrink: 1;  /* Allow the item to shrink if necessary */
+    /*max-width: calc(100% - 20px);  !* Ensure it fits within the container *!*/
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.term-item::before {
+    content: "";
+    width: 20px;
+    height: 40px;
+    border-radius: 20px 0 0 20px;
+    position: absolute;
+    left: 0px;
+    top: 0;
+}
+
+.term-color-0::before { background-color: #4c72b0; }
+.term-color-1::before { background-color: #55a868; }
+.term-color-2::before { background-color: #c44e52; }
+.term-color-3::before { background-color: #8172b3; }
+.term-color-4::before { background-color: #ccb974; }
+.term-color-5::before { background-color: #64b5cd; }
+.term-color-6::before { background-color: #6c4c20; }
+.term-color-7::before { background-color: #e37c4d; }

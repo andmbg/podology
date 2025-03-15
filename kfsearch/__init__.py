@@ -8,6 +8,7 @@ import dash_bootstrap_components as dbc
 from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.search_classes import ResultSet, ResultsPage, diarize_transcript
 from kfsearch.search.setup_es import INDEX_NAME
+from kfsearch.frontend.utils import clickable_tag
 
 # # import from config relatively, so it remains portable:
 # dashapp_rootdir = Path(__file__).resolve().parents[1]
@@ -32,7 +33,8 @@ def init_dashboard(flask_app, route, es_client):
     # | Browse tab |
     #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     browse_tab = dbc.Card(
-        dbc.CardBody(
+        className="m-0 no-top-border",
+        children=dbc.CardBody(
             [
                 # Input (search field)
                 dbc.Row(
@@ -51,9 +53,10 @@ def init_dashboard(flask_app, route, es_client):
                         ),
                         dbc.Col(
                             [
-                                dbc.Button("Search", id="search-button", color="primary"),
+                                dbc.Button("Search", id="search-button", color="primary", className="me-1"),
+                                dbc.Button("Add", id="add-button", color="secondary"),
                             ],
-                            width=1,
+                            width=2,
                         ),
                     ],
                     className="mt-3",
@@ -65,13 +68,18 @@ def init_dashboard(flask_app, route, es_client):
                         # Transcript of selected episode
                         dbc.Col(
                             children=[
+                                # Header: Metadata of the currently selected episode
                                 html.Div(
-                                    id="this-episode-metadata",
                                     children = [
                                         dbc.Row([
                                             dbc.Col(
-                                                html.H5(html.B("Title"), id="episode-title", className="mb-0 text-truncate"),
+                                                [
+                                                    dcc.Store(id="playback-time-store", data=0),
+                                                    dbc.Button("⏸", id="play", color="secondary", size="sm", className="me-1"),
+                                                    html.H5(html.B("Title"), id="episode-title", className="mb-0 text-truncate"),
+                                                ],
                                                 width=12,
+                                                className="d-flex align-items-center",
                                             ),
                                         ]),
                                         dbc.Row(
@@ -149,22 +157,28 @@ def init_dashboard(flask_app, route, es_client):
 
                         dbc.Col(
                             [
+                                dcc.Store(id="terms-store", data=[]),
                                 html.Div(
-                                    html.P("Hello")
+                                    html.Ul(id="terms-list", style={"padding": "0px"})
                                 )
                             ],
                             xs=10,
                             md=2,
                             id="keyword-tags",
-                            style={"border": "1px dashed #000088"},
+                            className="p-0",
                         )
                     ],
                     className="mt-5",
                 ),
             ]
         ),
-        className="mt-3",
     )
+
+    #
+    #  ___________
+    # | Terms tab |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+    terms_tab = []
 
     app.layout = html.Div(
         dbc.Container(
@@ -172,24 +186,20 @@ def init_dashboard(flask_app, route, es_client):
                 dbc.Tabs(
                     [
                         dbc.Tab(browse_tab, label="Browse"),
+                        dbc.Tab(terms_tab, label="My Terms"),
                         dbc.Tab(
                             "This tab is under construction",
-                            label="My Terms",
+                            label="Global stats",
                             disabled=True,
                         ),
                         dbc.Tab(
                             "This tab is under construction",
-                            label="The Cast",
-                            disabled=True,
-                        ),
-                        dbc.Tab(
-                            "This tab is under construction",
-                            label="Associations",
+                            label="Savegames",
                             disabled=True,
                         ),
                     ],
                     className="mt-3"
-                )
+                ),
             ]
         )
     )
@@ -269,3 +279,32 @@ def init_callbacks(app):
                 return result_cards, diarized_transcript, max_pages, page
 
         return [], [], 0, 1
+
+    # Update search terms in the comparison list:
+    @app.callback(
+        Output("terms-store", "data"),
+        Output("terms-list", "children"),
+        Input("add-button", "n_clicks"),
+        Input({"type": "remove-term", "index": ALL}, "n_clicks"),
+        State("input", "value"),
+        State("terms-store", "data"),
+    )
+    def update_terms_store(add_clicks, remove_clicks, search_term, search_terms):
+        if not ctx.triggered:
+            return search_terms, [
+                clickable_tag(i, term) for i, term in enumerate(search_terms)
+            ]
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if "add-button" in trigger_id and search_term:
+            if search_term not in search_terms:
+                search_terms.append(search_term)
+        elif "remove-term" in trigger_id:
+            index = int(json.loads(trigger_id)["index"])
+            if 0 <= index < len(search_terms):
+                search_terms.pop(index)
+
+        return search_terms, [
+            clickable_tag(i, term) for i, term in enumerate(search_terms)
+        ]
