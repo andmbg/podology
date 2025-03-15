@@ -70,19 +70,20 @@ Search term tags
 .term-item {
     display: flex;
     align-items: center;
-    padding: 8px 0 8px 32px;
-    margin: 4px 0;
-    border: 1px solid #ccc;
-    border-radius: 20px 4px 4px 20px;
-    background-color: #f9f9f9;
+    padding: 6px 10px 6px 28px;
+    margin: 4px 2px;
+    border: 0;
+    border-radius: 20px;
+    background-color: #f3f3f3;
+    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
     position: relative;
     cursor: pointer;
     white-space: nowrap;  /* Prevent text from wrapping */
     overflow: hidden;     /* Hide overflow text */
     text-overflow: ellipsis;  /* Add ellipsis to cropped text */
-    flex-shrink: 1;  /* Allow the item to shrink if necessary */
-    /*max-width: calc(100% - 20px);  !* Ensure it fits within the container *!*/
-    width: 100%;
+    flex-shrink: 0;  /* Allow the item to shrink if necessary */
+    max-width: 100%;  /* Ensure it fits within the container */
+    /*width: 100%;*/
     box-sizing: border-box;
 }
 
@@ -90,7 +91,7 @@ Search term tags
     content: "";
     width: 20px;
     height: 40px;
-    border-radius: 20px 0 0 20px;
+    border-radius: 16px 0 0 16px;
     position: absolute;
     left: 0px;
     top: 0;
@@ -104,3 +105,18 @@ Search term tags
 .term-color-5::before { background-color: #64b5cd; }
 .term-color-6::before { background-color: #6c4c20; }
 .term-color-7::before { background-color: #e37c4d; }
+
+/*
+Term tag alignment within their container
+*/
+.d-flex {
+    display: flex;
+}
+
+.flex-row {
+    flex-direction: row;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}

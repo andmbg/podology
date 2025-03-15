@@ -37,6 +37,7 @@ def init_dashboard(flask_app, route, es_client):
         children=dbc.CardBody(
             [
                 # Input (search field)
+                # --------------------
                 dbc.Row(
                     [
                         dbc.Col(width=4),
@@ -59,6 +60,25 @@ def init_dashboard(flask_app, route, es_client):
                             width=2,
                         ),
                     ],
+                    className="mt-3",
+                ),
+
+                # Term Tags
+                # ---------
+                dbc.Row(
+                    dbc.Col(
+                        [
+                            dcc.Store(id="terms-store", data=[]),
+                            html.Div(
+                                id="terms-list",
+                                className="d-flex flex-row flex-wrap justify-content-center align-items-center",
+                            )
+                        ],
+                        xs=12,
+                        md=12,
+                        id="keyword-tags",
+                        className="p-0 d-flex justify-content-center align-items-center",
+                    ),
                     className="mt-3",
                 ),
                 # Output
@@ -114,8 +134,8 @@ def init_dashboard(flask_app, route, es_client):
                                     },
                                 ),
                             ],
-                            xs=10,
-                            md=5,
+                            xs=12,
+                            md=6,
                         ),
 
                         # List of episodes found in search
@@ -151,22 +171,9 @@ def init_dashboard(flask_app, route, es_client):
                                     justify="center"
                                 ),
                             ],
-                            xs=10,
-                            md=5,
+                            xs=12,
+                            md=6,
                         ),
-
-                        dbc.Col(
-                            [
-                                dcc.Store(id="terms-store", data=[]),
-                                html.Div(
-                                    html.Ul(id="terms-list", style={"padding": "0px"})
-                                )
-                            ],
-                            xs=10,
-                            md=2,
-                            id="keyword-tags",
-                            className="p-0",
-                        )
                     ],
                     className="mt-5",
                 ),
@@ -189,13 +196,11 @@ def init_dashboard(flask_app, route, es_client):
                         dbc.Tab(terms_tab, label="My Terms"),
                         dbc.Tab(
                             "This tab is under construction",
-                            label="Global stats",
-                            disabled=True,
+                            label="Savegames",
                         ),
                         dbc.Tab(
                             "This tab is under construction",
-                            label="Savegames",
-                            disabled=True,
+                            label="Global stats",
                         ),
                     ],
                     className="mt-3"
