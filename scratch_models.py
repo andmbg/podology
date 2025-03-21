@@ -1,6 +1,6 @@
 from kfsearch.data.models import Episode, EpisodeStore
 from kfsearch.data.rss import PodcastRSSExtractor
-from config import STORAGE_NAME
+from config import PROJECT_NAME
 
 store = EpisodeStore(name="Knowledge Fight")
 

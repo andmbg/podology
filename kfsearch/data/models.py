@@ -245,6 +245,7 @@ class EpisodeStore:
                     continue
                 if not audio and ep.audio_filename is not None:
                     continue
+
             out.append(ep)
 
         return out

@@ -10,13 +10,13 @@ from pathlib import Path
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv, find_dotenv
-from config import STORAGE_NAME
+from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore
 
 # get credentials (user pw, cert):
 load_dotenv(find_dotenv())
 
-TRANSCRIPTS_DIR = Path("data") / STORAGE_NAME
+TRANSCRIPTS_DIR = Path("data") / PROJECT_NAME
 INDEX_NAME = "kf_index"
 
 # the shape of our index:
@@ -54,7 +54,7 @@ else:
     logger.info(f"Initialized index {INDEX_NAME}")
 
     # Load EpisodeStore
-    episode_store = EpisodeStore(name=STORAGE_NAME)
+    episode_store = EpisodeStore(name=PROJECT_NAME)
 
     # Index data from all episodes
     n = 0

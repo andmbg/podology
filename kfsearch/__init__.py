@@ -207,7 +207,6 @@ def init_dashboard(flask_app, route, es_client):
                         ),
                         dbc.Col(
                             [
-                                dbc.Button("Search", id="search-button-termstab", color="primary", className="me-1"),
                                 dbc.Button("Add", id="add-button-termstab", color="secondary"),
                             ],
                             width=2,
@@ -234,12 +233,12 @@ def init_dashboard(flask_app, route, es_client):
                     className="mt-3",
                 ),
 
-                # # Frequency Table view (DEBUG)
-                # # ----------------------------
-                # html.Div(
-                #     id="ft-view",
-                #     className="mt-3",
-                # )
+                # Frequency Table view (DEBUG)
+                # ----------------------------
+                html.Div(
+                    id="ft-view",
+                    className="mt-3",
+                )
             ]
         )
     )
@@ -248,7 +247,7 @@ def init_dashboard(flask_app, route, es_client):
     app.layout = html.Div(
         dbc.Container(
             [
-                dcc.Store(id="frequency-list", data={"": 0}),
+                dcc.Store(id="frequency-dict", data={"": 0}),
                 dbc.Tabs(
                     [
                         dbc.Tab(browse_tab, label="Browse"),
@@ -418,56 +417,48 @@ def init_callbacks(app):
 
         return search_terms, tag_elements, tag_elements
 
-    # # Update frequency dict:
-    # @app.callback(
-    #     Output("frequency-list", "data"),
-    #     Input("terms-store", "data"),
-    #     State("frequency-list", "data"),
-    # )
-    # def update_frequency_list(terms_in_store, freq_list):
-    #     """
-    #     Callback that updates the frequency list when the selection of terms changes.
-    #     """
-    #     # Remove term from frequency list if it is not in the store anymore:
-    #     if len(terms_in_store) < len(freq_list):
-    #         removed_term = list(set(freq_list.keys()) - set(terms_in_store))[0]
-    #         freq_list.pop(removed_term)
-    #
-    #         return freq_list
-    #
-    #     # Add new term to frequency list if it is not in the list yet:
-    #     if len(terms_in_store) > len(freq_list):
-    #         new_term = list(set(terms_in_store) - set(freq_list.keys()))[0]
-    #         freq_list[new_term] = 0
-    #
-    #         return freq_list
+    # Update frequency dict:
+    @app.callback(
+        Output("frequency-dict", "data"),
+        Input("terms-store", "data"),
+        State("frequency-dict", "data"),
+    )
+    def update_frequency_dict(terms_in_store, freq_dict):
+        """
+        Callback that updates the frequency dict when the selection of terms changes.
+        """
+        # Initialize frequency dict if it is empty:
+        if freq_dict is None:
+            freq_dict = {}
 
-    # # DEBUG show content of freq list:
-    # @app.callback(
-    #     Output("ft-view", "children"),
-    #     Input("frequency-list", "data"),
-    # )
-    # def update_frequency_table_view(frequency_list):
-    #     """
-    #     Callback that updates the frequency table view.
-    #     """
-    #     return html.Table(
-    #         [
-    #             html.Thead(
-    #                 html.Tr(
-    #                     [html.Th("Term"), html.Th("Frequency")]
-    #                 )
-    #             ),
-    #             html.Tbody(
-    #                 [
-    #                     html.Tr(
-    #                         [
-    #                             html.Td(term),
-    #                             html.Td(freq)
-    #                         ]
-    #                     )
-    #                     for term, freq in frequency_list.items()
-    #                 ]
-    #             )
-    #         ]
-    #     )
+        # Remove term from frequency dict if it is not in the store anymore:
+        for term in list(freq_dict.keys()):
+            if term not in terms_in_store:
+                freq_dict.pop(term)
+
+        # Add new term to frequency dict if it is not in the list yet:
+        for term in terms_in_store:
+            if term not in freq_dict:
+                result_set = ResultSet(
+                    es_client=app.es_client,
+                    episode_store=episode_store,
+                    index_name=INDEX_NAME,
+                    search_term=term,
+                    page_size=10,
+                )
+                new_freq_entry = {term: {k: len(v) for k, v in result_set.episodes.items()}}
+                freq_dict.update(new_freq_entry)
+
+        return freq_dict
+
+    # DEBUG show content of freq list:
+    @app.callback(
+        Output("ft-view", "children"),
+        Input("frequency-dict", "data"),
+        prevent_initial_call=True,
+    )
+    def update_frequency_table_view(frequency_dict):
+        """
+        Callback that updates the frequency table view.
+        """
+        pass
