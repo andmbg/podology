@@ -185,7 +185,58 @@ def init_dashboard(flask_app, route, es_client):
     #  ___________
     # | Terms tab |
     #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-    terms_tab = []
+    terms_tab = dbc.Card(
+        className="m-0 no-top-border",
+        children=dbc.CardBody(
+            [
+                # Input (search field)
+                # --------------------
+                dbc.Row(
+                    [
+                        dbc.Col(width=4),
+                        dbc.Col(
+                            [
+                                dbc.Input(
+                                    id="input-termstab",
+                                    type="text",
+                                    placeholder="Enter search term",
+                                    debounce=True,
+                                ),
+                            ],
+                            width=4,
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Button("Search", id="search-button-termstab", color="primary", className="me-1"),
+                                dbc.Button("Add", id="add-button-termstab", color="secondary"),
+                            ],
+                            width=2,
+                        ),
+                    ],
+                    className="mt-3",
+                ),
+
+                # Term Tags
+                # ---------
+                dbc.Row(
+                    dbc.Col(
+                        [
+                            html.Div(
+                                id="terms-list-termstab",
+                                className="d-flex flex-row flex-wrap justify-content-center align-items-center",
+                            )
+                        ],
+                        xs=12,
+                        md=12,
+                        id="keyword-tags-termstab",
+                        className="p-0 d-flex justify-content-center align-items-center",
+                    ),
+                    className="mt-3",
+                ),
+            ]
+        )
+    )
+
 
     app.layout = html.Div(
         dbc.Container(
@@ -307,6 +358,7 @@ def init_callbacks(app):
     @app.callback(
         Output("terms-store", "data"),
         Output("terms-list", "children"),
+        Output("terms-list-termstab", "children"),
         Input("add-button", "n_clicks"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
@@ -328,6 +380,6 @@ def init_callbacks(app):
             if 0 <= index < len(search_terms):
                 search_terms.pop(index)
 
-        return search_terms, [
-            clickable_tag(i, term) for i, term in enumerate(search_terms)
-        ]
+        tag_elements = [clickable_tag(i, term) for i, term in enumerate(search_terms)]
+
+        return search_terms, tag_elements, tag_elements
