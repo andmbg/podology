@@ -218,28 +218,31 @@ def init_callbacks(app):
 
     @app.callback(
         Output("episode-list", "children"),
-        Output("transcript", "children"),
         Output("pagination", "max_value"),
         Output("pagination", "active_page"),
         Input("input", "n_submit"),
         Input("search-button", "n_clicks"),
-        Input({"type": "result-card", "index": ALL}, "n_clicks"),
         Input("pagination", "active_page"),
         State("input", "value"),
     )
-    def perform_search(n_submit, src_nclicks, card_nclicks, active_page, search_term):
+    def update_episode_list(n_submit, search_nclicks, active_page, search_term):
+        """
+        Callback that reacts to search term changes and pagination.
+        In:
+            - entering new search term (enter or search button)
+            - clicking pagination buttons
+        Out:
+            - list of episodes with hits in them
+        """
 
         # Nothing has happened yet, fill target components with defaults:
         if not ctx.triggered:
-            return [], [], 0, 0
+            return [], 0, 0
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         # Trigger was a new search term - reset page to 1:
-        if trigger_id in ["input", "search-button"]:
-            page = 1
-        else:
-            page = active_page or 1
+        page = 1 if trigger_id in ["input", "search-button"] else active_page or 1
 
         if search_term:
 
@@ -256,34 +259,49 @@ def init_callbacks(app):
                 )
 
                 # Get the current result page:
-                this_page = result_set.get_page(page - 1)
-                if this_page is None:
-                    return [], [], 1, 1
+                current_results_page: ResultsPage = result_set.get_page(page - 1)
+                if current_results_page is None:
+                    return [], 1, 1
 
-                this_page_hits = this_page.episodes
+                this_page_hits: dict = current_results_page.episodes
                 total_hits = result_set.total_hits
                 max_pages = -(-len(result_set.episodes) // 10)  # Ceiling division
 
                 results_page = ResultsPage(this_page_hits, episode_store)
                 result_cards = [c.to_html() for c in results_page.cards]
 
-                diarized_transcript = []
+                return result_cards, max_pages, page
 
-                if "result-card" in trigger_id:
-                    episode_id = json.loads(trigger_id)["index"]
-                    episode = [
-                        i for i in episode_store.episodes() if i.eid == episode_id
-                    ][0]
+        return [], 0, 1
 
-                    diarized_transcript = diarize_transcript(
-                        eid=episode_id,
-                        episode_store=episode_store,
-                        search_term=search_term,
-                    )
+    @app.callback(
+        Output("transcript", "children"),
+        Input({"type": "result-card", "index": ALL}, "n_clicks"),
+        State({"type": "result-card", "index": ALL}, "id"),
+        State("input", "value"),
+        State("transcript", "children")
+    )
+    def update_transcript(resultcard_nclicks, card_ids, search_term, current_transcript):
+        """
+        Callback that reacts to clicks on result cards, given pagination.
+        """
+        if not ctx.triggered:
+            return current_transcript
 
-                return result_cards, diarized_transcript, max_pages, page
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-        return [], [], 0, 1
+        if "result-card" in trigger_id and resultcard_nclicks and any(i is not None for i in resultcard_nclicks):
+            episode_id = json.loads(trigger_id)["index"]
+
+            diarized_transcript = diarize_transcript(
+                eid=episode_id,
+                episode_store=episode_store,
+                search_term=search_term,
+            )
+
+            return diarized_transcript
+
+        return current_transcript
 
     # Update search terms in the comparison list:
     @app.callback(

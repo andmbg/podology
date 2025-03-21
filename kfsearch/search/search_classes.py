@@ -1,6 +1,7 @@
 import re
 from collections import defaultdict
 from datetime import datetime
+from typing import List
 
 import dash_bootstrap_components as dbc
 from dash import html
@@ -20,7 +21,7 @@ class ResultSet:
         self.page_size = page_size
         self.hits, self.total_hits = self._perform_search()
         self.episodes = self._group_by_episode()
-        self.pages = self._create_pages()
+        self.pages: List[ResultsPage] = self._create_pages()
 
     def _perform_search(self):
         results = self.es_client.search(
