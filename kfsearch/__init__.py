@@ -233,6 +233,13 @@ def init_dashboard(flask_app, route, es_client):
                     ),
                     className="mt-3",
                 ),
+
+                # # Frequency Table view (DEBUG)
+                # # ----------------------------
+                # html.Div(
+                #     id="ft-view",
+                #     className="mt-3",
+                # )
             ]
         )
     )
@@ -241,6 +248,7 @@ def init_dashboard(flask_app, route, es_client):
     app.layout = html.Div(
         dbc.Container(
             [
+                dcc.Store(id="frequency-list", data={"": 0}),
                 dbc.Tabs(
                     [
                         dbc.Tab(browse_tab, label="Browse"),
@@ -360,21 +368,47 @@ def init_callbacks(app):
         Output("terms-list", "children"),
         Output("terms-list-termstab", "children"),
         Input("add-button", "n_clicks"),
+        Input("add-button-termstab", "n_clicks"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
+        State("input-termstab", "value"),
         State("terms-store", "data"),
     )
-    def update_terms_store(add_clicks, remove_clicks, search_term, search_terms):
+    def update_terms_store(
+            add_clicks,
+            add_termstab_clicks,
+            remove_clicks,
+            input_value,
+            input_termstab,
+            search_terms
+    ):
+        """
+        Callback that reacts to clicks on the Add button or the tags (=remove).
+
+        In:
+            - clicking the Add button or a tag
+            - the current input value
+            - the current list of search terms
+        Out:
+            - updated list of search terms
+        """
         if not ctx.triggered:
-            return search_terms, [
-                clickable_tag(i, term) for i, term in enumerate(search_terms)
-            ]
+            tag_elements = [clickable_tag(i, term) for i, term in enumerate(search_terms)]
+            return search_terms, tag_elements, tag_elements
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-        if "add-button" in trigger_id and search_term:
-            if search_term not in search_terms:
-                search_terms.append(search_term)
+        # Add button on first tab was clicked:
+        if trigger_id == "add-button" and input_value:
+            if input_value not in search_terms:
+                search_terms.append(input_value)
+
+        # Add button on terms tab was clicked:
+        elif trigger_id == "add-button-termstab" and input_termstab:
+            if input_termstab not in search_terms:
+                search_terms.append(input_termstab)
+
+        # elif "add-button-termstab" in trigger_id and search_term:
         elif "remove-term" in trigger_id:
             index = int(json.loads(trigger_id)["index"])
             if 0 <= index < len(search_terms):
@@ -383,3 +417,57 @@ def init_callbacks(app):
         tag_elements = [clickable_tag(i, term) for i, term in enumerate(search_terms)]
 
         return search_terms, tag_elements, tag_elements
+
+    # # Update frequency dict:
+    # @app.callback(
+    #     Output("frequency-list", "data"),
+    #     Input("terms-store", "data"),
+    #     State("frequency-list", "data"),
+    # )
+    # def update_frequency_list(terms_in_store, freq_list):
+    #     """
+    #     Callback that updates the frequency list when the selection of terms changes.
+    #     """
+    #     # Remove term from frequency list if it is not in the store anymore:
+    #     if len(terms_in_store) < len(freq_list):
+    #         removed_term = list(set(freq_list.keys()) - set(terms_in_store))[0]
+    #         freq_list.pop(removed_term)
+    #
+    #         return freq_list
+    #
+    #     # Add new term to frequency list if it is not in the list yet:
+    #     if len(terms_in_store) > len(freq_list):
+    #         new_term = list(set(terms_in_store) - set(freq_list.keys()))[0]
+    #         freq_list[new_term] = 0
+    #
+    #         return freq_list
+
+    # # DEBUG show content of freq list:
+    # @app.callback(
+    #     Output("ft-view", "children"),
+    #     Input("frequency-list", "data"),
+    # )
+    # def update_frequency_table_view(frequency_list):
+    #     """
+    #     Callback that updates the frequency table view.
+    #     """
+    #     return html.Table(
+    #         [
+    #             html.Thead(
+    #                 html.Tr(
+    #                     [html.Th("Term"), html.Th("Frequency")]
+    #                 )
+    #             ),
+    #             html.Tbody(
+    #                 [
+    #                     html.Tr(
+    #                         [
+    #                             html.Td(term),
+    #                             html.Td(freq)
+    #                         ]
+    #                     )
+    #                     for term, freq in frequency_list.items()
+    #                 ]
+    #             )
+    #         ]
+    #     )

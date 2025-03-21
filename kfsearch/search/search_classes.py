@@ -152,35 +152,6 @@ def highlight_to_html_elements(text):
     return html.Div(result)
 
 
-# def diarize_transcript(eid, episode_store, search_term) -> list:
-#     """
-#     Given an episode ID, load the episode transcript and return a list of turns where
-#     each turn contains a contiguous list of segments from one speaker.
-#     """
-#
-#     # Pick episode based on eid, then its segment-wise transcript:
-#     episode = [i for i in episode_store.episodes() if i.eid == eid][0]
-#     segments = episode.get_transcript()["segments"]
-#
-#     turns = []
-#
-#     while segments:
-#         # Start new turn:
-#         turn_segments = []
-#         this_speaker = segments[0]["speaker"]
-#
-#         while segments and segments[0]["speaker"] == this_speaker:
-#             # Add segments to this turn while speaker doesn't change:
-#             turn_segments.append(segments.pop(0)["text"])
-#
-#         # Make turn into a paragraph and add to result:
-#         turn = html.P(
-#             [html.B(this_speaker), ": ", " ".join(turn_segments)],
-#             className="this_speake",
-#         )
-#         turns.append(turn)
-#
-#     return turns
 def diarize_transcript(eid, episode_store, search_term) -> list:
     """
     Create a diarized transcript with highlighted search terms.
