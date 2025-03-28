@@ -1,6 +1,12 @@
 from pathlib import Path
 
 
+"""
+Here are some configurations of the machine itself, not of any instantiation in the form
+of one podcast or another. This is just to tease out some configurations that would
+otherwise be buried in the code.
+"""
+
 # Where the store folder is located; typically just one of them:
 EPISODE_STORE_PATH = Path("data")
 EPSTORE_RAW_PATH = Path("data") / "raw"

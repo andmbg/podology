@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 from dataclasses import dataclass, field
 from loguru import logger
 
-from kfsearch.data.models import Episode, EpisodeStore
+from kfsearch.data.models import Episode, EpisodeStore, UniqueEpisodeError
 from kfsearch.data.connectors.base import Connector
 
 
@@ -16,6 +16,7 @@ class RSSConnector(Connector):
     the populate_store method to extract episode metadata from the RSS feed and save it
     in the EpisodeStore JSON file.
     """
+    # The rss_file path is set by the EpisodeStore that the connector attaches to.
     rss_file: Path = None
 
     def __post_init__(self):
@@ -59,15 +60,30 @@ class RSSConnector(Connector):
     def populate_store(self):
         self._download_rss()
         episodes_data: list = self._extract_episodes()
+
+        # count cases of redundancy to report once instead of 1x per episode:
+        redundancies = 0
+        additions = 0
+
         for ep_data in episodes_data:
-            Episode(
-                store=self.store,
-                audio_url=(
-                    ep_data.get("enclosure_url")
-                    or ep_data.get("audio_url")
-                ),
-                title=ep_data["title"],
-                pub_date=ep_data["pub_date"],
-                description=ep_data["description"],
-                duration=ep_data["duration"],
-            )
+            try:
+                Episode(
+                    store=self.store,
+                    audio_url=(
+                        ep_data.get("enclosure_url")
+                        or ep_data.get("audio_url")
+                    ),
+                    title=ep_data["title"],
+                    pub_date=ep_data["pub_date"],
+                    description=ep_data["description"],
+                    duration=ep_data["duration"],
+                )
+                additions += 1
+            except UniqueEpisodeError:
+                # episode already exists in store, so we skip it
+                redundancies += 1
+                continue
+
+        logger.info(
+            f"{redundancies} episodes already present in the Store, {additions} added."
+        )

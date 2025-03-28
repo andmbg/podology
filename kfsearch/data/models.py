@@ -130,6 +130,10 @@ class Episode:
         segment = transcript["segments"][s_id]
 
 
+class UniqueEpisodeError(Exception):
+    pass
+
+
 @dataclass
 class EpisodeStore:
     """
@@ -140,6 +144,8 @@ class EpisodeStore:
     connector: Connector = None
     transcriber: Transcriber = None
     _episodes: list[Episode] = field(default_factory=list)
+
+    # The _urls attribute is used to check for uniqueness.
     _urls: list[str] = field(default_factory=list)
 
     def __post_init__(self):
@@ -161,11 +167,13 @@ class EpisodeStore:
             with open(json_file, "r") as file:
                 data = json.load(file)
                 for ep_data in data:
-                    episode = Episode(
+                    Episode(
                         store=self,
                         audio_url=ep_data["audio_url"],
                         title=ep_data["title"],
                         pub_date=ep_data.get("pub_date"),
+                        duration=ep_data.get("duration"),
+                        description=ep_data.get("description"),
                     )
 
     def set_connector(self, connector: Connector):
@@ -180,6 +188,7 @@ class EpisodeStore:
     def populate(self):
         if self.connector:
             self.connector.populate_store()
+
 
     def to_json(self):
         """
@@ -247,7 +256,7 @@ class EpisodeStore:
             episode._store = self
 
         else:
-            logger.info(
+            raise UniqueEpisodeError(
                 f"Episode with URL '{episode.audio_url}' already exists in store."
             )
 
