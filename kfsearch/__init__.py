@@ -1,6 +1,3 @@
-import sys
-from pathlib import Path
-
 import json
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
@@ -27,6 +24,21 @@ def init_dashboard(flask_app, route, es_client):
     )
 
     app.es_client = es_client
+
+    #
+    #  ___________
+    # | Setup tab |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+    setup_tab = dbc.Card(
+        className="m-0 no-top-border",
+        children=dbc.CardBody(
+            [
+                dbc.Row(
+
+                )
+            ]
+        )
+    )
 
     #
     #  ____________

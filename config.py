@@ -1,1 +1,1 @@
-STORAGE_NAME = "Knowledge Fight"
+PROJECT_NAME = "Knowledge Fight"

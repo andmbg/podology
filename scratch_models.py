@@ -1,16 +1,15 @@
 from kfsearch.data.models import Episode, EpisodeStore
-from kfsearch.data.rss import PodcastRSSExtractor
-from config import PROJECT_NAME
+from kfsearch.data.connectors.rss import RSSConnector
 
 store = EpisodeStore(name="Knowledge Fight")
 
-rss_extractor = PodcastRSSExtractor(
+rss_extractor = RSSConnector(
     rss_link="https://knowledgefight.libsyn.com/rss",
     store=store,
 )
-rss_extractor.download_rss(force=True)
+rss_extractor._download_rss()
 
-for ep in rss_extractor.extract_episodes():
+for ep in rss_extractor._extract_episodes():
     episode = Episode(
         store=store,
         audio_url=ep["audio_url"],

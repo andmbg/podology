@@ -125,9 +125,7 @@ class EpisodeStore:
     Manage episodes and their transcripts by setting storage paths and providing
     methods to add, remove, and get episodes.
     """
-
-    name: str = "episode_store"
-    path: Path = None
+    name: str
     _episodes: list[Episode] = field(default_factory=list)
     _urls: list[str] = field(default_factory=list)
 

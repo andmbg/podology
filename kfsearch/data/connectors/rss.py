@@ -8,20 +8,17 @@ from kfsearch.data.models import Episode, EpisodeStore
 
 
 @dataclass
-class PodcastRSSExtractor:
-    rss_link: str
+class RSSConnector:
+    """
+    Attaches to an EpisodeStore, takes an RSS URL and populates the Store with Episode metadata.
+    """
     store: EpisodeStore
-    rss_file: Path = None
+    rss_link: str
 
     def __post_init__(self):
         self.rss_file = self.store.path / "rss.xml"
 
-    def download_rss(self, force: bool = False):
-
-        # Check first if RSS file already exists, only update if force is True:
-        if self.rss_file.exists() and not force:
-            logger.info("RSS file already exists, use force=True to download anyway.")
-            return
+    def _download_rss(self):
 
         response = requests.get(self.rss_link)
         response.raise_for_status()  # Raise an error for bad status codes
@@ -29,12 +26,10 @@ class PodcastRSSExtractor:
         with open(self.rss_file, "wb") as file:
             file.write(response.content)
 
-        self.populate_store()
-
-    def extract_episodes(self) -> list[dict]:
-        if not self.rss_file:
-            raise ValueError("RSS file not downloaded. Call download_rss() first.")
-
+    def _extract_episodes(self) -> list[dict]:
+        """
+        Extract episode metadata from the RSS feed and put it into the EpisodeStore.
+        """
         tree = ElementTree.parse(self.rss_file)
         root = tree.getroot()
 
@@ -55,11 +50,15 @@ class PodcastRSSExtractor:
         return ep_metas
 
     def populate_store(self):
-        episodes_data = self.extract_episodes()
+        self._download_rss()
+        episodes_data: list = self._extract_episodes()
         for ep_data in episodes_data:
             episode = Episode(
                 store=self.store,
-                audio_url=ep_data["enclosure_url"],
+                audio_url=(
+                    ep_data.get("enclosure_url")
+                    or ep_data.get("audio_url")
+                ),
                 title=ep_data["title"],
                 pub_date=ep_data["pub_date"],
                 description=ep_data["description"],
