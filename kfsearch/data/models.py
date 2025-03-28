@@ -61,7 +61,7 @@ class Episode:
     def transcribe(self):
         """
         Check if a transcript exists and abort if so. Send the online mp3 behind
-        self.url to an STT API for transcription. Download the transcript and save it
+        self.audio_url to an STT API for transcription. Download the transcript and save it
         to the transcript directory of the containing EpisodeStore. Set
         self.script_present to True and script_filename to the transcript filename.
         """
@@ -159,8 +159,6 @@ class EpisodeStore:
         """
         Store the metadata of the episodes in a JSON file, basically to reconstruct the
         store from a previous state and spare building it from the RSS every time.
-
-        TODO: an update function that takes a newer RSS and only adds new episodes.
         """
         json_file = self.path / f"{self.name}.json"
         data = [

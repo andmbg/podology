@@ -12,12 +12,13 @@ from elasticsearch import Elasticsearch
 from dotenv import load_dotenv, find_dotenv
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore
+from kfsearch.search.utils import make_index_name
 
 # get credentials (user pw, cert):
 load_dotenv(find_dotenv())
 
 TRANSCRIPTS_DIR = Path("data") / PROJECT_NAME
-INDEX_NAME = "kf_index"
+INDEX_NAME = make_index_name(PROJECT_NAME)
 
 # the shape of our index:
 index_settings = {
@@ -57,7 +58,6 @@ else:
     episode_store = EpisodeStore(name=PROJECT_NAME)
 
     # Index data from all episodes
-    n = 0
     for episode in episode_store.episodes(script=True):
         logger.debug(f"Indexing episode {episode.eid}")
         transcript_path = Path(episode.transcript_path)

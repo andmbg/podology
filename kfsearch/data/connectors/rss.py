@@ -64,4 +64,3 @@ class RSSConnector:
                 description=ep_data["description"],
                 duration=ep_data["duration"],
             )
-            self.store.add(episode)

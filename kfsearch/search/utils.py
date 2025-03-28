@@ -35,3 +35,30 @@ def format_time(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     seconds = int(seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def make_index_name(project_name):
+    """
+    Fixes an Elasticsearch index name based on the following rules:
+    - Must be lowercase
+    - Cannot include spaces
+    - Cannot start with an underscore (_)
+    - Cannot contain commas (,), asterisks (*), or backslashes (\)
+    - Cannot be longer than 255 bytes
+    """
+    # Convert to lowercase
+    project_name = project_name.lower()
+
+    # Replace spaces with underscores
+    project_name = project_name.replace(' ', '_')
+
+    # Remove leading underscores
+    project_name = re.sub(r'^_+', '', project_name)
+
+    # Remove invalid characters
+    project_name = re.sub(r'[,*\\]', '', project_name)
+
+    # Truncate to 255 bytes
+    project_name = project_name.encode('utf-8')[:255].decode('utf-8', 'ignore')
+
+    return project_name
