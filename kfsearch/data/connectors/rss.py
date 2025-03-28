@@ -1,7 +1,7 @@
 from pathlib import Path
 import requests
 from xml.etree import ElementTree
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from loguru import logger
 
 from kfsearch.data.models import Episode, EpisodeStore
@@ -11,8 +11,12 @@ from kfsearch.data.connectors.base import Connector
 @dataclass
 class RSSConnector(Connector):
     """
-    Attaches to an EpisodeStore, takes an RSS URL and populates the Store with Episode metadata.
+    Attaches to an EpisodeStore. Given a URL as its 'resource' attribute, downloads the
+    RSS feed from the URL and saves it to a file in the store's data directory. Provides
+    the populate_store method to extract episode metadata from the RSS feed and save it
+    in the EpisodeStore JSON file.
     """
+    rss_file: Path = None
 
     def __post_init__(self):
         pass
@@ -43,7 +47,7 @@ class RSSConnector(Connector):
                 "pub_date": item.find("pubDate").text,
                 "guid": item.find("guid").text,
                 "description": item.find("description").text,
-                "audio_url": item.find("enclosure").attrib["audiofile_location"],
+                "audio_url": item.find("enclosure").attrib["url"],
                 "duration": item.find(
                     "{http://www.itunes.com/dtds/podcast-1.0.dtd}duration"
                 ).text,

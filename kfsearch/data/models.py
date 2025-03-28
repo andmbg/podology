@@ -73,18 +73,24 @@ class Episode:
         if self.transcript_path:
             logger.debug(f"Transcript for episode '{self.eid}' already exists.")
             return
-        else:
-            transcriber = LemonfoxTranscriber()
-            filename = self.audio_url.split("/")[-1].split(".")[0][:50]
-            script_filename = (
-                self.store.transcripts_dir() / f"{self.eid}_{filename}.json"
-            )
-            transcript: str = transcriber.transcribe(self.audio_url)
 
-            with open(script_filename, "w") as file:
-                json.dump(transcript, file, indent=4, ensure_ascii=False)
+        if not self.store.transcriber:
+            logger.error(f"No Transcriber attached to this EpisodeStore.")
+            return
 
-            self.transcript_path = script_filename
+        # Local filename need not be too long if it is in the URL:
+        audio_name = self.audio_url.split("/")[-1].split(".")[0][:50]
+
+        script_filename = (
+            self.store.transcripts_dir() / f"{self.eid}_{audio_name}.json"
+        )
+        # Get JSON string of the transcript from the transcriber:
+        transcript: str = self.store.transcriber.transcribe(self.audio_url)
+
+        with open(script_filename, "w") as file:
+            json.dump(transcript, file, indent=4, ensure_ascii=False)
+
+        self.transcript_path = script_filename
 
     def get_transcript(self):
         """

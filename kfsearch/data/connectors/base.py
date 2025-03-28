@@ -22,4 +22,15 @@ class Connector(ABC):
 
     @abstractmethod
     def populate_store(self):
+        """
+        The main utility of the Connector class and method that each subclass must
+        implement. This method is responsible for populating the EpisodeStore with the
+        metadata extracted from the resource. For each entity in the source metadata, it
+        instantiates an Episode object in the attached EpisodeStore with attributes
+          - audio_url,
+          - title,
+          - pub_date,
+          - description,
+          - duration.
+        """
         pass
