@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
@@ -6,11 +7,17 @@ from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.search_classes import ResultSet, ResultsPage, diarize_transcript
 from kfsearch.search.setup_es import INDEX_NAME
 from kfsearch.frontend.utils import clickable_tag
+from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER, LANGUAGE
 
 # # import from config relatively, so it remains portable:
 # dashapp_rootdir = Path(__file__).resolve().parents[1]
 # sys.path.append(str(dashapp_rootdir))
-episode_store = EpisodeStore(name="Knowledge Fight")
+episode_store = EpisodeStore(name=PROJECT_NAME)
+episode_store.set_connector(CONNECTOR)
+episode_store.set_transcriber(TRANSCRIBER)
+episode_store.populate()
+episode_store.to_json()
+
 
 
 def init_dashboard(flask_app, route, es_client):
@@ -26,16 +33,42 @@ def init_dashboard(flask_app, route, es_client):
     app.es_client = es_client
 
     #
-    #  ___________
-    # | Setup tab |
+    #  ________________
+    # | Transcribe tab |
     #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-    setup_tab = dbc.Card(
+    transcribe_tab = dbc.Card(
         className="m-0 no-top-border",
         children=dbc.CardBody(
             [
                 dbc.Row(
-
-                )
+                    [
+                        dbc.Col(
+                            [
+                                html.H5("Episodes"),
+                                dcc.Checklist(
+                                    id="episode-checklist",
+                                    options=[
+                                        {"label": episode.title, "value": episode.audio_url}
+                                        for episode in episode_store.episodes()
+                                    ],
+                                    value=[],
+                                    labelStyle={"display": "block"},
+                                ),
+                                dbc.Button("Transcribe Selected", id="transcribe-button", color="primary",
+                                           className="mt-3"),
+                            ],
+                            width=12,
+                        ),
+                    ],
+                    className="mt-3",
+                ),
+                dbc.Row(
+                    dbc.Col(
+                        html.Div(id="transcription-status"),
+                        width=12,
+                    ),
+                    className="mt-3",
+                ),
             ]
         )
     )
@@ -262,6 +295,7 @@ def init_dashboard(flask_app, route, es_client):
                 dcc.Store(id="frequency-dict", data={"": 0}),
                 dbc.Tabs(
                     [
+                        dbc.Tab(transcribe_tab, label="Episode List"),
                         dbc.Tab(browse_tab, label="Browse"),
                         dbc.Tab(terms_tab, label="My Terms"),
                         dbc.Tab(
@@ -285,6 +319,42 @@ def init_dashboard(flask_app, route, es_client):
 
 
 def init_callbacks(app):
+
+    @app.callback(
+        Output("transcription-status", "children"),
+        Input("transcribe-button", "n_clicks"),
+        State("episode-checklist", "value"),
+    )
+    def transcribe_episodes(n_clicks, selected_episodes):
+        if n_clicks is None:
+            return ""
+
+        transcriptions = []
+        for audio_url in selected_episodes:
+            episode = next((ep for ep in episode_store.episodes() if ep.audio_url == audio_url), None)
+            if episode:
+                episode.transcribe()
+
+                # Update Elasticsearch index
+                with open(episode.transcript_path, "r") as file:
+                    transcript_data = json.load(file)
+
+                for entry in transcript_data["segments"]:
+                    doc = {
+                        "eid": episode.eid,
+                        "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
+                        "episode_title": episode.title,
+                        "id": 1,
+                        "text": entry["text"],
+                        "start_time": entry["start"],
+                        "end_time": entry["end"],
+                    }
+                    app.es_client.index(
+                        index=INDEX_NAME,
+                        body=doc,
+                    )
+
+        return html.Ul([html.Li(transcription) for transcription in transcriptions])
 
     @app.callback(
         Output("episode-list", "children"),
