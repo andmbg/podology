@@ -4,7 +4,7 @@ from kfsearch.data.connectors.rss import RSSConnector
 store = EpisodeStore(name="Knowledge Fight")
 
 rss_extractor = RSSConnector(
-    rss_link="https://knowledgefight.libsyn.com/rss",
+    resource="https://knowledgefight.libsyn.com/rss",
     store=store,
 )
 rss_extractor._download_rss()

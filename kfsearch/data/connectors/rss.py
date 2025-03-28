@@ -5,22 +5,25 @@ from dataclasses import dataclass
 from loguru import logger
 
 from kfsearch.data.models import Episode, EpisodeStore
+from kfsearch.data.connectors.base import Connector
 
 
 @dataclass
-class RSSConnector:
+class RSSConnector(Connector):
     """
     Attaches to an EpisodeStore, takes an RSS URL and populates the Store with Episode metadata.
     """
-    store: EpisodeStore
-    rss_link: str
 
     def __post_init__(self):
-        self.rss_file = self.store.path / "rss.xml"
+        pass
+
+    def __repr__(self):
+        out = super().__repr__()
+
+        return out
 
     def _download_rss(self):
-
-        response = requests.get(self.rss_link)
+        response = requests.get(self.resource)
         response.raise_for_status()  # Raise an error for bad status codes
 
         with open(self.rss_file, "wb") as file:
@@ -40,7 +43,7 @@ class RSSConnector:
                 "pub_date": item.find("pubDate").text,
                 "guid": item.find("guid").text,
                 "description": item.find("description").text,
-                "audio_url": item.find("enclosure").attrib["url"],
+                "audio_url": item.find("enclosure").attrib["audiofile_location"],
                 "duration": item.find(
                     "{http://www.itunes.com/dtds/podcast-1.0.dtd}duration"
                 ).text,
@@ -53,7 +56,7 @@ class RSSConnector:
         self._download_rss()
         episodes_data: list = self._extract_episodes()
         for ep_data in episodes_data:
-            episode = Episode(
+            Episode(
                 store=self.store,
                 audio_url=(
                     ep_data.get("enclosure_url")

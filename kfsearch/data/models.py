@@ -6,8 +6,10 @@ from loguru import logger
 import requests
 
 from kfsearch.data.utils import episode_hash
-from kfsearch.data.speechtotext import LemonfoxTranscriber as Transcriber
+from kfsearch.data.transcribers.lemonfox import LemonfoxTranscriber
 from kfsearch.config import EPISODE_STORE_PATH
+from kfsearch.data.connectors.base import Connector
+from kfsearch.data.transcribers.base import Transcriber
 
 
 @dataclass
@@ -60,16 +62,19 @@ class Episode:
 
     def transcribe(self):
         """
-        Check if a transcript exists and abort if so. Send the online mp3 behind
-        self.audio_url to an STT API for transcription. Download the transcript and save it
-        to the transcript directory of the containing EpisodeStore. Set
-        self.script_present to True and script_filename to the transcript filename.
+        - Check if a transcript exists and abort if so.
+        - Send the online mp3 behind self.audio_url to the STT API referenced by
+          self.transcriber for transcription.
+        - Download the transcript and save it to the transcript directory of the
+          containing EpisodeStore.
+        - Set self.script_present to True and script_filename to the transcript
+          filename.
         """
         if self.transcript_path:
             logger.debug(f"Transcript for episode '{self.eid}' already exists.")
             return
         else:
-            transcriber = Transcriber()
+            transcriber = LemonfoxTranscriber()
             filename = self.audio_url.split("/")[-1].split(".")[0][:50]
             script_filename = (
                 self.store.transcripts_dir() / f"{self.eid}_{filename}.json"
@@ -126,6 +131,8 @@ class EpisodeStore:
     methods to add, remove, and get episodes.
     """
     name: str
+    connector: Connector = None
+    transcriber: Transcriber = None
     _episodes: list[Episode] = field(default_factory=list)
     _urls: list[str] = field(default_factory=list)
 
@@ -135,7 +142,7 @@ class EpisodeStore:
         self._audio_path = self.path / "audio"
         self._transcripts_dir = self.path / "transcripts"
 
-        # Initialize the Store's _urls attribute with each Episode's url;
+        # Initialize the Store's _urls attribute with each Episode's audiofile_location;
         self._urls = [episode.audio_url for episode in self._episodes]
 
         # Create the directories for audio and transcripts if they don't exist
@@ -154,6 +161,19 @@ class EpisodeStore:
                         title=ep_data["title"],
                         pub_date=ep_data.get("pub_date"),
                     )
+
+    def set_connector(self, connector: Connector):
+        self.connector = connector
+        self.connector.store = self
+        self.connector.rss_file = self.path / "rss.xml"
+
+    def set_transcriber(self, transcriber: Transcriber):
+        self.transcriber = transcriber
+        self.transcriber.store = self
+
+    def populate(self):
+        if self.connector:
+            self.connector.populate_store()
 
     def to_json(self):
         """
@@ -178,11 +198,23 @@ class EpisodeStore:
             json.dump(data, file, indent=4, ensure_ascii=False)
 
     def __repr__(self):
-        out = f"EpisodeStore ({len(self._episodes)} entries)\n"
-        out += f"   Name: {self.name}\n"
-        out += f"  Audio: {self._audio_path}\n"
-        out += f"  TrScr: {self._transcripts_dir}\n"
-        out += "Episodes:\n"
+        out = f"EpisodeStore \"{self.name}\" ({len(self._episodes)} entries)\n"
+
+        if self.connector:
+            out += (
+                "Metadata Connector: "
+                f"{self.connector.__class__.__name__} "
+                f"({self.connector.resource})\n"
+            )
+        else:
+            out += "Metadata Connector: None\n"
+
+        if self.transcriber:
+            out += f"Transcriber: {self.transcriber.__class__.__name__}\n"
+        else:
+            out += "Transcriber: None\n"
+
+        out += "\nEpisodes:\n"
 
         if len(self._episodes) < 8:
             for i, episode in enumerate(self._episodes):
