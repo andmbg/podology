@@ -9,4 +9,4 @@ CONNECTOR = RSSConnector(
     resource="http://feeds.libsyn.com/92106/rss"  # Knowledge Fight
 )
 # TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
-TRANSCRIBER = DummyTranscriber(delay=1)
+TRANSCRIBER = DummyTranscriber(delay=2)

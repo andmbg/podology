@@ -4,4 +4,5 @@
 - Elasticsearch indexing presumes a specific date format that not all podcasts may adhere to. We may have to implement a custom date parser or unify the date format across all podcasts.
 - Lemonfox speaker assignment is imprecise around turn ends. We may have to, instead of taking over Lemonfox's 
   speaker assignment, use the word-level assignments and assign the speaker to the whole turn ourselves.
+- We need order in terms of when and how the search index is built and updated.
 - 

@@ -25,6 +25,7 @@ class DummyTranscriber:
         out = {
             "segments": [
                 {
+                    "id": 1,
                     "start": 0,
                     "end": 10,
                     "speaker": "Speaker 1",

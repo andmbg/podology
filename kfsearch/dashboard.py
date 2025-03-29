@@ -48,7 +48,11 @@ def init_dashboard(flask_app, route, es_client):
                                 dcc.Checklist(
                                     id="episode-checklist",
                                     options=[
-                                        {"label": episode.title, "value": episode.audio_url}
+                                        {
+                                            "label": f"{episode.title} - Transcript: {'Yes' if episode.transcript else 'No'}, "
+                                                     f"Pub Date: {episode.pub_date}, Duration: {episode.duration}",
+                                            "value": episode.audio_url
+                                        }
                                         for episode in episode_store.episodes()
                                     ],
                                     value=[],
@@ -344,7 +348,7 @@ def init_callbacks(app):
                         "eid": episode.eid,
                         "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
                         "episode_title": episode.title,
-                        "id": 1,
+                        "id": entry["id"],
                         "text": entry["text"],
                         "start_time": entry["start"],
                         "end_time": entry["end"],
