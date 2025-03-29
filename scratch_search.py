@@ -1,6 +1,6 @@
 from elasticsearch import Elasticsearch
 import os
-from kfsearch.search.setup_es import INDEX_NAME
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 
 es = Elasticsearch(
     "http://localhost:9200",
@@ -10,7 +10,7 @@ es = Elasticsearch(
 )
 
 response = es.search(
-    index=INDEX_NAME,
+    index=TRANSCRIPT_INDEX_NAME,
     body={"query": {"match_all": {}}},
     size=10,
     from_=0,

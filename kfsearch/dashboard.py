@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 
 from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.search_classes import ResultSet, ResultsPage, diarize_transcript
-from kfsearch.search.setup_es import INDEX_NAME
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 from kfsearch.frontend.utils import clickable_tag
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER, LANGUAGE
 
@@ -354,7 +354,7 @@ def init_callbacks(app):
                         "end_time": entry["end"],
                     }
                     app.es_client.index(
-                        index=INDEX_NAME,
+                        index=TRANSCRIPT_INDEX_NAME,
                         body=doc,
                     )
 
@@ -397,7 +397,7 @@ def init_callbacks(app):
                 result_set = ResultSet(
                     es_client=app.es_client,
                     episode_store=episode_store,
-                    index_name=INDEX_NAME,
+                    index_name=TRANSCRIPT_INDEX_NAME,
                     search_term=search_term,
                     page_size=10,
                 )
@@ -528,7 +528,7 @@ def init_callbacks(app):
                 result_set = ResultSet(
                     es_client=app.es_client,
                     episode_store=episode_store,
-                    index_name=INDEX_NAME,
+                    index_name=TRANSCRIPT_INDEX_NAME,
                     search_term=term,
                     page_size=10,
                 )

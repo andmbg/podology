@@ -1,4 +1,15 @@
 import re
+from bs4 import BeautifulSoup
+from dash import html
+
+
+def extract_text_from_html(html_string):
+    """
+    Parse strings such as the description of a podcast episode, which can contain HTML
+    tags, and convert them to Dash components.
+    """
+    soup = BeautifulSoup(html_string, 'html.parser')
+    return soup.get_text()
 
 
 def find_nested_dict_by_key_value(data, target_key, target_value):
@@ -42,8 +53,8 @@ def make_index_name(project_name):
     Fixes an Elasticsearch index name based on the following rules:
     - Must be lowercase
     - Cannot include spaces
-    - Cannot start with an underscore (_)
-    - Cannot contain commas (,), asterisks (*), or backslashes (\)
+    - Cannot start with an underscore
+    - Cannot contain commas, asterisks, or backslashes
     - Cannot be longer than 255 bytes
     """
     # Convert to lowercase
@@ -62,3 +73,5 @@ def make_index_name(project_name):
     project_name = project_name.encode('utf-8')[:255].decode('utf-8', 'ignore')
 
     return project_name
+
+
