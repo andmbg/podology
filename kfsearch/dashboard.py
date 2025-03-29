@@ -27,7 +27,7 @@ episode_list = [
                 "pub_date": e.pub_date,
                 "title": e.title,
                 "description": e.description,
-                "transcript_exists": e.transcript_path is not None
+                "transcript_exists": "no" if e.transcript_path is None else "yes",
             } for e in episode_store.episodes()
         ]
 
@@ -45,11 +45,35 @@ def init_dashboard(flask_app, route, es_client):
     app.es_client = es_client
 
     column_defs = [
-        {"headerName": "Publication Date", "field": "pub_date", "sortable": True, "filter": True},
-        {"headerName": "Title", "field": "title", "cellStyle": {"fontWeight": "bold", "color": "blue"}, "sortable": True, "filter": True},
-        {"headerName": "Description", "field": "description", "wrapText": False, "autoHeight": False, "cellStyle": {
-            "whiteSpace": "pre-wrap"}},
-        {"headerName": "Transcript Exists", "field": "transcript_exists", "sortable": True, "filter": True},
+        {
+            "headerName": "Publication Date",
+            "field": "pub_date",
+            "type": "date",
+            "sortable": True,
+            "filter": True,
+            "cellStyle": {
+                "function": "params.data.transcript_exists == 'yes' ? {backgroundColor: '#00ff0011'} :"
+                            " {backgroundColor: '#ff000011'}",
+            }
+        },
+        {
+            "headerName": "Title",
+            "field": "title",
+            "cellStyle": {
+                "fontWeight": "bold",
+                "color": "blue"
+            },
+            "sortable": True,
+            "filter": True
+        },
+        {
+            "headerName": "Description",
+            "field": "description",
+        },
+        {
+            "headerName": "Transcript Exists",
+            "field": "transcript_exists",
+        }
     ]
 
     #
@@ -68,19 +92,12 @@ def init_dashboard(flask_app, route, es_client):
                                 html.H5("Episodes"),
                                 dag.AgGrid(
                                     id="transcribe-episode-list",
-                                    columnSize="sizeToFit",
                                     columnDefs=column_defs,
+                                    columnSize="sizeToFit",
                                     defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                                    # rowModelType="infinite",
+                                    rowModelType="clientSide",
                                     style={"height": "500px", "width": "100%"},
-                                    rowData=episode_list
-                                    # dashGridOptions={
-                                    #     # The number of rows rendered outside the viewable area the grid renders.
-                                    #     "rowBuffer": 8,
-                                    #     # How many blocks to keep in the store. Default is no limit, so every requested block is kept.
-                                    #     "maxBlocksInCache": 0,
-                                    #     "rowSelection": "multiple",
-                                    # },
+                                    rowData=episode_list,
                                 ),
                             ],
                             width=12,
