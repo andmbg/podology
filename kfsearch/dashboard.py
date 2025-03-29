@@ -1,6 +1,6 @@
 import json
-from datetime import datetime
-from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
+import dash_ag_grid as dag
+from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 
 from kfsearch.data.models import EpisodeStore
@@ -15,15 +15,21 @@ from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME
 from kfsearch.frontend.utils import clickable_tag
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
-# # import from config relatively, so it remains portable:
-# dashapp_rootdir = Path(__file__).resolve().parents[1]
-# sys.path.append(str(dashapp_rootdir))
 episode_store = EpisodeStore(name=PROJECT_NAME)
 episode_store.set_connector(CONNECTOR)
 episode_store.set_transcriber(TRANSCRIBER)
 episode_store.populate()
 episode_store.to_json()
 
+# pre-sort episode list by publication date:
+episode_list = [
+            {
+                "pub_date": e.pub_date,
+                "title": e.title,
+                "description": e.description,
+                "transcript_exists": e.transcript_path is not None
+            } for e in episode_store.episodes()
+        ]
 
 
 def init_dashboard(flask_app, route, es_client):
@@ -38,6 +44,14 @@ def init_dashboard(flask_app, route, es_client):
 
     app.es_client = es_client
 
+    column_defs = [
+        {"headerName": "Publication Date", "field": "pub_date", "sortable": True, "filter": True},
+        {"headerName": "Title", "field": "title", "cellStyle": {"fontWeight": "bold", "color": "blue"}, "sortable": True, "filter": True},
+        {"headerName": "Description", "field": "description", "wrapText": False, "autoHeight": False, "cellStyle": {
+            "whiteSpace": "pre-wrap"}},
+        {"headerName": "Transcript Exists", "field": "transcript_exists", "sortable": True, "filter": True},
+    ]
+
     #
     #  _________________
     # | Search Metadata |
@@ -46,63 +60,33 @@ def init_dashboard(flask_app, route, es_client):
         className="m-0 no-top-border",
         children=dbc.CardBody(
             [
-                # Search Input
-                dbc.Row(
-                    [
-                        dbc.Col(width=4),
-                        dbc.Col(
-                            [
-                                dbc.Input(
-                                    id="transcribe-input",
-                                    type="text",
-                                    placeholder="Enter search term",
-                                    debounce=True,
-                                ),
-                            ],
-                            width=4,
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Button("Search", id="transcribe-search-button", color="primary", className="me-1"),
-                            ],
-                            width=2,
-                        ),
-                    ],
-                    className="mt-3",
-                ),
                 # Episode List
                 dbc.Row(
                     [
                         dbc.Col(
                             [
                                 html.H5("Episodes"),
-                                html.Div(
+                                dag.AgGrid(
                                     id="transcribe-episode-list",
-                                    style={
-                                        "maxHeight": "calc(100vh - 300px)",
-                                        "overflowY": "scroll",
-                                        "border": "1px solid #ccc",
-                                        "padding": "10px"
-                                    },
+                                    columnSize="sizeToFit",
+                                    columnDefs=column_defs,
+                                    defaultColDef={"resizable": True, "sortable": True, "filter": True},
+                                    # rowModelType="infinite",
+                                    style={"height": "500px", "width": "100%"},
+                                    rowData=episode_list
+                                    # dashGridOptions={
+                                    #     # The number of rows rendered outside the viewable area the grid renders.
+                                    #     "rowBuffer": 8,
+                                    #     # How many blocks to keep in the store. Default is no limit, so every requested block is kept.
+                                    #     "maxBlocksInCache": 0,
+                                    #     "rowSelection": "multiple",
+                                    # },
                                 ),
                             ],
                             width=12,
                         ),
                     ],
                     className="mt-3",
-                ),
-                dbc.Row(
-                    dbc.Col(
-                        dbc.Pagination(
-                            id="meta-pagination",
-                            max_value=5,
-                            first_last=True,
-                            fully_expanded=False,
-                        ),
-                        width="auto"
-                    ),
-                    align="center",
-                    justify="center",
                 ),
             ],
         )
@@ -358,65 +342,29 @@ def init_dashboard(flask_app, route, es_client):
 
 
 def init_callbacks(app):
+
     @app.callback(
-        Output("transcribe-episode-list", "children"),
-        Output("meta-pagination", "max_value"),
-        Output("meta-pagination", "active_page"),
-        Input("transcribe-input", "n_submit"),
-        Input("transcribe-search-button", "n_clicks"),
-        Input("meta-pagination", "active_page"),
-        State("transcribe-input", "value"),
+        Output("transcribe-episode-list", "getRowsResponse"),
+        Input("transcribe-episode-list", "getRowsRequest"),
     )
-    def update_episode_metadata_display(n_submit, search_nclicks, active_page, search_term):
-        """
-        Callback that reacts to search term changes on the metadata search tab.
-        In:
-            - entering new search term (enter or search button)
-            - (State) current search term
-        Out:
-            - list of episodes with hits in them
-        """
-        if not search_term:
-            return ["Enter a search term to filter episodes by description.", 0, 0]
+    def infinite_scroll(request):
+        if request is None:
+            return no_update
 
-        if (
-                (n_submit is not None and n_submit > 0)  # hit enter in search field
-                or (search_nclicks is not None and search_nclicks > 0)  # click Search
-                or active_page  # click pagination buttons
-        ):
-            page = active_page or 1
+        start = request["startRow"]
+        end = request["endRow"]
 
-            # Get search results as a set:
-            page_size = 8
+        list_excerpt = episode_list[start:end]
+        partial = [
+            {
+                "pub_date": e.pub_date,
+                "title": e.title,
+                "description": e.description,
+                "transcript_exists": e.transcript_path is not None
+            } for e in list_excerpt
+        ]
 
-            result_set = MetaResultSet(
-                es_client=app.es_client,
-                episode_store=episode_store,
-                index_name=META_INDEX_NAME,
-                search_term=search_term,
-                page_size=page_size,
-            )
-
-            # Get the current result page:
-            current_results_page: MetaResultsPage = result_set.get_page(page - 1)
-            if current_results_page is None:
-                return [], 0, 0
-
-            this_page_hits: dict = current_results_page.episodes
-            total_hits = result_set.total_hits
-            max_pages = -(-len(result_set.episodes) // 10)  # Ceiling division
-
-            # Custom pagination button setup:
-            start_page = max(1, page - 4)
-            end_page = min(max_pages, page + 4)
-            pages = list(range(start_page, end_page + 1))
-
-            results_page = MetaResultsPage(this_page_hits, episode_store, search_term)
-            result_cards = [c.to_html() for c in results_page.cards]
-
-            return result_cards, max_pages, page
-
-        return [], 0, 0
+        return {"rowData": partial, "rowCount": len(list_excerpt)}
 
 
     @app.callback(
@@ -453,7 +401,7 @@ def init_callbacks(app):
                 page = active_page or 1
 
                 # Get search results as a set:
-                page_size = 1
+                page_size = 10
 
                 result_set = ResultSet(
                     es_client=app.es_client,
