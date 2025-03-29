@@ -3,11 +3,17 @@ from datetime import datetime
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 
-from kfsearch.data.models import EpisodeStore, Episode
-from kfsearch.search.search_classes import ResultSet, ResultsPage, diarize_transcript
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
+from kfsearch.data.models import EpisodeStore
+from kfsearch.search.search_classes import (
+    ResultSet,
+    ResultsPage,
+    diarize_transcript,
+    MetaResultSet,
+    MetaResultsPage,
+)
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME
 from kfsearch.frontend.utils import clickable_tag
-from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER, LANGUAGE
+from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
 # # import from config relatively, so it remains portable:
 # dashapp_rootdir = Path(__file__).resolve().parents[1]
@@ -33,33 +39,52 @@ def init_dashboard(flask_app, route, es_client):
     app.es_client = es_client
 
     #
-    #  ________________
-    # | Transcribe tab |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+    #  _________________
+    # | Search Metadata |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     transcribe_tab = dbc.Card(
         className="m-0 no-top-border",
         children=dbc.CardBody(
             [
+                # Search Input
+                dbc.Row(
+                    [
+                        dbc.Col(width=4),
+                        dbc.Col(
+                            [
+                                dbc.Input(
+                                    id="transcribe-input",
+                                    type="text",
+                                    placeholder="Enter search term",
+                                    debounce=True,
+                                ),
+                            ],
+                            width=4,
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Button("Search", id="transcribe-search-button", color="primary", className="me-1"),
+                            ],
+                            width=2,
+                        ),
+                    ],
+                    className="mt-3",
+                ),
+                # Episode List
                 dbc.Row(
                     [
                         dbc.Col(
                             [
                                 html.H5("Episodes"),
-                                dcc.Checklist(
-                                    id="episode-checklist",
-                                    options=[
-                                        {
-                                            "label": f"{episode.title} - Transcript: {'Yes' if episode.transcript else 'No'}, "
-                                                     f"Pub Date: {episode.pub_date}, Duration: {episode.duration}",
-                                            "value": episode.audio_url
-                                        }
-                                        for episode in episode_store.episodes()
-                                    ],
-                                    value=[],
-                                    labelStyle={"display": "block"},
+                                html.Div(
+                                    id="transcribe-episode-list",
+                                    style={
+                                        "maxHeight": "calc(100vh - 300px)",
+                                        "overflowY": "scroll",
+                                        "border": "1px solid #ccc",
+                                        "padding": "10px"
+                                    },
                                 ),
-                                dbc.Button("Transcribe Selected", id="transcribe-button", color="primary",
-                                           className="mt-3"),
                             ],
                             width=12,
                         ),
@@ -68,19 +93,25 @@ def init_dashboard(flask_app, route, es_client):
                 ),
                 dbc.Row(
                     dbc.Col(
-                        html.Div(id="transcription-status"),
-                        width=12,
+                        dbc.Pagination(
+                            id="meta-pagination",
+                            max_value=5,
+                            first_last=True,
+                            fully_expanded=False,
+                        ),
+                        width="auto"
                     ),
-                    className="mt-3",
+                    align="center",
+                    justify="center",
                 ),
-            ]
+            ],
         )
     )
 
     #
-    #  ____________
-    # | Browse tab |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+    #  ____________________
+    # | Search Transcripts |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     browse_tab = dbc.Card(
         className="m-0 no-top-border",
         children=dbc.CardBody(
@@ -130,14 +161,17 @@ def init_dashboard(flask_app, route, es_client):
                     ),
                     className="mt-3",
                 ),
+
                 # Output
+                # ----------------
                 dbc.Row(
                     children=[
 
                         # Transcript of selected episode
+                        # ------------------------------
                         dbc.Col(
                             children=[
-                                # Header: Metadata of the currently selected episode
+                                # TODO Header: Metadata of the currently selected episode  <<<
                                 html.Div(
                                     children = [
                                         dbc.Row([
@@ -188,6 +222,7 @@ def init_dashboard(flask_app, route, es_client):
                         ),
 
                         # List of episodes found in search
+                        # --------------------------------
                         dbc.Col(
                             id="episode-column",
                             children=[
@@ -231,9 +266,9 @@ def init_dashboard(flask_app, route, es_client):
     )
 
     #
-    #  ___________
-    # | Terms tab |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+    #  _______________
+    # | Analyse Terms |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     terms_tab = dbc.Card(
         className="m-0 no-top-border",
         children=dbc.CardBody(
@@ -299,9 +334,9 @@ def init_dashboard(flask_app, route, es_client):
                 dcc.Store(id="frequency-dict", data={"": 0}),
                 dbc.Tabs(
                     [
-                        dbc.Tab(transcribe_tab, label="Episode List"),
-                        dbc.Tab(browse_tab, label="Browse"),
-                        dbc.Tab(terms_tab, label="My Terms"),
+                        dbc.Tab(transcribe_tab, label="Metadata"),
+                        dbc.Tab(browse_tab, label="Transcripts"),
+                        dbc.Tab(terms_tab, label="Terms"),
                         dbc.Tab(
                             "This tab is under construction",
                             label="Savegames",
@@ -323,42 +358,66 @@ def init_dashboard(flask_app, route, es_client):
 
 
 def init_callbacks(app):
-
     @app.callback(
-        Output("transcription-status", "children"),
-        Input("transcribe-button", "n_clicks"),
-        State("episode-checklist", "value"),
+        Output("transcribe-episode-list", "children"),
+        Output("meta-pagination", "max_value"),
+        Output("meta-pagination", "active_page"),
+        Input("transcribe-input", "n_submit"),
+        Input("transcribe-search-button", "n_clicks"),
+        Input("meta-pagination", "active_page"),
+        State("transcribe-input", "value"),
     )
-    def transcribe_episodes(n_clicks, selected_episodes):
-        if n_clicks is None:
-            return ""
+    def update_episode_metadata_display(n_submit, search_nclicks, active_page, search_term):
+        """
+        Callback that reacts to search term changes on the metadata search tab.
+        In:
+            - entering new search term (enter or search button)
+            - (State) current search term
+        Out:
+            - list of episodes with hits in them
+        """
+        if not search_term:
+            return ["Enter a search term to filter episodes by description.", 0, 0]
 
-        transcriptions = []
-        for audio_url in selected_episodes:
-            episode = next((ep for ep in episode_store.episodes() if ep.audio_url == audio_url), None)
-            if episode:
-                episode.transcribe()
+        if (
+                (n_submit is not None and n_submit > 0)  # hit enter in search field
+                or (search_nclicks is not None and search_nclicks > 0)  # click Search
+                or active_page  # click pagination buttons
+        ):
+            page = active_page or 1
 
-                # Update Elasticsearch index
-                with open(episode.transcript_path, "r") as file:
-                    transcript_data = json.load(file)
+            # Get search results as a set:
+            page_size = 8
 
-                for entry in transcript_data["segments"]:
-                    doc = {
-                        "eid": episode.eid,
-                        "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
-                        "episode_title": episode.title,
-                        "id": entry["id"],
-                        "text": entry["text"],
-                        "start_time": entry["start"],
-                        "end_time": entry["end"],
-                    }
-                    app.es_client.index(
-                        index=TRANSCRIPT_INDEX_NAME,
-                        body=doc,
-                    )
+            result_set = MetaResultSet(
+                es_client=app.es_client,
+                episode_store=episode_store,
+                index_name=META_INDEX_NAME,
+                search_term=search_term,
+                page_size=page_size,
+            )
 
-        return html.Ul([html.Li(transcription) for transcription in transcriptions])
+            # Get the current result page:
+            current_results_page: MetaResultsPage = result_set.get_page(page - 1)
+            if current_results_page is None:
+                return [], 0, 0
+
+            this_page_hits: dict = current_results_page.episodes
+            total_hits = result_set.total_hits
+            max_pages = -(-len(result_set.episodes) // 10)  # Ceiling division
+
+            # Custom pagination button setup:
+            start_page = max(1, page - 4)
+            end_page = min(max_pages, page + 4)
+            pages = list(range(start_page, end_page + 1))
+
+            results_page = MetaResultsPage(this_page_hits, episode_store, search_term)
+            result_cards = [c.to_html() for c in results_page.cards]
+
+            return result_cards, max_pages, page
+
+        return [], 0, 0
+
 
     @app.callback(
         Output("episode-list", "children"),
@@ -369,12 +428,13 @@ def init_callbacks(app):
         Input("pagination", "active_page"),
         State("input", "value"),
     )
-    def update_episode_list(n_submit, search_nclicks, active_page, search_term):
+    def update_episode_transcript_search_list(n_submit, search_nclicks, active_page, search_term):
         """
         Callback that reacts to search term changes and pagination.
         In:
             - entering new search term (enter or search button)
             - clicking pagination buttons
+            - (State) current search term
         Out:
             - list of episodes with hits in them
         """
@@ -383,33 +443,34 @@ def init_callbacks(app):
         if not ctx.triggered:
             return [], 0, 0
 
-        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-        # Trigger was a new search term - reset page to 1:
-        page = 1 if trigger_id in ["input", "search-button"] else active_page or 1
-
         if search_term:
 
-            if (n_submit is not None and n_submit > 0) or active_page:
+            if (
+                    (n_submit is not None and n_submit > 0)  # hit enter in search field
+                    or (search_nclicks is not None and search_nclicks > 0)  # click Search
+                    or active_page  # click pagination buttons
+            ):
                 page = active_page or 1
 
                 # Get search results as a set:
+                page_size = 1
+
                 result_set = ResultSet(
                     es_client=app.es_client,
                     episode_store=episode_store,
                     index_name=TRANSCRIPT_INDEX_NAME,
                     search_term=search_term,
-                    page_size=10,
+                    page_size=page_size,
                 )
 
                 # Get the current result page:
                 current_results_page: ResultsPage = result_set.get_page(page - 1)
                 if current_results_page is None:
-                    return [], 1, 1
+                    return ["No hits found."], 0, 0
 
                 this_page_hits: dict = current_results_page.episodes
                 total_hits = result_set.total_hits
-                max_pages = -(-len(result_set.episodes) // 10)  # Ceiling division
+                max_pages = -(-len(result_set.episodes) // page_size)  # Ceiling division
 
                 results_page = ResultsPage(this_page_hits, episode_store)
                 result_cards = [c.to_html() for c in results_page.cards]
@@ -417,6 +478,7 @@ def init_callbacks(app):
                 return result_cards, max_pages, page
 
         return [], 0, 1
+
 
     @app.callback(
         Output("transcript", "children"),
@@ -446,6 +508,7 @@ def init_callbacks(app):
             return diarized_transcript
 
         return current_transcript
+
 
     # Update search terms in the comparison list:
     @app.callback(
@@ -503,6 +566,7 @@ def init_callbacks(app):
 
         return search_terms, tag_elements, tag_elements
 
+
     # Update frequency dict:
     @app.callback(
         Output("frequency-dict", "data"),
@@ -536,6 +600,7 @@ def init_callbacks(app):
                 freq_dict.update(new_freq_entry)
 
         return freq_dict
+
 
     # DEBUG show content of freq list:
     @app.callback(

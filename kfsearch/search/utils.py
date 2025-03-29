@@ -75,3 +75,8 @@ def make_index_name(project_name):
     return project_name
 
 
+def highlight_search_term(text, search_term):
+    pattern = re.compile(re.escape(search_term), re.IGNORECASE)
+    highlighted_text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
+
+    return highlighted_text

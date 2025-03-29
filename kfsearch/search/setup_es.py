@@ -84,7 +84,7 @@ def create_meta_index(es_client: Elasticsearch):
 
     else:
         es_client.indices.create(index=META_INDEX_NAME, body=META_INDEX_SETTINGS)
-        logger.debug(f"Initialized index {TRANSCRIPT_INDEX_NAME}")
+        logger.debug(f"Initialized index {META_INDEX_NAME}")
 
         # Go through all episodes (transcribed or not) and index their metadata:
         episode_store = EpisodeStore(name=PROJECT_NAME)
@@ -96,6 +96,6 @@ def create_meta_index(es_client: Elasticsearch):
                 "episode_title": episode.title,
                 "description": extract_text_from_html(episode.description),
             }
-            es_client.index(index=TRANSCRIPT_INDEX_NAME, body=doc)
+            es_client.index(index=META_INDEX_NAME, body=doc)
 
         logger.debug(f"Indexed {len(episode_store.episodes())} episodes.")

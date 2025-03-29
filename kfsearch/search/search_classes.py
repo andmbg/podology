@@ -6,7 +6,7 @@ from typing import List
 import dash_bootstrap_components as dbc
 from dash import html
 
-from kfsearch.search.utils import format_time
+from kfsearch.search.utils import format_time, highlight_search_term
 
 
 HLTAG = "bling"
@@ -72,8 +72,11 @@ class ResultsPage:
         self.cards = self._create_cards()
 
     def _create_cards(self):
-        return [ResultCard(eid, hits, self.episode_store)
-                for eid, hits in self.episodes.items()]
+        return [
+            ResultCard(eid, hits, self.episode_store)
+            for eid, hits
+            in self.episodes.items()
+        ]
 
 
 class ResultCard:
@@ -86,7 +89,9 @@ class ResultCard:
 
 
     def to_html(self):
-        formatted_date = datetime.strptime(self.pub_date, "%Y-%m-%dT%H:%M:%S%z").strftime("%d.%m.%Y")
+        formatted_date = datetime.strptime(
+            self.pub_date, "%Y-%m-%dT%H:%M:%S%z"
+        ).strftime("%d.%m.%Y")
 
         return dbc.Button(
             dbc.Card(
@@ -126,13 +131,147 @@ class ResultCard:
         )
 
 
-class ResultContent:
-    def __init__(self, text):
-        self.text = text
+class MetaResultSet:
+    """
+    Class to handle search results from the metadata index.
+    """
+    def __init__(self, es_client, episode_store, index_name, search_term, page_size=10):
+        self.es_client = es_client
+        self.episode_store = episode_store
+        self.index_name = index_name
+        self.search_term = search_term
+        self.page_size = page_size
+        self.hits, self.total_hits = self._perform_search()
+        self.episodes = self._group_by_episode()
+        self.pages = self._create_pages()
 
-    def to_html_elements(self):
-        return highlight_to_html_elements(self.text)
+    def _perform_search(self):
+        results = self.es_client.search(
+            index=self.index_name,
+            body={
+                "query": {
+                    "multi_match": {
+                        "query": self.search_term,
+                        "fields": ["episode_title", "description"]
+                    }
+                },
+                "size": 10000,
+            },
+        )
+        hits = results["hits"]["hits"]
+        total_hits = results["hits"]["total"]["value"]
+        return hits, total_hits
 
+    def _group_by_episode(self):
+        """
+        Group the search results by episode ID, so we don't get 10 occurrences of an
+        episode in the search results if the search term occurs 10 times in its
+        metadata.
+        """
+        episodes = defaultdict(list)
+        for hit in self.hits:
+            eid = hit["_source"]["eid"]
+            episodes[eid].append(hit)
+        return episodes
+
+    def _create_pages(self):
+        episode_list = list(self.episodes.items())
+        pages = []
+        for i in range(0, len(episode_list), self.page_size):
+            page_episodes = dict(episode_list[i:i + self.page_size])
+            pages.append(
+                MetaResultsPage(
+                    episodes=page_episodes,
+                    episode_store=self.episode_store,
+                    search_term=self.search_term
+                )
+            )
+        return pages
+
+    def get_page(self, page_number):
+        if 0 <= page_number < len(self.pages):
+            return self.pages[page_number]
+        return None
+
+
+class MetaResultsPage:
+    def __init__(self, episodes, episode_store, search_term):
+        self.episodes = episodes
+        self.episode_store = episode_store
+        self.search_term = search_term
+        self.cards = self._create_cards()
+
+    def _create_cards(self):
+        return [
+            MetaResultCard(eid, hits, self.episode_store, self.search_term)
+            for eid, hits
+            in self.episodes.items()
+        ]
+
+
+class MetaResultCard:
+    def __init__(self, eid, within_ep_hitlist, episode_store, search_term, max_content_length = 1000):
+
+        self.episode_store = episode_store
+        self.title = within_ep_hitlist[0]["_source"]["episode_title"]
+        self.pub_date = within_ep_hitlist[0]["_source"]["pub_date"]
+        self.id = eid
+
+        # Abbreviate the description if it is too long:
+        raw_description = within_ep_hitlist[0]["_source"]["description"]
+        if len(raw_description) > max_content_length:
+            self.description = highlight_to_html_elements(
+                highlight_search_term(
+                    raw_description[:max_content_length] + "[...]",
+                    search_term
+                )
+            )
+        else:
+            self.description = highlight_to_html_elements(
+                highlight_search_term(raw_description, search_term)
+            )
+
+
+
+
+    def to_html(self):
+        formatted_date = datetime.strptime(self.pub_date, "%Y-%m-%dT%H:%M:%S%z").strftime("%d.%m.%Y")
+
+        return dbc.Button(
+            dbc.Card(
+                dbc.CardBody(
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                html.P(
+                                    formatted_date,
+                                    className="text-secondary mb-0 me-1 text-nowrap",
+                                ),
+                                width="auto",
+                                className="text-start fs-6",
+                            ),
+                            dbc.Col(
+                                html.B(
+                                    self.title,
+                                    className="mb-0 text-truncate text-primary",
+                                ),
+                            ),
+                            dbc.Col(
+                                html.P(
+                                    self.description,
+                                    className="text-secondary mb-0",
+                                ),
+                                width="auto",
+                            ),
+                        ],
+                        className="g-0",
+                    ),
+                    className="py-2",
+                ),
+            ),
+            id={"type": "meta-result-card", "index": self.id},
+            class_name="card-button mb-1 w-100",
+        )
 
 def highlight_to_html_elements(text):
     """
