@@ -43,7 +43,7 @@ class Episode:
             self.transcript_path = str(transcript_path)
 
         # If an audio file already exists, set its name as attribute:
-        audio_path = self.store.audio_path() / f"{self.eid}_{name}.mp3"
+        audio_path = self.store.audio_path() / f"{self.eid}.mp3"
         if audio_path.exists():
             self.audio_filename = str(audio_path)
 
@@ -63,12 +63,8 @@ class Episode:
     def transcribe(self):
         """
         - Check if a transcript exists and abort if so.
-        - Send the online mp3 behind self.audio_url to the STT API referenced by
-          self.transcriber for transcription.
-        - Download the transcript and save it to the transcript directory of the
-          containing EpisodeStore.
-        - Set self.script_present to True and script_filename to the transcript
-          filename.
+        - Let the transcriber use either the audio URL or the local audio file,
+          depending on the transcriber type.
         """
         if self.transcript_path:
             logger.debug(f"Transcript for episode '{self.eid}' already exists.")
@@ -78,14 +74,12 @@ class Episode:
             logger.error(f"No Transcriber attached to this EpisodeStore.")
             return
 
-        # Local filename need not be too long if it is in the URL:
-        audio_name = self.audio_url.split("/")[-1].split(".")[0][:50]
-
         script_filename = (
-            self.store.transcripts_dir() / f"{self.eid}_{audio_name}.json"
+            self.store.transcripts_dir() / f"{self.eid}.json"
         )
-        # Get JSON string of the transcript from the transcriber:
-        transcript: str = self.store.transcriber.transcribe(self.audio_url)
+
+        # Get dict of the transcript from the transcriber:
+        transcript: dict = self.store.transcriber.transcribe(self)
 
         with open(script_filename, "w") as file:
             json.dump(transcript, file, indent=4, ensure_ascii=False)
@@ -265,9 +259,9 @@ class EpisodeStore:
             self._urls.remove(episode.audio_url)
             self._episodes.remove(episode)
 
-    def get(self, url: str):
+    def get_episode(self, eid: str):
         for episode in self._episodes:
-            if episode.audio_url == url:
+            if episode.eid == eid:
                 return episode
 
     def episodes(self, script: bool = None, audio: bool = None):

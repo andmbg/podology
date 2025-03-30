@@ -31,20 +31,20 @@ class LemonfoxTranscriber(Transcriber):
 
     def transcribe(
         self,
-        audiofile_location: str,  # URL in the case of this class
+        episode: "Episode",  # URL in the case of this class
         language: str = "english",
         response_format: str = "verbose_json",
         speaker_labels: bool = True,
         min_speakers: int = 2,
-    ) -> str:
+    ) -> dict:
         data = {
-            "file": audiofile_location,
+            "file": episode.audio_url,
             "language": language,
             "response_format": response_format,
             "speaker_labels": speaker_labels,
             "min_speakers": min_speakers,
         }
-        logger.debug(f"Requesting transcription at Lemonfox for audio at URL: {audiofile_location}")
+        logger.debug(f"Requesting transcription at Lemonfox for audio at URL: {episode.audio_url}")
         response = requests.post(self.location, headers=self._headers, data=data)
         logger.debug(f"Success status: {response.status_code}")
 

@@ -56,7 +56,7 @@ class RSSConnector(Connector):
             }
             ep_meta["pub_date"] = datetime.strptime(
                 ep_meta["pub_date"], "%a, %d %b %Y %H:%M:%S %z"
-            ).strftime("%a, %Y-%m-%d")
+            ).strftime("%Y-%m-%d")
             ep_metas.append(ep_meta)
 
         return ep_metas

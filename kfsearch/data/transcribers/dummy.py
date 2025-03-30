@@ -1,8 +1,9 @@
 import time
 import json
 from loguru import logger
-
 from dataclasses import dataclass
+
+from kfsearch.data.models import Episode
 
 @dataclass
 class DummyTranscriber:
@@ -17,9 +18,9 @@ class DummyTranscriber:
     def __repr__(self):
         return f"DummyTranscriber({self.delay}s)"
 
-    def transcribe(self, audiofile_location: str) -> str:
+    def transcribe(self, episode: Episode) -> dict:
 
-        logger.debug(f"Dummy-Transcribing from {audiofile_location}...")
+        logger.debug(f"Dummy-Transcribing from {episode.audio_url}...")
         time.sleep(self.delay)
 
         out = {

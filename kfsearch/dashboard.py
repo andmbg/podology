@@ -2,7 +2,7 @@ import json
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
-import asyncio
+from loguru import logger
 
 from kfsearch.data.models import EpisodeStore
 from kfsearch.search.search_classes import (
@@ -10,8 +10,9 @@ from kfsearch.search.search_classes import (
     ResultsPage,
     diarize_transcript,
 )
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME, index_episode_transcript
 from kfsearch.frontend.utils import clickable_tag
+from kfsearch.search.setup_es import index_transcripts
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
 episode_store = EpisodeStore(name=PROJECT_NAME)
@@ -22,17 +23,19 @@ episode_store.to_json()
 
 # pre-sort episode list by publication date:
 episode_list = [
-            {
-                "eid": e.eid,
-                "pub_date": e.pub_date,
-                "title": e.title,
-                "description": e.description,
-                "transcript_exists": "no" if e.transcript_path is None else "yes",
-            } for e in episode_store.episodes()
-        ]
-
+    {
+        "eid": e.eid,
+        "pub_date": e.pub_date,
+        "title": e.title,
+        "description": e.description,
+        "duration": e.duration,
+        "transcript_exists": "no" if e.transcript_path is None else "yes",
+    } for e in episode_store.episodes()
+]
 
 def init_dashboard(flask_app, route, es_client):
+
+    index_transcripts(es_client)
 
     app = Dash(
         __name__,
@@ -44,11 +47,17 @@ def init_dashboard(flask_app, route, es_client):
 
     app.es_client = es_client
 
+    # AG Grid column definitions for the episode list in the Metadata tab:
+    conditional_style  = {
+        "function": "params.data.transcript_exists == 'yes' ? {backgroundColor: '#00ff0011'} : (params.data.transcript_exists == 'no' ? {backgroundColor: '#ff000011'} : {backgroundColor: '#ffff0011'})"
+    }
+
     column_defs = [
         {
             "headerName": "EID",
             "field": "eid",
             "maxWidth": 80,
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Publication Date",
@@ -56,29 +65,37 @@ def init_dashboard(flask_app, route, es_client):
             "type": "date",
             "sortable": True,
             "filter": True,
-            "cellStyle": {
-                "function": "params.data.transcript_exists == 'yes' ? {backgroundColor: '#00ff0011'} :"
-                            " {backgroundColor: '#ff000011'}",
-            }
+            "cellStyle": conditional_style,
+            "maxWidth": 170,
         },
         {
             "headerName": "Title",
             "field": "title",
-            "cellStyle": {
-                "fontWeight": "bold",
-                "color": "blue"
-            },
             "sortable": True,
-            "filter": True
+            "filter": True,
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Description",
             "field": "description",
+            "cellStyle": {
+                "whiteSpace": "pre-wrap",  # Wraps the text
+                "wordBreak": "break-word",  # Prevents overflow by breaking words
+            },
+        },
+        {
+            "headerName": "Duration",
+            "field": "duration",
+            "sortable": True,
+            "filter": True,
+            "maxWidth": 100,
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Script",
             "field": "transcript_exists",
             "maxWidth": 90,
+            "cellStyle": conditional_style,
         }
     ]
 
@@ -102,8 +119,9 @@ def init_dashboard(flask_app, route, es_client):
                                     columnSize="sizeToFit",
                                     defaultColDef={"resizable": True, "sortable": True, "filter": True},
                                     rowModelType="clientSide",
-                                    style={"height": "500px", "width": "100%"},
+                                    style={"height": "calc(100vh - 200px)", "width": "100%"},
                                     rowData=episode_list,
+                                    className="ag-theme-quartz"
                                 ),
                             ],
                             width=12,
@@ -371,24 +389,39 @@ def init_callbacks(app):
         State("transcribe-episode-list", "rowData"),
     )
     def transcribe_episode(cell_clicked, row_data):
-        if cell_clicked is None:
+        if cell_clicked is None or cell_clicked.get("colId") != "transcript_exists":
             return no_update
 
         row_index = cell_clicked["rowIndex"]
         col_id = cell_clicked["colId"]
 
+        # Clicked on an episode that has no transcript yet:
         if col_id == "transcript_exists" and row_data[row_index]["transcript_exists"] == "no":
-            episode_id = row_data[row_index]["id"]
-            episode = episode_store.get_episode(episode_id)
-            transcriber = episode_store.get_transcriber()
+            # TODO color the cell yellow immediately (may take chained callbacks):
+            pass
 
-            # Call the transcribe method asynchronously
-            transcriber.transcribe(episode.audiofile_location)
+            episode_id = row_data[row_index]["eid"]
+            episode = episode_store.get_episode(episode_id)
+            episode.transcribe()
+            logger.debug(f"Indexing episode {episode.eid}")
+            index_episode_transcript(episode, app.es_client)
+            episode_store.to_json()
 
             # Update the row data to reflect the new transcript status
-            row_data[row_index]["transcript_exists"] = "yes"
+            new_row_data = [
+                {
+                    "eid": e.eid,
+                    "pub_date": e.pub_date,
+                    "title": e.title,
+                    "description": e.description,
+                    "duration": e.duration,
+                    "transcript_exists": "no" if e.transcript_path is None else "yes",
+                } for e in episode_store.episodes()
+            ]
 
-        return row_data
+            # row_data[row_index]["transcript_exists"] = "yes"
+
+            return new_row_data
 
     @app.callback(
         Output("episode-list", "children"),

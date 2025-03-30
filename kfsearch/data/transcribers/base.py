@@ -1,7 +1,7 @@
 # kfsearch/data/connectors/base.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import asyncio
+import json
 
 
 @dataclass
@@ -24,5 +24,20 @@ class Transcriber(ABC):
         return out
 
     @abstractmethod
-    def transcribe(self, audiofile_location: str, **kwargs) -> str:
+    def transcribe(self, episode: "Episode", **kwargs) -> dict:
+        """
+        Needs to return a dictionary with the transcript of the episode, at least
+        containing the following keys:
+        {
+            "segments": [
+                {
+                    "id":      <int>,
+                    "start":   <float>,
+                    "end":     <float>,
+                    "speaker": <str>,
+                    "text":    <str>,
+                }
+            ],
+        }
+        """
         pass

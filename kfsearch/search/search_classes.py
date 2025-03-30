@@ -83,17 +83,15 @@ class ResultCard:
     def __init__(self, eid, within_ep_hitlist, episode_store):
         self.episode_store = episode_store
         self.title = within_ep_hitlist[0]["_source"]["episode_title"]
-        self.pub_date = datetime.strptime(
-            within_ep_hitlist[0]["_source"]["pub_date"],
-            "%Y-%m-%dT%H:%M:%S",
-        ).strftime("%a, %Y-%m-%d")
+        self.pub_date = within_ep_hitlist[0]["_source"]["pub_date"]
         self.hit_count = len(within_ep_hitlist)
         self.id = eid
 
 
     def to_html(self):
         formatted_date = datetime.strptime(
-            self.pub_date, "%a, %Y-%m-%d"
+            self.pub_date,
+            "%Y-%m-%dT%H:%M:%S",
         ).strftime("%d.%m.%Y")
 
         return dbc.Button(

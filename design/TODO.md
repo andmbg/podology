@@ -6,9 +6,8 @@
   speaker assignment, use the word-level assignments and assign the speaker to the whole turn ourselves.
 - We need order in terms of when and how the search index is built and updated.
 - After a startup that creates the search index but doesn't fill it for some reason, currently, a startup sees the index and doesn't question its completeness. We need to implement a check that verifies the index's completeness and triggers a reindex if necessary.
+- We want to see what transcription jobs are still ongoing.
 
 # Weiter
 
-- Datumsformat vereinheitlichen für die Sortierung
-- Abschicken zu Transkription implementieren via AG
-
+- remove entries from deleted transcripts from the index
