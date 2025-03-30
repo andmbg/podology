@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 import requests
 from xml.etree import ElementTree
@@ -53,6 +54,9 @@ class RSSConnector(Connector):
                     "{http://www.itunes.com/dtds/podcast-1.0.dtd}duration"
                 ).text,
             }
+            ep_meta["pub_date"] = datetime.strptime(
+                ep_meta["pub_date"], "%a, %d %b %Y %H:%M:%S %z"
+            ).strftime("%a, %Y-%m-%d")
             ep_metas.append(ep_meta)
 
         return ep_metas

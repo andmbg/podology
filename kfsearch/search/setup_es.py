@@ -6,7 +6,7 @@ from elasticsearch import Elasticsearch
 
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore
-from kfsearch.search.utils import make_index_name, extract_text_from_html
+from kfsearch.search.utils import make_index_name
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
@@ -66,36 +66,10 @@ def create_transcript_index(es_client: Elasticsearch):
                     for entry in transcript_data["segments"]:
                         doc = {
                             "eid": episode.eid,
-                            "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
+                            "pub_date": datetime.strptime(episode.pub_date, "%a, %Y-%m-%d"),
                             "episode_title": episode.title,
                             "text": entry["text"],
                             "start_time": entry["start"],
                             "end_time": entry["end"],
                         }
                         es_client.index(index=TRANSCRIPT_INDEX_NAME, body=doc)
-
-def create_meta_index(es_client: Elasticsearch):
-    """
-    Create an Elasticsearch index for episode metadata.
-    """
-    # create index:
-    if es_client.indices.exists(index=META_INDEX_NAME):
-        logger.info("Metadata index already exists.")
-
-    else:
-        es_client.indices.create(index=META_INDEX_NAME, body=META_INDEX_SETTINGS)
-        logger.debug(f"Initialized index {META_INDEX_NAME}")
-
-        # Go through all episodes (transcribed or not) and index their metadata:
-        episode_store = EpisodeStore(name=PROJECT_NAME)
-
-        for episode in episode_store.episodes():
-            doc = {
-                "eid": episode.eid,
-                "pub_date": datetime.strptime(episode.pub_date, "%a, %d %b %Y %H:%M:%S %z"),
-                "episode_title": episode.title,
-                "description": extract_text_from_html(episode.description),
-            }
-            es_client.index(index=META_INDEX_NAME, body=doc)
-
-        logger.debug(f"Indexed {len(episode_store.episodes())} episodes.")

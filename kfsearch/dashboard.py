@@ -2,14 +2,13 @@ import json
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
+import asyncio
 
 from kfsearch.data.models import EpisodeStore
 from kfsearch.search.search_classes import (
     ResultSet,
     ResultsPage,
     diarize_transcript,
-    MetaResultSet,
-    MetaResultsPage,
 )
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME
 from kfsearch.frontend.utils import clickable_tag
@@ -24,6 +23,7 @@ episode_store.to_json()
 # pre-sort episode list by publication date:
 episode_list = [
             {
+                "eid": e.eid,
                 "pub_date": e.pub_date,
                 "title": e.title,
                 "description": e.description,
@@ -45,6 +45,11 @@ def init_dashboard(flask_app, route, es_client):
     app.es_client = es_client
 
     column_defs = [
+        {
+            "headerName": "EID",
+            "field": "eid",
+            "maxWidth": 80,
+        },
         {
             "headerName": "Publication Date",
             "field": "pub_date",
@@ -71,8 +76,9 @@ def init_dashboard(flask_app, route, es_client):
             "field": "description",
         },
         {
-            "headerName": "Transcript Exists",
+            "headerName": "Script",
             "field": "transcript_exists",
+            "maxWidth": 90,
         }
     ]
 
@@ -359,30 +365,30 @@ def init_dashboard(flask_app, route, es_client):
 
 
 def init_callbacks(app):
-
     @app.callback(
-        Output("transcribe-episode-list", "getRowsResponse"),
-        Input("transcribe-episode-list", "getRowsRequest"),
+        Output("transcribe-episode-list", "rowData"),
+        Input("transcribe-episode-list", "cellClicked"),
+        State("transcribe-episode-list", "rowData"),
     )
-    def infinite_scroll(request):
-        if request is None:
+    def transcribe_episode(cell_clicked, row_data):
+        if cell_clicked is None:
             return no_update
 
-        start = request["startRow"]
-        end = request["endRow"]
+        row_index = cell_clicked["rowIndex"]
+        col_id = cell_clicked["colId"]
 
-        list_excerpt = episode_list[start:end]
-        partial = [
-            {
-                "pub_date": e.pub_date,
-                "title": e.title,
-                "description": e.description,
-                "transcript_exists": e.transcript_path is not None
-            } for e in list_excerpt
-        ]
+        if col_id == "transcript_exists" and row_data[row_index]["transcript_exists"] == "no":
+            episode_id = row_data[row_index]["id"]
+            episode = episode_store.get_episode(episode_id)
+            transcriber = episode_store.get_transcriber()
 
-        return {"rowData": partial, "rowCount": len(list_excerpt)}
+            # Call the transcribe method asynchronously
+            transcriber.transcribe(episode.audiofile_location)
 
+            # Update the row data to reflect the new transcript status
+            row_data[row_index]["transcript_exists"] = "yes"
+
+        return row_data
 
     @app.callback(
         Output("episode-list", "children"),

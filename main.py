@@ -4,7 +4,7 @@ from elasticsearch import Elasticsearch
 from kfsearch.dashboard import init_dashboard
 from dotenv import find_dotenv, load_dotenv
 
-from kfsearch.search.setup_es import create_transcript_index, create_meta_index
+from kfsearch.search.setup_es import create_transcript_index
 
 
 load_dotenv(find_dotenv())
@@ -17,7 +17,6 @@ es = Elasticsearch(
 )
 
 create_transcript_index(es)
-create_meta_index(es)
 
 app = Flask(__name__, instance_relative_config=False)
 app = init_dashboard(app, route="/", es_client=es)

@@ -38,7 +38,7 @@ class Episode:
         name = self.audio_url.split("/")[-1].split(".")[0][:50]
 
         # If a transcript file already exists, set its name as attribute:
-        transcript_path = self.store.transcripts_dir() / f"{self.eid}_{name}.json"
+        transcript_path = self.store.transcripts_dir() / f"{self.eid}.json"
         if transcript_path.exists():
             self.transcript_path = str(transcript_path)
 
