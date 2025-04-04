@@ -54,7 +54,7 @@ def plot_word_freq(terms: List[str], es_client: Elasticsearch) -> go.Figure:
             go.Scatter(
                 x=grp["pub_date"],
                 y=grp["freq1k"],
-                mode="lines",
+                mode="lines+markers",
                 name=term,
             )
         )
