@@ -93,18 +93,20 @@ Search term tags
     height: 40px;
     border-radius: 16px 0 0 16px;
     position: absolute;
-    left: 0px;
+    left: 0;
     top: 0;
 }
 
 .term-color-0::before { background-color: #4c72b0; }
-.term-color-1::before { background-color: #55a868; }
-.term-color-2::before { background-color: #c44e52; }
+.term-color-1::before { background-color: #3aba57; }
+.term-color-2::before { background-color: #c53a5b; }
 .term-color-3::before { background-color: #8172b3; }
-.term-color-4::before { background-color: #ccb974; }
+.term-color-4::before { background-color: #bfa545; }
 .term-color-5::before { background-color: #64b5cd; }
 .term-color-6::before { background-color: #6c4c20; }
 .term-color-7::before { background-color: #e37c4d; }
+.term-color-8::before { background-color: #555555; }
+.term-color-9::before { background-color: #606805; }
 
 /*
 Term tag alignment within their container

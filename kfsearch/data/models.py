@@ -28,7 +28,6 @@ class Episode:
     audio_filename: str = None
     transcript_path: str = None
     num_speakers: int = 2  # TODO: make settable by user
-    transcript: dict = None
 
     def __post_init__(self):
         # Generate a 5-character alphanumeric hash from the URL

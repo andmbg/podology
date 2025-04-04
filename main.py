@@ -7,7 +7,7 @@ from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
 
-es = Elasticsearch(
+es_client = Elasticsearch(
     "http://localhost:9200",
     basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
     # verify_certs=True,
@@ -15,5 +15,5 @@ es = Elasticsearch(
 )
 
 app = Flask(__name__, instance_relative_config=False)
-app = init_dashboard(app, route="/", es_client=es)
+app = init_dashboard(app, route="/", es_client=es_client)
 app.run(host="0.0.0.0", port=8080, debug=True, load_dotenv=False)

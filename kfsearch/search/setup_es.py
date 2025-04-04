@@ -10,6 +10,8 @@ from kfsearch.search.utils import make_index_name
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
+STATS_PATH = Path(__file__).parent.parent / "data" / PROJECT_NAME / "stats"
+
 META_INDEX_NAME = f"{TRANSCRIPT_INDEX_NAME}_meta"
 
 # the shape of the transcript index:
@@ -41,24 +43,29 @@ META_INDEX_SETTINGS = {
 }
 
 
-def index_transcripts(es_client: Elasticsearch):
+def ensure_transcript_index(es_client: Elasticsearch):
     """
-    Create an Elasticsearch index for the transcripts of podcast episodes.
+    Create both an Elasticsearch index for the transcripts of podcast episodes,
+    and a mixed dataset of some stats about the episodes.
     """
     # Init index if it does not exist:
     if not es_client.indices.exists(index=TRANSCRIPT_INDEX_NAME):
         es_client.indices.create(index=TRANSCRIPT_INDEX_NAME, body=TRANSCRIPT_INDEX_SETTINGS)
         logger.info(f"Initialized index {TRANSCRIPT_INDEX_NAME}")
 
-    # Load EpisodeStore
+    # Init stats index if it does not exist:
+    if not STATS_PATH.exists():
+        STATS_PATH.mkdir(parents=True)
+        logger.info(f"Created stats directory {STATS_PATH}")
+
     episode_store = EpisodeStore(name=PROJECT_NAME)
 
     # Index transcripts from all transcribed episodes:
-    n = 0
     for episode in episode_store.episodes(script=True):
         if index_episode_transcript(episode, es_client):
-            n += 1
-    logger.debug(f"Indexed {n} transcripts into {TRANSCRIPT_INDEX_NAME}.")
+            logger.debug(f"Indexed transcript for episode {episode.eid}.")
+
+    # Collect episode stats for plotting and reporting:
 
 
 def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool:
@@ -87,3 +94,5 @@ def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool
             es_client.index(index=TRANSCRIPT_INDEX_NAME, body=doc, id=doc_id)
 
         return True
+
+    return False

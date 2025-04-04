@@ -1,5 +1,4 @@
 from dash import html
-import dash_bootstrap_components as dbc
 
 def clickable_tag(index: int, term: str) -> html.Button:
     """
@@ -15,3 +14,16 @@ def clickable_tag(index: int, term: str) -> html.Button:
         className=f"term-item term-color-{index % 8}",
         title=term,
     )
+
+tag_colorway = [
+    "#4c72b0"
+    "#3aba57"
+    "#c53a5b"
+    "#8172b3"
+    "#bfa545"
+    "#64b5cd"
+    "#6c4c20"
+    "#e37c4d"
+    "#555555"
+    "#606805"
+]

@@ -10,9 +10,10 @@ from kfsearch.search.search_classes import (
     ResultsPage,
     diarize_transcript,
 )
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, META_INDEX_NAME, index_episode_transcript
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
+from kfsearch.stats.preparation import ensure_stats_data
+from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag
-from kfsearch.search.setup_es import index_transcripts
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
 episode_store = EpisodeStore(name=PROJECT_NAME)
@@ -21,7 +22,7 @@ episode_store.set_transcriber(TRANSCRIBER)
 episode_store.populate()
 episode_store.to_json()
 
-# pre-sort episode list by publication date:
+# Metadata tab: Pre-sort episode list by publication date:
 episode_list = [
     {
         "eid": e.eid,
@@ -35,7 +36,9 @@ episode_list = [
 
 def init_dashboard(flask_app, route, es_client):
 
-    index_transcripts(es_client)
+    # Fill the ES index with transcripts:
+    ensure_transcript_index(es_client)
+    ensure_stats_data(episode_store)
 
     app = Dash(
         __name__,
@@ -121,7 +124,10 @@ def init_dashboard(flask_app, route, es_client):
                                     rowModelType="clientSide",
                                     style={"height": "calc(100vh - 200px)", "width": "100%"},
                                     rowData=episode_list,
-                                    className="ag-theme-quartz"
+                                    className="ag-theme-quartz",
+                                    dashGridOptions={
+                                        "rowSelection": "single",
+                                    },
                                 ),
                             ],
                             width=12,
@@ -342,11 +348,19 @@ def init_dashboard(flask_app, route, es_client):
                     className="mt-3",
                 ),
 
-                # Frequency Table view (DEBUG)
+                # Word frequency plot
                 # ----------------------------
-                html.Div(
-                    id="ft-view",
-                    className="mt-3",
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            [
+                                dcc.Graph(
+                                    id="word-count-plot",
+                                )
+                            ],
+                            width=12,
+                        )
+                    ]
                 )
             ]
         )
@@ -385,43 +399,38 @@ def init_dashboard(flask_app, route, es_client):
 def init_callbacks(app):
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
-        Input("transcribe-episode-list", "cellClicked"),
+        Input("transcribe-episode-list", "selectedRows"),
         State("transcribe-episode-list", "rowData"),
     )
-    def transcribe_episode(cell_clicked, row_data):
-        if cell_clicked is None or cell_clicked.get("colId") != "transcript_exists":
+    def transcribe_episode(selected_rows, row_data):
+        if selected_rows is None or selected_rows == []:
             return no_update
 
-        row_index = cell_clicked["rowIndex"]
-        col_id = cell_clicked["colId"]
+        logger.debug(selected_rows)
+
+        # Which episode and is it missing?
+        is_missing = selected_rows[0]["transcript_exists"] == "no"
+        selected_eid = selected_rows[0]["eid"]
 
         # Clicked on an episode that has no transcript yet:
-        if col_id == "transcript_exists" and row_data[row_index]["transcript_exists"] == "no":
+        if is_missing:
             # TODO color the cell yellow immediately (may take chained callbacks):
             pass
 
-            episode_id = row_data[row_index]["eid"]
-            episode = episode_store.get_episode(episode_id)
-            episode.transcribe()
+            episode = episode_store.get_episode(selected_eid)
+            episode.transcribe()  # DEBUG
             logger.debug(f"Indexing episode {episode.eid}")
-            index_episode_transcript(episode, app.es_client)
+            index_episode_transcript(episode, app.es_client)  # DEBUG
             episode_store.to_json()
 
-            # Update the row data to reflect the new transcript status
-            new_row_data = [
-                {
-                    "eid": e.eid,
-                    "pub_date": e.pub_date,
-                    "title": e.title,
-                    "description": e.description,
-                    "duration": e.duration,
-                    "transcript_exists": "no" if e.transcript_path is None else "yes",
-                } for e in episode_store.episodes()
-            ]
+            for i, row in enumerate(row_data):
+                if row["eid"] == selected_eid:
+                    row_data[i]["transcript_exists"] = "yes"
+                    break
 
-            # row_data[row_index]["transcript_exists"] = "yes"
+            return row_data
 
-            return new_row_data
+        return no_update
 
     @app.callback(
         Output("episode-list", "children"),
@@ -606,14 +615,18 @@ def init_callbacks(app):
         return freq_dict
 
 
-    # DEBUG show content of freq list:
     @app.callback(
-        Output("ft-view", "children"),
-        Input("frequency-dict", "data"),
+        Output("word-count-plot", "figure"),
+        Input("terms-store", "data"),
         prevent_initial_call=True,
     )
-    def update_frequency_table_view(frequency_dict):
+    def update_word_freq_plot(terms):
         """
         Callback that updates the frequency table view.
         """
-        pass
+        if not terms:
+            return no_update
+
+        fig = plot_word_freq(terms, es_client=app.es_client)
+
+        return fig
