@@ -25,6 +25,13 @@ def ensure_stats_data(episode_store: EpisodeStore):
     get_word_count(episode_store).to_parquet(word_count_path)
 
 
+def get_timerange(episode_store: EpisodeStore) -> tuple:
+
+    pub_dates = [pd.Timestamp(ep.pub_date) for ep in episode_store.episodes()]
+
+    return min(pub_dates), max(pub_dates)
+
+
 def get_word_count(episode_store: EpisodeStore) -> pd.DataFrame:
     """
     Count the number of words per episode.

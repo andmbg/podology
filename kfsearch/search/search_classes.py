@@ -161,7 +161,7 @@ def diarize_transcript(eid, episode_store, search_term) -> list:
     episode = [i for i in episode_store.episodes() if i.eid == eid][0]
     segments = episode.get_transcript()["segments"]
 
-    # Compile search term pattern for case-insensitive matching
+    # Compile search term_colorid pattern for case-insensitive matching
     search_term = rf"\b{search_term}\b"
     pattern = re.compile(search_term, re.IGNORECASE)
 

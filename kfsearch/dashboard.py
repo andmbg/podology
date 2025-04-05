@@ -13,7 +13,7 @@ from kfsearch.search.search_classes import (
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
-from kfsearch.frontend.utils import clickable_tag
+from kfsearch.frontend.utils import clickable_tag, colorway
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
 episode_store = EpisodeStore(name=PROJECT_NAME)
@@ -157,7 +157,7 @@ def init_dashboard(flask_app, route, es_client):
                                 dbc.Input(
                                     id="input",
                                     type="text",
-                                    placeholder="Enter search term",
+                                    placeholder="Enter search term_colorid",
                                     debounce=True,
                                 ),
                             ],
@@ -179,7 +179,10 @@ def init_dashboard(flask_app, route, es_client):
                 dbc.Row(
                     dbc.Col(
                         [
-                            dcc.Store(id="terms-store", data=[]),
+                            dcc.Store(
+                                id="terms-store",
+                                data={"termtuples": [], "colorid-stack": [i.id for i in colorway]}
+                            ),
                             html.Div(
                                 id="terms-list",
                                 className="d-flex flex-row flex-wrap justify-content-center align-items-center",
@@ -314,7 +317,7 @@ def init_dashboard(flask_app, route, es_client):
                                 dbc.Input(
                                     id="input-termstab",
                                     type="text",
-                                    placeholder="Enter search term",
+                                    placeholder="Enter search term_colorid",
                                     debounce=True,
                                 ),
                             ],
@@ -361,7 +364,7 @@ def init_dashboard(flask_app, route, es_client):
                             width=12,
                         )
                     ]
-                )
+                ),
             ]
         )
     )
@@ -443,11 +446,11 @@ def init_callbacks(app):
     )
     def update_episode_transcript_search_list(n_submit, search_nclicks, active_page, search_term):
         """
-        Callback that reacts to search term changes and pagination.
+        Callback that reacts to search term_colorid changes and pagination.
         In:
-            - entering new search term (enter or search button)
+            - entering new search term_colorid (enter or search button)
             - clicking pagination buttons
-            - (State) current search term
+            - (State) current search term_colorid
         Out:
             - list of episodes with hits in them
         """
@@ -539,9 +542,9 @@ def init_callbacks(app):
             add_clicks,
             add_termstab_clicks,
             remove_clicks,
-            input_value,
-            input_termstab,
-            search_terms
+            input_term_searchtab,
+            input_term_termstab,
+            terms_colors_dict
     ):
         """
         Callback that reacts to clicks on the Add button or the tags (=remove).
@@ -549,35 +552,55 @@ def init_callbacks(app):
         In:
             - clicking the Add button or a tag
             - the current input value
-            - the current list of search terms
+            - the current list of search term_colorid*color tuples
         Out:
-            - updated list of search terms
+            - updated list of search terms*color tuples
         """
         if not ctx.triggered:
-            tag_elements = [clickable_tag(i, term) for i, term in enumerate(search_terms)]
-            return search_terms, tag_elements, tag_elements
+            tag_elements = [
+                clickable_tag(i, term_colorid)
+                for i, term_colorid in enumerate(terms_colors_dict["termtuples"])
+            ]
+            return terms_colors_dict, tag_elements, tag_elements
+
+        # Analyse the search term dict into a list of tuples and the color stack:
+        old_term_tuples = terms_colors_dict["termtuples"]
+        old_terms = [i[0] for i in old_term_tuples]
+        colorid_stack = terms_colors_dict["colorid-stack"]
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-        # Add button on first tab was clicked:
-        if trigger_id == "add-button" and input_value:
-            if input_value not in search_terms:
-                search_terms.append(input_value)
+        # "Add" button on first tab was clicked:
+        if trigger_id == "add-button" and input_term_searchtab:
+            if len(old_term_tuples) < 10 and input_term_searchtab not in old_terms:
+                # assign the first available color to the new term_colorid:
+                new_term_tuple = (input_term_searchtab, colorid_stack.pop())
+                old_term_tuples.append(new_term_tuple)
 
-        # Add button on terms tab was clicked:
-        elif trigger_id == "add-button-termstab" and input_termstab:
-            if input_termstab not in search_terms:
-                search_terms.append(input_termstab)
+        # "Add" button on terms tab was clicked:
+        elif trigger_id == "add-button-termstab" and input_term_termstab:
+            if len(old_term_tuples) < 10 and input_term_termstab not in old_terms:
+                # assign the first available color to the new term_colorid:
+                new_term_tuple = (input_term_termstab, colorid_stack.pop())
+                old_term_tuples.append(new_term_tuple)
 
-        # elif "add-button-termstab" in trigger_id and search_term:
+        # A tag was clicked for removal:
         elif "remove-term" in trigger_id:
             index = int(json.loads(trigger_id)["index"])
-            if 0 <= index < len(search_terms):
-                search_terms.pop(index)
+            if 0 <= index < len(old_term_tuples):
+                freed_colorid = old_term_tuples.pop(index)[1]
+                colorid_stack.append(freed_colorid)
 
-        tag_elements = [clickable_tag(i, term) for i, term in enumerate(search_terms)]
+        new_terms_colors_dict = {
+            "termtuples": old_term_tuples,
+            "colorid-stack": colorid_stack,
+        }
+        tag_elements = [
+            clickable_tag(i, term_colorid)
+            for i, term_colorid in enumerate(old_term_tuples)
+        ]
 
-        return search_terms, tag_elements, tag_elements
+        return new_terms_colors_dict, tag_elements, tag_elements
 
 
     # Update frequency dict:
@@ -594,12 +617,12 @@ def init_callbacks(app):
         if freq_dict is None:
             freq_dict = {}
 
-        # Remove term from frequency dict if it is not in the store anymore:
+        # Remove term_colorid from frequency dict if it is not in the store anymore:
         for term in list(freq_dict.keys()):
             if term not in terms_in_store:
                 freq_dict.pop(term)
 
-        # Add new term to frequency dict if it is not in the list yet:
+        # Add new term_colorid to frequency dict if it is not in the list yet:
         for term in terms_in_store:
             if term not in freq_dict:
                 result_set = ResultSet(
@@ -620,13 +643,11 @@ def init_callbacks(app):
         Input("terms-store", "data"),
         prevent_initial_call=True,
     )
-    def update_word_freq_plot(terms):
+    def update_word_freq_plot(terms_dict):
         """
         Callback that updates the frequency table view.
         """
-        if not terms:
+        if not terms_dict or terms_dict["termtuples"] == []:
             return no_update
 
-        fig = plot_word_freq(terms, es_client=app.es_client)
-
-        return fig
+        return plot_word_freq(terms_dict["termtuples"], es_client=app.es_client)
