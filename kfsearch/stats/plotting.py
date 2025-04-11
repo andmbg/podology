@@ -73,10 +73,18 @@ def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> 
             font=dict(size=14),
             plot_bgcolor="rgba(0,0,0, 0)",
             paper_bgcolor="rgba(0,0,0, .025)",
+            margin=dict(l=0, r=0, t=0, b=0),
+            legend=dict(
+                y=.5,
+                yanchor="middle",
+            ),
         )
 
         fig.update_yaxes(
             gridcolor="rgba(0,0,0, .1)",
+            title=dict(
+                text="Occurrences per 1000",
+            )
         )
 
         fig.update_xaxes(

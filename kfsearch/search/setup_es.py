@@ -69,6 +69,8 @@ def ensure_transcript_index(es_client: Elasticsearch):
 
 
 def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool:
+    logger.debug(f"Indexing episode {episode.eid}")
+
     transcript_path = Path(episode.transcript_path)
     if transcript_path.exists():
         with open(transcript_path, "r") as f:
@@ -79,8 +81,13 @@ def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool
         first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
 
         if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
+            logger.warning(
+                f"Found first segment in index for episode {episode.eid}. "
+                "Might it already be indexed?"
+            )
             return False
 
+        # Do the indexing:
         for entry in transcript_data["segments"]:
             doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
             doc = {

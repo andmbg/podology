@@ -30,7 +30,7 @@ episode_list = [
         "title": e.title,
         "description": e.description,
         "duration": e.duration,
-        "transcript_exists": "no" if e.transcript_path is None else "yes",
+        "transcript_exists": "Get" if e.transcript_path is None else "Yes",
     } for e in episode_store.episodes()
 ]
 
@@ -52,7 +52,9 @@ def init_dashboard(flask_app, route, es_client):
 
     # AG Grid column definitions for the episode list in the Metadata tab:
     conditional_style  = {
-        "function": "params.data.transcript_exists == 'yes' ? {backgroundColor: '#00ff0011'} : (params.data.transcript_exists == 'no' ? {backgroundColor: '#ff000011'} : {backgroundColor: '#ffff0011'})"
+        "function": "params.data.transcript_exists == 'Yes' ? {backgroundColor: '#00ff0011'} : ("
+                    "params.data.transcript_exists == 'Get' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
+                    "'#ffff0033'})"
     }
 
     column_defs = [
@@ -403,16 +405,17 @@ def init_callbacks(app):
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
         Input("transcribe-episode-list", "selectedRows"),
+        Input("transcribe-episode-list", "cellClicked"),
         State("transcribe-episode-list", "rowData"),
     )
-    def transcribe_episode(selected_rows, row_data):
-        if selected_rows is None or selected_rows == []:
+    def transcribe_episode(selected_rows, cell_clicked, row_data):
+        if selected_rows is None or selected_rows == [] or cell_clicked.get("colId", "") != "transcript_exists":
             return no_update
 
         logger.debug(selected_rows)
 
         # Which episode and is it missing?
-        is_missing = selected_rows[0]["transcript_exists"] == "no"
+        is_missing = selected_rows[0]["transcript_exists"] == "Get"
         selected_eid = selected_rows[0]["eid"]
 
         # Clicked on an episode that has no transcript yet:
@@ -421,14 +424,13 @@ def init_callbacks(app):
             pass
 
             episode = episode_store.get_episode(selected_eid)
-            episode.transcribe()  # DEBUG
-            logger.debug(f"Indexing episode {episode.eid}")
-            index_episode_transcript(episode, app.es_client)  # DEBUG
+            episode.transcribe()
+            index_episode_transcript(episode, app.es_client)
             episode_store.to_json()
 
             for i, row in enumerate(row_data):
                 if row["eid"] == selected_eid:
-                    row_data[i]["transcript_exists"] = "yes"
+                    row_data[i]["transcript_exists"] = "Yes"
                     break
 
             return row_data

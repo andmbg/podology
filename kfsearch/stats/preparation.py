@@ -17,8 +17,8 @@ metadata_path = stats_folder_path / "metadata.parquet"
 
 def ensure_stats_data(episode_store: EpisodeStore):
     """
-    There are a bunch of computations that we need to do at indexing time, that cannot
-    be done at runtime. This function is called to compute those stats and store them
+    There are a bunch of computations that we need to do at indexing time, that take
+    too long at runtime. This function is called to compute those stats and store them
     in the stats directory.
     """
     get_metadata(episode_store).to_parquet(metadata_path)
