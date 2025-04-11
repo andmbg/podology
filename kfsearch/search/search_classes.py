@@ -13,9 +13,13 @@ HLTAG = "bling"
 
 
 class ResultSet:
-    def __init__(self, es_client, episode_store, index_name, search_term, page_size=10):
+    """
+    A class to handle search results from an Elasticsearch index.
+    Contains a paged set of hits for the search term in the given index, along with a
+    by-episode grouping of the hits.
+    """
+    def __init__(self, es_client, index_name, search_term, page_size=10):
         self.es_client = es_client
-        self.episode_store = episode_store
         self.index_name = index_name
         self.search_term = search_term
         self.page_size = page_size
@@ -56,7 +60,7 @@ class ResultSet:
         pages = []
         for i in range(0, len(episode_list), self.page_size):
             page_episodes = dict(episode_list[i:i + self.page_size])
-            pages.append(ResultsPage(page_episodes, self.episode_store))
+            pages.append(ResultsPage(page_episodes))
         return pages
 
     def get_page(self, page_number):
@@ -66,22 +70,20 @@ class ResultSet:
 
 
 class ResultsPage:
-    def __init__(self, episodes, episode_store):
+    def __init__(self, episodes):
         self.episodes = episodes
-        self.episode_store = episode_store
         self.cards = self._create_cards()
 
     def _create_cards(self):
         return [
-            ResultCard(eid, hits, self.episode_store)
+            ResultCard(eid, hits)
             for eid, hits
             in self.episodes.items()
         ]
 
 
 class ResultCard:
-    def __init__(self, eid, within_ep_hitlist, episode_store):
-        self.episode_store = episode_store
+    def __init__(self, eid, within_ep_hitlist):
         self.title = within_ep_hitlist[0]["_source"]["episode_title"]
         self.pub_date = within_ep_hitlist[0]["_source"]["pub_date"]
         self.hit_count = len(within_ep_hitlist)

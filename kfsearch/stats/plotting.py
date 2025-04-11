@@ -3,16 +3,14 @@ from typing import List
 import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
+import sqlite3
 
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 from kfsearch.data.models import EpisodeStore
 from kfsearch.search.search_classes import ResultSet
-from kfsearch.stats.preparation import metadata_path, word_count_path, get_timerange
+from kfsearch.stats.preparation import get_timerange, stats_db_path
 from kfsearch.frontend.utils import colorway
 
-
-meta = pd.read_parquet(metadata_path)
-word_count = pd.read_parquet(word_count_path)
 
 episode_store = EpisodeStore("Knowledge Fight")
 colordict = {i[0]: i[1] for i in colorway}
@@ -21,14 +19,16 @@ timerange = get_timerange(episode_store)
 
 def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> go.Figure:
 
-    df = pd.DataFrame()
     term_colid_dict = {i[0]: i[1] for i in term_colid_tuples}
+    terms = term_colid_dict.keys()
 
-    for term, _ in term_colid_tuples:
+    df = pd.DataFrame()
+
+    # List how many times each term appears in each transcript
+    for term in terms:
 
         result_set = ResultSet(
             es_client=es_client,
-            episode_store=episode_store,
             index_name=TRANSCRIPT_INDEX_NAME,
             search_term=term,
             page_size=10,
@@ -46,9 +46,18 @@ def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> 
 
         df = pd.concat([df, word_df])
 
+    unique_eps = tuple(df.eid.unique())
+    unique_eps_query = ",".join(["?"] * len(unique_eps))
+    query = f"select eid, count as total from word_count where eid in ({unique_eps_query})"
+    word_counts = pd.read_sql(
+        query,
+        sqlite3.connect(stats_db_path),
+        params=unique_eps,
+    )
+
     df.pub_date = pd.to_datetime(df.pub_date)
     df = df.groupby(["term", "eid", "pub_date", "title"]).size().reset_index(name="count")
-    df = pd.merge(df, word_count.rename(columns={"count": "total"}), on="eid", how="left")
+    df = pd.merge(df, word_counts, on="eid", how="left")
     df["freq1k"] = df["count"] / df["total"] * 1000
     df.sort_values("pub_date", inplace=True)
 

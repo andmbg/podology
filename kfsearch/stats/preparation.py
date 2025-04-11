@@ -3,16 +3,15 @@ from pathlib import Path
 
 import pandas as pd
 from loguru import logger
+import sqlite3
 
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore
 
 
-stats_folder_path = Path("data") / PROJECT_NAME / "stats"
+stats_folder_path = Path("data").resolve() / PROJECT_NAME / "stats"
+stats_db_path = stats_folder_path / "stats.db"
 stats_folder_path.mkdir(parents=True, exist_ok=True)
-
-word_count_path = stats_folder_path / "word_count.parquet"
-metadata_path = stats_folder_path / "metadata.parquet"
 
 
 def ensure_stats_data(episode_store: EpisodeStore):
@@ -21,8 +20,9 @@ def ensure_stats_data(episode_store: EpisodeStore):
     too long at runtime. This function is called to compute those stats and store them
     in the stats directory.
     """
-    get_metadata(episode_store).to_parquet(metadata_path)
-    get_word_count(episode_store).to_parquet(word_count_path)
+    initialize_stats_db()
+    write_all_wordcounts(episode_store)
+    # get_metadata(episode_store).to_parquet(metadata_path)
 
 
 def get_timerange(episode_store: EpisodeStore) -> tuple:
@@ -32,39 +32,58 @@ def get_timerange(episode_store: EpisodeStore) -> tuple:
     return min(pub_dates), max(pub_dates)
 
 
-def get_word_count(episode_store: EpisodeStore) -> pd.DataFrame:
+def initialize_stats_db():
+    logger.info("Initializing stats database")
+
+    with sqlite3.connect(stats_db_path) as conn:
+        # Create the word count table if it doesn't exist
+        conn.execute("""CREATE TABLE IF NOT EXISTS word_count (
+                eid TEXT PRIMARY KEY,
+                count INTEGER
+            )
+        """)
+
+
+def write_all_wordcounts(episode_store: EpisodeStore):
     """
-    Count the number of words per episode.
-
-    pd.DataFrame:
-    - eid (str): The episode ID
-    - count (str): The number of words in the episode
+    Ensure all transcribed episodes are indexed with their word counts.
     """
-    eps_list = []
+    logger.info("Initializing word count table")
+    with sqlite3.connect(stats_db_path) as conn:
 
-    for episode in episode_store.episodes(script=True):
-        script_path = episode.transcript_path
+        # Get all indexed episode IDs
+        indexed_eids = {row[0] for row in conn.execute("SELECT eid FROM word_count")}
 
-        if Path(script_path).exists():
-            with open(script_path, "r") as f:
-                segments = json.load(f)["segments"]
-                try:
-                    count = sum([len(i["words"]) for i in segments])
-                except KeyError:
-                    logger.error(f"No words in {script_path} or wrong structure.")
-                    count = pd.NA
+        # Iterate over all episodes and index missing ones
+        for episode in episode_store.episodes(script=True):
+            if episode.eid not in indexed_eids:
+                script_path = episode.transcript_path
+                if Path(script_path).exists():
+                    with open(script_path, "r") as f:
+                        segments = json.load(f)["segments"]
+                        word_count = sum(len(segment["words"]) for segment in segments)
+                        conn.execute("""
+                            INSERT INTO word_count (eid, count)
+                            VALUES (?, ?)
+                        """, (episode.eid, word_count))
 
-        else:
-            count = pd.NA
 
-        eps_list.append(
-            {
-                "eid": episode.eid,
-                "count": count,
-            }
-        )
+def update_word_count_table(episode):
+    """
+    Update the word count index for a single episode.
+    """
+    script_path = episode.transcript_path
+    if Path(script_path).exists():
+        with open(script_path, "r") as f:
+            segments = json.load(f)["segments"]
+            word_count = sum(len(segment["words"]) for segment in segments)
 
-    return pd.DataFrame(eps_list)
+        with sqlite3.connect(stats_db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO word_count (eid, count)
+                VALUES (?, ?)
+            """, (episode.eid, word_count))
+
 
 def get_metadata(episode_store: EpisodeStore) -> pd.DataFrame:
     """

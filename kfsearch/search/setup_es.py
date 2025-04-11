@@ -7,6 +7,7 @@ from elasticsearch import Elasticsearch
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.utils import make_index_name
+from kfsearch.stats.preparation import update_word_count_table
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
@@ -81,10 +82,7 @@ def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool
         first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
 
         if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
-            logger.warning(
-                f"Found first segment in index for episode {episode.eid}. "
-                "Might it already be indexed?"
-            )
+            logger.debug(f"Found index for episode {episode.eid}.")
             return False
 
         # Do the indexing:
@@ -99,6 +97,10 @@ def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool
                 "end_time": entry["end"],
             }
             es_client.index(index=TRANSCRIPT_INDEX_NAME, body=doc, id=doc_id)
+
+        # Update word count table:
+        # (Might become a more general stats update call)
+        update_word_count_table(episode)
 
         return True
 

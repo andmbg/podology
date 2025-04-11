@@ -409,6 +409,11 @@ def init_callbacks(app):
         State("transcribe-episode-list", "rowData"),
     )
     def transcribe_episode(selected_rows, cell_clicked, row_data):
+        """
+        If you click on the Script column on the Metadata tab, then if that episode has
+        no transcript yet, get it, index it, and update the stats, so it will be shown
+        in the search results and analyses.
+        """
         if selected_rows is None or selected_rows == [] or cell_clicked.get("colId", "") != "transcript_exists":
             return no_update
 
@@ -475,7 +480,6 @@ def init_callbacks(app):
 
                 result_set = ResultSet(
                     es_client=app.es_client,
-                    episode_store=episode_store,
                     index_name=TRANSCRIPT_INDEX_NAME,
                     search_term=search_term,
                     page_size=page_size,
@@ -490,7 +494,7 @@ def init_callbacks(app):
                 total_hits = result_set.total_hits
                 max_pages = -(-len(result_set.episodes) // page_size)  # Ceiling division
 
-                results_page = ResultsPage(this_page_hits, episode_store)
+                results_page = ResultsPage(this_page_hits)
                 result_cards = [c.to_html() for c in results_page.cards]
 
                 return result_cards, max_pages, page
@@ -629,7 +633,6 @@ def init_callbacks(app):
             if term not in freq_dict:
                 result_set = ResultSet(
                     es_client=app.es_client,
-                    episode_store=episode_store,
                     index_name=TRANSCRIPT_INDEX_NAME,
                     search_term=term,
                     page_size=10,
