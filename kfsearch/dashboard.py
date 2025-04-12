@@ -4,11 +4,10 @@ from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from loguru import logger
 
-from kfsearch.data.models import EpisodeStore
+from kfsearch.data.models import EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import (
     ResultSet,
     ResultsPage,
-    diarize_transcript,
 )
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
 from kfsearch.stats.preparation import ensure_stats_data
@@ -159,7 +158,7 @@ def init_dashboard(flask_app, route, es_client):
                                 dbc.Input(
                                     id="input",
                                     type="text",
-                                    placeholder="Enter search term_colorid",
+                                    placeholder="Enter search term",
                                     debounce=True,
                                 ),
                             ],
@@ -520,14 +519,9 @@ def init_callbacks(app):
 
         if "result-card" in trigger_id and resultcard_nclicks and any(i is not None for i in resultcard_nclicks):
             episode_id = json.loads(trigger_id)["index"]
+            diarized_transcript = DiarizedTranscript(eid=episode_id, episode_store=episode_store)
 
-            diarized_transcript = diarize_transcript(
-                eid=episode_id,
-                episode_store=episode_store,
-                search_term=search_term,
-            )
-
-            return diarized_transcript
+            return diarized_transcript.to_html(highlight=search_term)
 
         return current_transcript
 

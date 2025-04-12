@@ -1,15 +1,19 @@
+import re
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from loguru import logger
 
 import requests
+import dash_bootstrap_components as dbc
+from dash import html
 
 from kfsearch.data.utils import episode_hash
-from kfsearch.data.transcribers.lemonfox import LemonfoxTranscriber
-from kfsearch.config import EPISODE_STORE_PATH
 from kfsearch.data.connectors.base import Connector
 from kfsearch.data.transcribers.base import Transcriber
+from kfsearch.search.search_classes import highlight_to_html_elements
+from kfsearch.search.utils import format_time
+from kfsearch.config import EPISODE_STORE_PATH
 
 
 @dataclass
@@ -85,7 +89,7 @@ class Episode:
 
         self.transcript_path = script_filename
 
-    def get_transcript(self):
+    def get_transcript(self) -> dict:
         """
         Load the transcript from the transcript directory if it exists.
         Return it as a dict.
@@ -95,7 +99,7 @@ class Episode:
                 return json.load(file)
         else:
             logger.debug(f"No transcript for episode '{self.eid}' found.")
-            return None
+            return {}
 
     def get_audio(self):
         """
@@ -300,3 +304,127 @@ class EpisodeStore:
 
     def __len__(self):
         return len(self._episodes)
+
+
+class DiarizedTranscript:
+    """
+    Takes an episode transcript and provides
+    - a method that returns a plain JSON diarized transcript
+    - a method that returns the HTML representation of the transcript that we use in the transcripts tab
+    """
+    def __init__(self, eid, episode_store):
+        self.eid = eid
+        self.episode_store = episode_store
+
+        # Auto-filled from the episode store:
+        self.title = self.episode_store.get_episode(self.eid).title
+        self.pub_date = self.episode_store.get_episode(self.eid).pub_date
+        self.description = self.episode_store.get_episode(self.eid).description
+        self.audio_url = self.episode_store.get_episode(self.eid).audio_url
+        self.duration = self.episode_store.get_episode(self.eid).duration
+
+        # The meat of the class - the diarized transcript:
+        self.diarized_script = self._diarize_script()
+
+    def _diarize_script(self) -> list:
+        """
+        Build json representation of the diarized transcript and store it in the object.
+        Episode metadata are stored at the object level, so if we need a transcript with, say, date,
+        we have a dedicated output method.
+        """
+
+        episode = self.episode_store.get_episode(self.eid)
+        segments = episode.get_transcript()["segments"]
+
+        turns = []
+        while segments:
+            turn_segments = []
+            this_speaker = segments[0]["speaker"]
+            this_start = segments[0]["start"]
+
+            while segments and segments[0]["speaker"] == this_speaker:
+                # Highlight search terms in segment text
+                text = segments.pop(0)["text"]
+                turn_segments.append(text)
+
+            turn = {
+                "speaker": this_speaker,
+                "start": this_start,
+                "text": turn_segments,
+            }
+            turns.append(turn)
+
+        return turns
+
+    def to_json(
+        self,
+        episode_metadata: list = None,
+        transcript_metadata: list = None,
+    ):
+        """
+
+        """
+        episode_metadata = episode_metadata or []
+        transcript_metadata = transcript_metadata or []
+        episode_metadata = [episode_metadata] if isinstance(episode_metadata, str) else episode_metadata
+        transcript_metadata = [transcript_metadata] if isinstance(transcript_metadata, str) else transcript_metadata
+
+        out = []
+
+        for source_turn in self.diarized_script:
+            # Copy episode metadata from the object to each turn:
+            turn = {i: getattr(self, i) for i in episode_metadata}
+
+            # Copy transcript metadata from the source turn to each turn:
+            turn.update({k: source_turn.get(k) for k in transcript_metadata})
+
+            # Finally: the text
+            turn["text"] = " ".join(source_turn["text"])
+
+            out.append(turn)
+
+        return out
+
+    def to_html(self, highlight: str = None) -> list:
+
+        # Deprecate at some point, as it's STT API dependent:
+        def speaker_class(speaker):
+            """
+            Map speaker to a CSS class for transcript display.
+            """
+            return f"speaker-{speaker[-2:]}"
+
+        # Compile search term pattern for case-insensitive matching
+        highlight = rf"\b{highlight}\b"
+        pattern = re.compile(highlight, re.IGNORECASE)
+
+        segments = self.diarized_script
+
+        turns = []
+        while segments:
+            seg = segments.pop(0)
+            text = " ".join(seg["text"])
+
+            if highlight:
+                text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
+
+            highlighted_turn = highlight_to_html_elements(text)
+
+
+            turn_header = dbc.Row(
+                children=[
+                    dbc.Col([html.B([seg["speaker"] + ":"])], className="text-start text-bf", width=6),
+                    dbc.Col([format_time(seg["start"])], className="text-end text-secondary", width=6),
+                ],
+                className="mt-2"
+            )
+            turn_body = dbc.Row(
+                children=[
+                    html.Div([highlighted_turn], className=speaker_class(seg["speaker"])),
+                ]
+            )
+
+            turns.append(turn_header)
+            turns.append(turn_body)
+
+        return turns
