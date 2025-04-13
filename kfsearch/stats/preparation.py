@@ -28,11 +28,10 @@ def ensure_stats_data(episode_store: EpisodeStore):
     ensure_wordclouds(episode_store)
 
 
-def get_timerange(episode_store: EpisodeStore) -> tuple:
+def get_pub_dates(episode_store: EpisodeStore) -> list:
 
-    pub_dates = [pd.Timestamp(ep.pub_date) for ep in episode_store.episodes()]
+    return [pd.Timestamp(ep.pub_date) for ep in episode_store.episodes()]
 
-    return min(pub_dates), max(pub_dates)
 
 
 def initialize_stats_db():
