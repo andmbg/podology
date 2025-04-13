@@ -94,7 +94,7 @@ class ResultCard:
         formatted_date = datetime.strptime(
             self.pub_date,
             "%Y-%m-%dT%H:%M:%S",
-        ).strftime("%d.%m.%Y")
+        ).strftime("%Y-%m-%d")
 
         return dbc.Button(
             dbc.Card(

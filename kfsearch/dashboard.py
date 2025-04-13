@@ -4,6 +4,7 @@ import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from loguru import logger
+from datetime import datetime
 
 from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import (
@@ -215,7 +216,7 @@ def init_dashboard(flask_app, route, es_client):
                                                 [
                                                     dcc.Store(id="playback-time-store", data=0),
                                                     dbc.Button("⏸", id="play", color="secondary", size="sm", className="me-1"),
-                                                    html.H5(html.B("Title"), id="episode-title", className="mb-0 text-truncate"),
+                                                    html.H5(html.B("Title", id="transcript-episode-title"), className="mb-0 text-truncate"),
                                                 ],
                                                 width=12,
                                                 className="d-flex align-items-center",
@@ -224,17 +225,16 @@ def init_dashboard(flask_app, route, es_client):
                                         dbc.Row(
                                             [
                                                 dbc.Col(
-                                                    html.P("1970-01-01", id="episode-date", className="text-muted mb-0"),
+                                                    html.P("", id="transcript-episode-date", className="text-muted mb-0"),
                                                     width=6,
                                                 ),
                                                 dbc.Col(
                                                     html.P(
                                                         [
-                                                            html.Span("Ep. 100", id="episode-number"),
-                                                            " • ",
-                                                            html.Span("1:21:49", id="episode-duration"),
+                                                            html.Span("Duration: ", className="text-secondary"),
+                                                            html.Span("", id="transcript-episode-duration"),
                                                         ],
-                                                        className="text-muted mb-0 text-end",
+                                                        className="mb-0 text-end",
                                                     ),
                                                     width=6,
                                                 ),
@@ -515,23 +515,38 @@ def init_callbacks(app):
     @app.callback(
         Output("transcript", "children"),
         Output("wordcloud", "children"),
+        Output("transcript-episode-title", "children"),
+        Output("transcript-episode-date", "children"),
+        Output("transcript-episode-duration", "children"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("input", "value"),
         State("transcript", "children"),
         State("wordcloud", "children"),
+        State("transcript-episode-title", "children"),
+        State("transcript-episode-date", "children"),
+        State("transcript-episode-duration", "children"),
     )
     def update_transcript(
         resultcard_nclicks,
         card_ids,
         search_term,
         current_transcript,
-        current_wordcloud
+        current_wordcloud,
+        current_transcript_title,
+        current_transcript_date,
+        current_transcript_duration,
     ):
         """
         Callback that reacts to clicks on result cards, given pagination.
         """
-        default_return = current_transcript, current_wordcloud
+        default_return = (
+            current_transcript,
+            current_wordcloud,
+            current_transcript_title,
+            current_transcript_date,
+            current_transcript_duration,
+        )
 
         if not ctx.triggered:
             return default_return
@@ -562,7 +577,13 @@ def init_callbacks(app):
                 },
             )
 
-            return dia_script_element, word_cloud_element
+            return (
+                dia_script_element,
+                word_cloud_element,
+                episode.title,
+                episode.pub_date,
+                episode.duration,
+            )
 
         return default_return
 
