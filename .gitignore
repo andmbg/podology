@@ -11,3 +11,4 @@ data/**/*
 launch.json
 *.crt
 *.log
+__pycache__/

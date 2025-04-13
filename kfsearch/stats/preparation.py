@@ -6,11 +6,13 @@ from loguru import logger
 import sqlite3
 
 from config import PROJECT_NAME
-from kfsearch.data.models import EpisodeStore
+from kfsearch.data.models import EpisodeStore, Episode, DiarizedTranscript
+from kfsearch.stats.nlp import get_wordcloud
 
 
 stats_folder_path = Path("data").resolve() / PROJECT_NAME / "stats"
 stats_db_path = stats_folder_path / "stats.db"
+clouds_path = stats_folder_path / "wordclouds"
 stats_folder_path.mkdir(parents=True, exist_ok=True)
 
 
@@ -21,8 +23,9 @@ def ensure_stats_data(episode_store: EpisodeStore):
     in the stats directory.
     """
     initialize_stats_db()
-    write_all_wordcounts(episode_store)
+    ensure_wordcounts(episode_store)
     # get_metadata(episode_store).to_parquet(metadata_path)
+    ensure_wordclouds(episode_store)
 
 
 def get_timerange(episode_store: EpisodeStore) -> tuple:
@@ -44,11 +47,11 @@ def initialize_stats_db():
         """)
 
 
-def write_all_wordcounts(episode_store: EpisodeStore):
+def ensure_wordcounts(episode_store: EpisodeStore):
     """
-    Ensure all transcribed episodes are indexed with their word counts.
+    Identify all episodes that are missing a word count
+    and update the word count table
     """
-    logger.info("Initializing word count table")
     with sqlite3.connect(stats_db_path) as conn:
 
         # Get all indexed episode IDs
@@ -57,22 +60,15 @@ def write_all_wordcounts(episode_store: EpisodeStore):
         # Iterate over all episodes and index missing ones
         for episode in episode_store.episodes(script=True):
             if episode.eid not in indexed_eids:
-                script_path = episode.transcript_path
-                if Path(script_path).exists():
-                    with open(script_path, "r") as f:
-                        segments = json.load(f)["segments"]
-                        word_count = sum(len(segment["words"]) for segment in segments)
-                        conn.execute("""
-                            INSERT INTO word_count (eid, count)
-                            VALUES (?, ?)
-                        """, (episode.eid, word_count))
+                update_word_count_table(episode)
 
 
-def update_word_count_table(episode):
+def update_word_count_table(episode: Episode):
     """
     Update the word count index for a single episode.
     """
     script_path = episode.transcript_path
+    
     if Path(script_path).exists():
         with open(script_path, "r") as f:
             segments = json.load(f)["segments"]
@@ -108,3 +104,37 @@ def get_metadata(episode_store: EpisodeStore) -> pd.DataFrame:
         )
 
     return pd.DataFrame(eps_list)
+
+
+def store_wordcloud(episode: Episode):
+    """
+    Get the wordcloud for a given episode and store it as a png file.
+    """
+    logger.debug(f"Creating wordcloud for {episode.eid}")
+
+    # Plain text of transcript without speaker labels:
+    diarized_transcript = DiarizedTranscript(episode)
+    text = [i["text"] for i in diarized_transcript.to_json()]
+    text = " ".join(text)
+
+    path = clouds_path / f"{episode.eid}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig_cloud = get_wordcloud(text)
+
+    fig_cloud.savefig(path, bbox_inches="tight")
+
+
+def ensure_wordclouds(episode_store: EpisodeStore):
+    """
+    Identify all episodes that are missing a word cloud
+    and update the word cloud table
+    """
+    # Get transcribed episodes that lack a word cloud:
+    for episode in episode_store.episodes(script=True):
+        
+        if (
+            episode.transcript_path
+            and not (clouds_path / f"{episode.eid}.png").exists()
+        ):
+            store_wordcloud(episode)

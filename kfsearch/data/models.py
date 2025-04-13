@@ -29,8 +29,9 @@ class Episode:
     pub_date: str = None
     description: str = None
     duration: str = None
-    audio_filename: str = None
+    audio_path: str = None
     transcript_path: str = None
+    wordcloud_path: str = None
     num_speakers: int = 2  # TODO: make settable by user
 
     def __post_init__(self):
@@ -46,9 +47,14 @@ class Episode:
             self.transcript_path = str(transcript_path)
 
         # If an audio file already exists, set its name as attribute:
-        audio_path = self.store.audio_path() / f"{self.eid}.mp3"
+        audio_path = self.store.audio_dir() / f"{self.eid}.mp3"
         if audio_path.exists():
-            self.audio_filename = str(audio_path)
+            self.audio_path = str(audio_path)
+        
+        # If a word cloud file already exists, set its name as attribute:
+        wordcloud_path = self.store.wordclouds_dir() / f"{self.eid}.png"
+        if wordcloud_path.exists():
+            self.wordcloud_path = str(wordcloud_path)
 
         # Add the episode to the store, log if already present
         self.store.add(self)
@@ -57,7 +63,7 @@ class Episode:
         out = f"Episode (id '{self.eid}')\n"
         out += f"  Store: {self.store.name or '---'}\n"
         out += f"  Title: {self.title or '---'}\n"
-        out += f"  Audio: {self.audio_filename or '---'}\n"
+        out += f"  Audio: {self.audio_path or '---'}\n"
         out += f"  TrScr: {self.transcript_path or '---'}\n"
         out += f"  URL:   {self.audio_url}\n"
         out += f"  Date:  {self.pub_date or '---'}\n"
@@ -101,30 +107,23 @@ class Episode:
             logger.debug(f"No transcript for episode '{self.eid}' found.")
             return {}
 
-    def get_audio(self):
+    def download_audio(self):
         """
         Download the audio file from the URL and save it to the audio directory of
         the containing EpisodeStore. Set self.audio_present to True and
         audio_filename to the audio filename.
         """
-        if self.audio_filename:
+        if self.audio_path:
             logger.debug(f"Audio for episode '{self.eid}' already exists.")
             return
         else:
             response = requests.get(self.audio_url)
             filename = f"{self.eid or 'audio'}.mp3"
 
-            with open(self.store.audio_path() / filename, "wb") as file:
+            with open(self.store.audio_dir() / filename, "wb") as file:
                 file.write(response.content)
 
-            self.audio_filename = filename
-
-    def hit_context(self, s_id, highlight, context_length=300):
-        """
-        Return a context string for a hit in the transcript.
-        """
-        transcript = self.get_transcript()
-        segment = transcript["segments"][s_id]
+            self.audio_path = filename
 
 
 class UniqueEpisodeError(Exception):
@@ -150,6 +149,7 @@ class EpisodeStore:
         self.path = EPISODE_STORE_PATH / self.name
         self._audio_path = self.path / "audio"
         self._transcripts_dir = self.path / "transcripts"
+        self._wordclouds_dir = self.path / "stats" / "wordclouds"
 
         # Initialize the Store's _urls attribute with each Episode's audiofile_location;
         self._urls = [episode.audio_url for episode in self._episodes]
@@ -266,6 +266,16 @@ class EpisodeStore:
         for episode in self._episodes:
             if episode.eid == eid:
                 return episode
+    
+    def __getitem__(self, episode_id) -> Episode:
+        # Retrieve the episode by its ID
+        return self.get_episode(episode_id)
+
+    def __iter__(self):
+        return iter(self._episodes)
+
+    def __len__(self):
+        return len(self._episodes)
 
     def episodes(self, script: bool = None, audio: bool = None):
         """
@@ -281,9 +291,9 @@ class EpisodeStore:
                 if not script and ep.transcript_path is not None:
                     continue
             if audio is not None:
-                if audio and ep.audio_filename is None:
+                if audio and ep.audio_path is None:
                     continue
-                if not audio and ep.audio_filename is not None:
+                if not audio and ep.audio_path is not None:
                     continue
 
             out.append(ep)
@@ -293,8 +303,11 @@ class EpisodeStore:
     def transcripts_dir(self):
         return self._transcripts_dir
 
-    def audio_path(self):
+    def audio_dir(self):
         return self._audio_path
+    
+    def wordclouds_dir(self):
+        return self._wordclouds_dir
 
     def urls(self) -> list:
         return [i for i in self._urls]
@@ -312,9 +325,9 @@ class DiarizedTranscript:
     - a method that returns a plain JSON diarized transcript
     - a method that returns the HTML representation of the transcript that we use in the transcripts tab
     """
-    def __init__(self, eid, episode_store):
-        self.eid = eid
-        self.episode_store = episode_store
+    def __init__(self, episode: Episode):
+        self.eid = episode.eid
+        self.episode_store = episode.store
 
         # Auto-filled from the episode store:
         self.title = self.episode_store.get_episode(self.eid).title

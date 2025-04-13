@@ -1,10 +1,11 @@
 import json
+import base64
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from loguru import logger
 
-from kfsearch.data.models import EpisodeStore, DiarizedTranscript
+from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import (
     ResultSet,
     ResultsPage,
@@ -196,12 +197,12 @@ def init_dashboard(flask_app, route, es_client):
                     ),
                     className="mt-3",
                 ),
-
+                #
                 # Output
                 # ----------------
                 dbc.Row(
                     children=[
-
+                        #
                         # Transcript of selected episode
                         # ------------------------------
                         dbc.Col(
@@ -255,7 +256,7 @@ def init_dashboard(flask_app, route, es_client):
                             xs=12,
                             md=6,
                         ),
-
+                        #
                         # List of episodes found in search
                         # --------------------------------
                         dbc.Col(
@@ -289,6 +290,16 @@ def init_dashboard(flask_app, route, es_client):
                                     align="center",
                                     justify="center"
                                 ),
+                                # 
+                                # Wordcloud
+                                # ----------------
+                                dbc.Row(
+                                    dbc.Col(
+                                        html.Div(
+                                            id="wordcloud"
+                                        )
+                                    )
+                                )
                             ],
                             xs=12,
                             md=6,
@@ -427,7 +438,7 @@ def init_callbacks(app):
             # TODO color the cell yellow immediately (may take chained callbacks):
             pass
 
-            episode = episode_store.get_episode(selected_eid)
+            episode: Episode = episode_store[selected_eid]
             episode.transcribe()
             index_episode_transcript(episode, app.es_client)
             episode_store.to_json()
@@ -485,7 +496,7 @@ def init_callbacks(app):
                 )
 
                 # Get the current result page:
-                current_results_page: ResultsPage = result_set.get_page(page - 1)
+                current_results_page = result_set.get_page(page - 1)
                 if current_results_page is None:
                     return ["No hits found."], 0, 0
 
@@ -503,27 +514,57 @@ def init_callbacks(app):
 
     @app.callback(
         Output("transcript", "children"),
+        Output("wordcloud", "children"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("input", "value"),
-        State("transcript", "children")
+        State("transcript", "children"),
+        State("wordcloud", "children"),
     )
-    def update_transcript(resultcard_nclicks, card_ids, search_term, current_transcript):
+    def update_transcript(
+        resultcard_nclicks,
+        card_ids,
+        search_term,
+        current_transcript,
+        current_wordcloud
+    ):
         """
         Callback that reacts to clicks on result cards, given pagination.
         """
+        default_return = current_transcript, current_wordcloud
+
         if not ctx.triggered:
-            return current_transcript
+            return default_return
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         if "result-card" in trigger_id and resultcard_nclicks and any(i is not None for i in resultcard_nclicks):
+            
             episode_id = json.loads(trigger_id)["index"]
-            diarized_transcript = DiarizedTranscript(eid=episode_id, episode_store=episode_store)
+            episode = episode_store[episode_id]
 
-            return diarized_transcript.to_html(highlight=search_term)
+            # Get the transcript of the selected episode as HTML:
+            dia_script = DiarizedTranscript(episode=episode)
+            dia_script_element = dia_script.to_html(highlight=search_term)
 
-        return current_transcript
+            # Get the word cloud of the selected episode as HTML img element:
+            with open(episode.wordcloud_path, "rb") as f:
+                encoded_image = base64.b64encode(f.read()).decode("utf-8")
+                encoded_image = f"data:image/png;base64,{encoded_image}"
+            
+            word_cloud_element = html.Img(
+                src=encoded_image,
+                style={
+                    "max-height": "300px",
+                    "width": "100%",
+                    "object-fit": "contain",
+                    "margin-top": "1rem",
+                },
+            )
+
+            return dia_script_element, word_cloud_element
+
+        return default_return
 
 
     # Update search terms in the comparison list:

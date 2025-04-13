@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import List
+from typing import List, Union
 
 import dash_bootstrap_components as dbc
 from dash import html
@@ -63,7 +63,7 @@ class ResultSet:
             pages.append(ResultsPage(page_episodes))
         return pages
 
-    def get_page(self, page_number):
+    def get_page(self, page_number) -> Union["ResultsPage", None]:
         if 0 <= page_number < len(self.pages):
             return self.pages[page_number]
         return None
