@@ -75,8 +75,14 @@ def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> 
                 marker=dict(color=colordict[term_colid_dict[term]]),
                 name=term,
                 showlegend=True,
-                customdata=grp[["title", "term", "count"]],
-                hovertemplate="<b>%{customdata[1]}</b><br>%{y:.2f} words/1000<br>%{customdata[2]} total<br><br><i>%{customdata[0]}</i><extra><extra></extra>",
+                customdata=grp[["title", "term", "count", "total"]],
+                hovertemplate=(
+                    "<b>%{customdata[1]}</b><br>"
+                    "%{y:.2f} words/1000<br>"
+                    "%{customdata[2]} occurrences<br>"
+                    "%{customdata[3]} total<br><br>"
+                    "<i>%{customdata[0]}</i><extra><extra></extra>"
+                ),
             )
         )
 
