@@ -7,6 +7,22 @@
 - Latent Dirichlet Allocation (LDA): This technique can uncover the underlying themes or topics discussed in each episode. You can track how topics evolve across multiple episodes.
 - Dynamic Topic Modeling: A time series-based approach to LDA that tracks the evolution of topics across episodes.
 
+** Cooccurrences of given terms
+
+- For a term of interest, I want to know what key terms often go with it. This can be interesting for names. So Roger Stone might co-occur above average with Richard Nixon, WTO with Davos.
+- "go with it":
+  - Each episode, we assign a proximity score for all type pairs.
+  - Within episode: Each type pair v, w:
+    - Each token vi: token_score(vi) = f(distance(vi, wj)) for each token wj
+    - Sum across tokens vi
+    - f: 1 for direct adjacency, f(d) for distance d in Named Entities (not mere words). f needs to be determined (i.e., the shape of the fall-off).
+    - normalize to 1
+- Maybe if we can isolate typical verb constructions, i.e., non-proper-name cooccurrences, then these might also be subject to this analysis.
+- Result:
+  - square matrix (one triangle) of Named Entity types per episode
+  - square matrix (one triangle) of NE overall
+  - => square matrix of *relative* proximity in comparison to overall podcast
+
 ** Clustering of similar episodes
 
 - Use techniques like k-means clustering or hierarchical clustering to group episodes with similar topics or semantic content.

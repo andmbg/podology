@@ -22,5 +22,6 @@ ADDITIONAL_STOPWORDS = [
         "alex jones",
         "dan",
         "jordan",
+        "hello",
     ]
 ]

@@ -329,7 +329,7 @@ def init_dashboard(flask_app, route, es_client):
                                 dbc.Input(
                                     id="input-termstab",
                                     type="text",
-                                    placeholder="Enter search term_colorid",
+                                    placeholder="Enter search term",
                                     debounce=True,
                                 ),
                             ],
