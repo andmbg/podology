@@ -29,8 +29,14 @@ class RSSConnector(Connector):
         return out
 
     def _download_rss(self):
-        response = requests.get(self.resource)
-        response.raise_for_status()  # Raise an error for bad status codes
+        try:
+            response = requests.get(self.resource)
+            response.raise_for_status()  # Raise an error for bad status codes
+        except Exception:
+            # No web connection or so: Use existing RSS file if possible:
+            if self.rss_file.exists():
+                logger.error("Using existing RSS file")
+                return
 
         with open(self.rss_file, "wb") as file:
             file.write(response.content)
