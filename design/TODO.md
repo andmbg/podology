@@ -41,3 +41,9 @@
   - > Too much work for a very edge case. We can live with that.
 
     
+  
+# IMMINENT
+
+redo hit display in card: one number per term/color
+Remake callback update_episode_hitlist:
+upon change in terms store, send terms and colors to ResultSet. In ResultSet, work colors into html representation.

@@ -1,0 +1,33 @@
+#+title: Apis
+
+* Deepgram
+
+- free: $200 credit ~ 775 h
+- sonst $0.258 - $0.87 / hour
+
+* Assembly AI
+
+- free: $50 credit ~ 135 - 416 h
+- sonst $0.12 - 0.37 / h
+
+* Gladia
+
+- free: 10h / month
+
+* IBM
+
+- free: 8:20 h / Monat
+- sonst $1.20 / hour
+
+* Azure
+
+- free: 5h / Monat
+- sonst $0.18 / hour
+
+* OpenAI
+
+- $0.18 - 0.36 / h
+
+* Google
+
+- $0.96 / h

@@ -13,14 +13,14 @@
 }
 
 .card-button {
-    color: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    background-color: transparent;
-    width: 100%;
-    text-align: left;
-    margin-bottom: 0;
+    color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background-color: transparent !important;
+    width: 100% !important;
+    text-align: left !important;
+    margin-bottom: 0 !important;
 }
 
 /* Remove top border from dbc.Card element that contains all Tab contents */
@@ -82,8 +82,6 @@ Search term_colorid tags
     overflow: hidden;     /* Hide overflow text */
     text-overflow: ellipsis;  /* Add ellipsis to cropped text */
     flex-shrink: 0;  /* Allow the item to shrink if necessary */
-    max-width: 100%;  /* Ensure it fits within the container */
-    /*width: 100%;*/
     box-sizing: border-box;
 }
 
@@ -92,6 +90,32 @@ Search term_colorid tags
     width: 20px;
     height: 40px;
     border-radius: 16px 0 0 16px;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.hit-count {
+    display: inline-block;
+    padding: 0px 8px 0px 15px;
+    margin: 1px 5px;
+    border: 0 solid;
+    border-radius: 14px;
+    background-color: #eee;
+    text-align: left;
+    white-space: nowrap;
+    vertical-align: middle;
+    position: relative;
+    cursor: pointer;
+    width: auto;
+}
+
+.hit-count::before {
+    content: "";
+    width: 12px;
+    height: 24px;
+    border-radius: 12px 0 0 12px;
+    border: 2px;
     position: absolute;
     left: 0;
     top: 0;
@@ -108,6 +132,17 @@ Search term_colorid tags
 .term-color-8::before { background-color: #555555; }
 .term-color-9::before { background-color: #606805; }
 
+.term-color-0 { border-color: #4c72b0; }
+.term-color-1 { border-color: #3aba57; }
+.term-color-2 { border-color: #c53a5b; }
+.term-color-3 { border-color: #8172b3; }
+.term-color-4 { border-color: #bfa545; }
+.term-color-5 { border-color: #64b5cd; }
+.term-color-6 { border-color: #6c4c20; }
+.term-color-7 { border-color: #e37c4d; }
+.term-color-8 { border-color: #555555; }
+.term-color-9 { border-color: #606805; }
+
 /*
 Term tag alignment within their container
 */
@@ -122,3 +157,30 @@ Term tag alignment within their container
 .flex-wrap {
     flex-wrap: wrap;
 }
+
+/*
+Experimental: Half-circle highlight effect for text spans
+*/
+.half-circle-highlight {
+    padding: 0 7px 0 12px; /* Add padding around the text */
+    position: relative;
+    top: -2px;
+    line-height: 1.2;
+    display: inline-block;
+    vertical-align: middle;
+    background-color: #ddd;
+    /* box-shadow: #00000020 5px 5px 5px; */
+    border-radius: 12px;
+  }
+  
+.half-circle-highlight::before {
+    content: "";
+    width: 9px;
+    height: 19px;
+    border-radius: 13px 0 0 13px;
+    border: 2px;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }

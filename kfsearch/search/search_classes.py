@@ -1,3 +1,4 @@
+from os import terminal_size
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -18,78 +19,102 @@ class ResultSet:
     Contains a paged set of hits for the search term in the given index, along with a
     by-episode grouping of the hits.
     """
-    def __init__(self, es_client, index_name, search_term, page_size=10):
+    def __init__(self, es_client, index_name, term_colorids):
         self.es_client = es_client
         self.index_name = index_name
-        self.search_term = search_term
-        self.page_size = page_size
-        self.hits, self.total_hits = self._perform_search()
-        self.episodes = self._group_by_episode()
-        self.pages: List[ResultsPage] = self._create_pages()
+        self.term_colorids = term_colorids
+        self.term_colorid_dict = {k: v for k, v in term_colorids}
+        self.term_hits, self.total_hits = self._perform_search()
+        self.hits_by_ep = self._group_by_episode()
+        self.cards = self._create_cards()
 
     def _perform_search(self):
-        results = self.es_client.search(
-            index=self.index_name,
-            body={
-                "query": {"match_phrase": {"text": self.search_term}},
-                "size": 10000,
-                "highlight": {
-                    "fields": {
-                        "text": {
-                            "number_of_fragments": 0,
-                            "pre_tags": ["<bling>"],
-                            "post_tags": ["</bling>"],
+        """
+        Perform a search for each term individually and store their hits separately.
+        Form of self.term_hits:
+        {
+            "<term1>": [hit1, hit2, ...],
+            "<term2>": [hit1, hit2, ...],
+            ...
+        }
+        """
+        term_hits = {}
+        total_hits = 0
+
+        for term, _ in self.term_colorids:
+            results = self.es_client.search(
+                index=self.index_name,
+                body={
+                    "query": {
+                        "match_phrase": {"text": term}  # Search for the term as a phrase
+                    },
+                    "size": 10000,
+                    "highlight": {
+                        "fields": {
+                            "text": {
+                                "number_of_fragments": 0,
+                                "pre_tags": ["<bling>"],
+                                "post_tags": ["</bling>"],
+                            }
                         }
-                    }
+                    },
                 },
-            },
-        )
-        hits = results["hits"]["hits"]
-        total_hits = results["hits"]["total"]["value"]
-        return hits, total_hits
+            )
+            term_hits[term] = results["hits"]["hits"]
+            total_hits += results["hits"]["total"]["value"]
+
+        return term_hits, total_hits
 
     def _group_by_episode(self):
-        episodes = defaultdict(list)
-        for hit in self.hits:
-            eid = hit["_source"]["eid"]
-            episodes[eid].append(hit)
+        """
+        Return a dict of the form:
+        {
+          "<eid>": {
+            "<term1>": [hit1, hit2, ...],
+            "<term2>": ...,
+            ...
+          }
+        }
+        """
+        episodes = {}
+        for term, hits in self.term_hits.items():
+
+            for hit in hits:
+                eid = hit["_source"]["eid"]
+
+                if eid not in episodes:
+                    episodes[eid] = {
+                        "_title": hit["_source"]["episode_title"],
+                        "_pub_date": hit["_source"]["pub_date"]
+                    }
+
+                if term not in episodes[eid]:
+                    episodes[eid][term] = []
+
+                episodes[eid][term].append(hit)
+
         return episodes
-
-    def _create_pages(self):
-        episode_list = list(self.episodes.items())
-        pages = []
-        for i in range(0, len(episode_list), self.page_size):
-            page_episodes = dict(episode_list[i:i + self.page_size])
-            pages.append(ResultsPage(page_episodes))
-        return pages
-
-    def get_page(self, page_number) -> Union["ResultsPage", None]:
-        if 0 <= page_number < len(self.pages):
-            return self.pages[page_number]
-        return None
-
-
-class ResultsPage:
-    def __init__(self, episodes):
-        self.episodes = episodes
-        self.cards = self._create_cards()
 
     def _create_cards(self):
         return [
-            ResultCard(eid, hits)
-            for eid, hits
-            in self.episodes.items()
+            ResultCard(eid, term_hits_dict, self.term_colorid_dict)
+            for eid, term_hits_dict
+            in self.hits_by_ep.items()
         ]
 
 
 class ResultCard:
-    def __init__(self, eid, within_ep_hitlist):
-        self.title = within_ep_hitlist[0]["_source"]["episode_title"]
-        self.pub_date = within_ep_hitlist[0]["_source"]["pub_date"]
-        self.hit_count = len(within_ep_hitlist)
+    def __init__(self, eid, term_hits_dict, term_colorid_dict: dict):
+        self.title = term_hits_dict["_title"]
+        self.pub_date = term_hits_dict["_pub_date"]
+        self.term_nhits = {
+            k: len(v) for k, v in term_hits_dict.items()
+            if k not in ["_title", "_pub_date"]
+        }
+        self.term_colorid_dict = term_colorid_dict
         self.id = eid
 
-
+ 
     def to_html(self):
         formatted_date = datetime.strptime(
             self.pub_date,
@@ -99,33 +124,45 @@ class ResultCard:
         return dbc.Button(
             dbc.Card(
                 dbc.CardBody(
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                html.P(
-                                    formatted_date,
-                                    className="text-secondary mb-0 me-1 text-nowrap",
+                    [
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    html.P(
+                                        formatted_date,
+                                        className="text-secondary mb-0 me-1 text-nowrap",
+                                    ),
+                                    width="auto",
+                                    className="text-start fs-6",
                                 ),
-                                width="auto",
-                                className="text-start fs-6",
-                            ),
-                            dbc.Col(
-                                html.B(
-                                    self.title,
-                                    className="mb-0 text-truncate text-primary",
+                                dbc.Col(
+                                    html.B(
+                                        self.title,
+                                        className="mb-0 text-truncate text-primary",
+                                    ),
                                 ),
-                            ),
-                            dbc.Col(
-                                html.P(
-                                    f"{self.hit_count} hits",
-                                    className="text-secondary mb-0 text-nowrap",
-                                ),
-                                width="auto",
-                                className="text-end",
-                            ),
-                        ],
-                        className="g-0",
-                    ),
+                                # dbc.Col(
+                                #     html.P(
+                                #         f"{self.term_nhits} hits",
+                                #         className="text-secondary mb-0 text-nowrap",
+                                #     ),
+                                #     width="auto",
+                                #     className="text-end",
+                                # ),
+                            ],
+                            className="g-0",
+                        ),
+
+                        dbc.Row(
+                            [
+                                html.Button(
+                                    i,
+                                    className=f"text-secondary hit-count term-color-{self.term_colorid_dict[term]}",
+                                )
+                            for term, i in self.term_nhits.items()
+                            ] if self.term_nhits else [],
+                        )
+                    ],
                     className="py-2",
                 ),
             ),
@@ -136,16 +173,26 @@ class ResultCard:
 
 def highlight_to_html_elements(text):
     """
-    Turn a string with 1 or more <bling>highlighted</bling> parts into a list of
-    Dash HTML elements, where the highlighted parts are wrapped in a Mark element.
+    Turn a string with 1 or more <span [...]>highlighted</span> parts into a list of
+    Dash HTML elements, where the highlighted parts are wrapped in a Span element.
     """
-    parts = re.split(r"(<bling>.*?</bling>)", text)
+    parts = re.split(r"(<span .*?>.*?</span>)", text)
     result = []
 
     for part in parts:
-        if part.startswith("<bling>") and part.endswith("</bling>"):
-            highlighted = part[7:-8]  # Remove <bling> and </bling>
-            result.append(html.Mark(highlighted))
+        if part.startswith("<span ") and part.endswith("</span>"):
+            match = re.match(r'(<span .*?>)(.*)(</span>)', part)
+            if match:
+                opening_tag = match.group(1)
+                opening_match = re.match(r'.*?="(.*?)"', opening_tag)
+                classname = opening_match.group(1) if opening_match else ""
+                text = match.group(2)
+                result.append(
+                    html.Span(
+                        children=[text],
+                        className=classname,
+                    )
+                )
         else:
             result.append(html.Span(part))
 

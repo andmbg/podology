@@ -7,10 +7,7 @@ from loguru import logger
 from datetime import datetime
 
 from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
-from kfsearch.search.search_classes import (
-    ResultSet,
-    ResultsPage,
-)
+from kfsearch.search.search_classes import ResultSet
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
@@ -46,7 +43,8 @@ def init_dashboard(flask_app, route, es_client):
         server=flask_app,
         routes_pathname_prefix=route,
         # relevant for standalone launch, not used by main flask app:
-        external_stylesheets=[dbc.themes.CERULEAN],
+        # TODO: FIX this overrides our custom CSS!
+        # external_stylesheets=[dbc.themes.CERULEAN],
     )
 
     app.es_client = es_client
@@ -168,7 +166,6 @@ def init_dashboard(flask_app, route, es_client):
                         ),
                         dbc.Col(
                             [
-                                dbc.Button("Search", id="search-button", color="primary", className="me-1"),
                                 dbc.Button("Add", id="add-button", color="secondary"),
                             ],
                             width=2,
@@ -454,62 +451,35 @@ def init_callbacks(app):
 
     @app.callback(
         Output("episode-list", "children"),
-        Output("pagination", "max_value"),
-        Output("pagination", "active_page"),
-        Input("input", "n_submit"),
-        Input("search-button", "n_clicks"),
-        Input("pagination", "active_page"),
-        State("input", "value"),
+        Input("terms-store", "data"),
     )
-    def update_episode_transcript_search_list(n_submit, search_nclicks, active_page, search_term):
+    def update_episode_hitlist(terms_store):
         """
-        Callback that reacts to search term_colorid changes and pagination.
-        In:
-            - entering new search term_colorid (enter or search button)
-            - clicking pagination buttons
-            - (State) current search term_colorid
-        Out:
-            - list of episodes with hits in them
+        React to changes in terms-store, update list of search hits by episode.
         """
 
         # Nothing has happened yet, fill target components with defaults:
-        if not ctx.triggered:
-            return [], 0, 0
+        if (
+            not ctx.triggered
+            or terms_store["termtuples"] == []
+        ):
+            return []
 
-        if search_term:
+        # Get search results as a set:
+        result_set = ResultSet(
+            es_client=app.es_client,
+            index_name=TRANSCRIPT_INDEX_NAME,
+            term_colorids=terms_store["termtuples"],
+        )
 
-            if (
-                    (n_submit is not None and n_submit > 0)  # hit enter in search field
-                    or (search_nclicks is not None and search_nclicks > 0)  # click Search
-                    or active_page  # click pagination buttons
-            ):
-                page = active_page or 1
+        current_results_list = result_set.cards
+        if current_results_list is None:
+            return ["No hits found."]
 
-                # Get search results as a set:
-                page_size = 10
+        total_hits = result_set.total_hits
+        result_cards = [c.to_html() for c in result_set.cards]
 
-                result_set = ResultSet(
-                    es_client=app.es_client,
-                    index_name=TRANSCRIPT_INDEX_NAME,
-                    search_term=search_term,
-                    page_size=page_size,
-                )
-
-                # Get the current result page:
-                current_results_page = result_set.get_page(page - 1)
-                if current_results_page is None:
-                    return ["No hits found."], 0, 0
-
-                this_page_hits: dict = current_results_page.episodes
-                total_hits = result_set.total_hits
-                max_pages = -(-len(result_set.episodes) // page_size)  # Ceiling division
-
-                results_page = ResultsPage(this_page_hits)
-                result_cards = [c.to_html() for c in results_page.cards]
-
-                return result_cards, max_pages, page
-
-        return [], 0, 1
+        return result_cards
 
 
     @app.callback(
@@ -526,6 +496,7 @@ def init_callbacks(app):
         State("transcript-episode-title", "children"),
         State("transcript-episode-date", "children"),
         State("transcript-episode-duration", "children"),
+        State("terms-store", "data"),
     )
     def update_transcript(
         resultcard_nclicks,
@@ -536,6 +507,7 @@ def init_callbacks(app):
         current_transcript_title,
         current_transcript_date,
         current_transcript_duration,
+        terms_store,
     ):
         """
         Callback that reacts to clicks on result cards, given pagination.
@@ -557,10 +529,11 @@ def init_callbacks(app):
             
             episode_id = json.loads(trigger_id)["index"]
             episode = episode_store[episode_id]
+            termtuples = terms_store["termtuples"]
 
             # Get the transcript of the selected episode as HTML:
             dia_script = DiarizedTranscript(episode=episode)
-            dia_script_element = dia_script.to_html(highlight=search_term)
+            dia_script_element = dia_script.to_html(termtuples)
 
             # Get the word cloud of the selected episode as HTML img element:
             with open(episode.wordcloud_path, "rb") as f:
@@ -593,6 +566,8 @@ def init_callbacks(app):
         Output("terms-store", "data"),
         Output("terms-list", "children"),
         Output("terms-list-termstab", "children"),
+        Input("input", "n_submit"),
+        Input("input-termstab", "n_submit"),
         Input("add-button", "n_clicks"),
         Input("add-button-termstab", "n_clicks"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
@@ -601,46 +576,44 @@ def init_callbacks(app):
         State("terms-store", "data"),
     )
     def update_terms_store(
+            n_submit,
+            n_submit_termstab,
             add_clicks,
-            add_termstab_clicks,
+            add_clicks_termstab,
             remove_clicks,
             input_term_searchtab,
             input_term_termstab,
-            terms_colors_dict
+            terms_store
     ):
         """
-        Callback that reacts to clicks on the Add button or the tags (=remove).
+        Update the terms Storage by adding the newly entered search term or removing
+        the one that just got clicked.
 
-        In:
-            - clicking the Add button or a tag
-            - the current input value
-            - the current list of search term_colorid*color tuples
-        Out:
-            - updated list of search terms*color tuples
+        At the same time, updates the visual representation of the Store.
         """
         if not ctx.triggered:
             tag_elements = [
                 clickable_tag(i, term_colorid)
-                for i, term_colorid in enumerate(terms_colors_dict["termtuples"])
+                for i, term_colorid in enumerate(terms_store["termtuples"])
             ]
-            return terms_colors_dict, tag_elements, tag_elements
+            return terms_store, tag_elements, tag_elements
 
         # Analyse the search term dict into a list of tuples and the color stack:
-        old_term_tuples = terms_colors_dict["termtuples"]
+        old_term_tuples = terms_store["termtuples"]
         old_terms = [i[0] for i in old_term_tuples]
-        colorid_stack = terms_colors_dict["colorid-stack"]
+        colorid_stack = terms_store["colorid-stack"]
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         # "Add" button on first tab was clicked:
-        if trigger_id == "add-button" and input_term_searchtab:
+        if trigger_id in ["add-button", "input"] and input_term_searchtab:
             if len(old_term_tuples) < 10 and input_term_searchtab not in old_terms:
                 # assign the first available color to the new term_colorid:
                 new_term_tuple = (input_term_searchtab, colorid_stack.pop())
                 old_term_tuples.append(new_term_tuple)
 
         # "Add" button on terms tab was clicked:
-        elif trigger_id == "add-button-termstab" and input_term_termstab:
+        elif trigger_id in ["add-button-termstab", "input-termstab"] and input_term_termstab:
             if len(old_term_tuples) < 10 and input_term_termstab not in old_terms:
                 # assign the first available color to the new term_colorid:
                 new_term_tuple = (input_term_termstab, colorid_stack.pop())
@@ -665,38 +638,37 @@ def init_callbacks(app):
         return new_terms_colors_dict, tag_elements, tag_elements
 
 
-    # Update frequency dict:
-    @app.callback(
-        Output("frequency-dict", "data"),
-        Input("terms-store", "data"),
-        State("frequency-dict", "data"),
-    )
-    def update_frequency_dict(terms_in_store, freq_dict):
-        """
-        Callback that updates the frequency dict when the selection of terms changes.
-        """
-        # Initialize frequency dict if it is empty:
-        if freq_dict is None:
-            freq_dict = {}
+    # # Update frequency dict:
+    # @app.callback(
+    #     Output("frequency-dict", "data"),
+    #     Input("terms-store", "data"),
+    #     State("frequency-dict", "data"),
+    # )
+    # def update_frequency_dict(terms_in_store, freq_dict):
+    #     """
+    #     Callback that updates the frequency dict when the selection of terms changes.
+    #     """
+    #     # Initialize frequency dict if it is empty:
+    #     if freq_dict is None:
+    #         freq_dict = {}
 
-        # Remove term_colorid from frequency dict if it is not in the store anymore:
-        for term in list(freq_dict.keys()):
-            if term not in terms_in_store:
-                freq_dict.pop(term)
+    #     # Remove term_colorid from frequency dict if it is not in the store anymore:
+    #     for term in list(freq_dict.keys()):
+    #         if term not in terms_in_store:
+    #             freq_dict.pop(term)
 
-        # Add new term_colorid to frequency dict if it is not in the list yet:
-        for term in terms_in_store:
-            if term not in freq_dict:
-                result_set = ResultSet(
-                    es_client=app.es_client,
-                    index_name=TRANSCRIPT_INDEX_NAME,
-                    search_term=term,
-                    page_size=10,
-                )
-                new_freq_entry = {term: {k: len(v) for k, v in result_set.episodes.items()}}
-                freq_dict.update(new_freq_entry)
+    #     # Add new term_colorid to frequency dict if it is not in the list yet:
+    #     for term in terms_in_store:
+    #         if term not in freq_dict:
+    #             result_set = ResultSet(
+    #                 es_client=app.es_client,
+    #                 index_name=TRANSCRIPT_INDEX_NAME,
+    #                 search_terms=[term],
+    #             )
+    #             new_freq_entry = {term: {k: len(v) for k, v in result_set.hits_by_ep.items()}}
+    #             freq_dict.update(new_freq_entry)
 
-        return freq_dict
+    #     return freq_dict
 
 
     @app.callback(

@@ -2,6 +2,8 @@ import re
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import NoneType
+from typing import List
 from loguru import logger
 
 import requests
@@ -22,7 +24,7 @@ class Episode:
     Represent an episode of a podcast with a URL to the audio file.
     """
 
-    eid: str = field(default=None, init=False)
+    eid: str | NoneType = field(default=None, init=False)
     store: "EpisodeStore"
     audio_url: str
     title: str = None
@@ -323,7 +325,8 @@ class DiarizedTranscript:
     """
     Takes an episode transcript and provides
     - a method that returns a plain JSON diarized transcript
-    - a method that returns the HTML representation of the transcript that we use in the transcripts tab
+    - a method that returns the HTML representation of the transcript that we
+      use in the transcripts tab
     """
     def __init__(self, episode: Episode):
         self.eid = episode.eid
@@ -398,7 +401,7 @@ class DiarizedTranscript:
 
         return out
 
-    def to_html(self, highlight: str = None) -> list:
+    def to_html(self, termtuples: List[tuple] | NoneType = None) -> list:
 
         # Deprecate at some point, as it's STT API dependent:
         def speaker_class(speaker):
@@ -407,19 +410,30 @@ class DiarizedTranscript:
             """
             return f"speaker-{speaker[-2:]}"
 
-        # Compile search term pattern for case-insensitive matching
-        highlight = rf"\b{highlight}\b"
-        pattern = re.compile(highlight, re.IGNORECASE)
+        # Compile search term patterns for case-insensitive matching
+        if termtuples:
+            re_pattern_colorid = {}
+            for term, colorid in termtuples:
+                term_re = rf"\b{term}\b"
+                pattern = re.compile(term_re, re.IGNORECASE)
+                re_pattern_colorid[pattern] = colorid
+        else:
+            re_pattern_colorid = None
 
+        # Start iteration through transcript segments:
         segments = self.diarized_script
-
         turns = []
         while segments:
             seg = segments.pop(0)
             text = " ".join(seg["text"])
 
-            if highlight:
-                text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
+            # TODO: First replacing strings and then replacing those with elements
+            # is cumbersome. We have noticeable lag here.
+            # Highlighting to do?
+            if re_pattern_colorid:
+                for pattern, colorid in re_pattern_colorid.items():
+                    fmt_str = f'<span class="half-circle-highlight term-color-{colorid}">'
+                    text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
 
             highlighted_turn = highlight_to_html_elements(text)
 
