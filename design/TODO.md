@@ -3,9 +3,7 @@
 - **Diarization**: Lemonfox speaker assignment is imprecise around turn ends. We may have to, instead of taking over 
   Lemonfox's speaker assignment, use the word-level assignments and assign the speaker to the whole turn ourselves.
   - HOWEVER: Check first if word-level assignment is actually better than the turn-level assignment.
-
 - **Ongoing transcription**: We want to see what transcription jobs are still ongoing.
-
 - **Transcription API id**: Add to transcripts the name of the transcriber API, maybe date of transcription. Should be 
   possible to use >1 APIs on one corpus.
 
@@ -22,12 +20,11 @@
 ## Transcript/Episode tab:
 
 - Transcript display: Playback if audio present
-- Transcript title Row: show episode title and date, number and duration
 - Transcript search result list as scrollable table, sortable
+- Show hits in scrollbar
 
 ## Terms tab:
 
-- Add Term by hitting Enter
 - **Zero point** for episodes with no occurrences in frequency plot
 - Remove plot when the last term gets deleted
 
@@ -39,12 +36,8 @@
   index and doesn't question its completeness. We need to implement a check that verifies the index's completeness 
   and triggers a reindex if necessary.  
   - > Too much work for a very edge case. We can live with that.
-
-    
   
 # IMMINENT
 
-- clear input field upon hitting enter or clicking "Add"
-- update transcript upot change in terms-store
-- replug input to termslist to terms-store instead of direct update from existing callback (new callback)
+- update transcript upon change in terms-store
 - fix bug where a cached bootstrap somehow overrides custom styling of result countss

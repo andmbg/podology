@@ -571,8 +571,6 @@ def init_callbacks(app):
     # Update search terms in the comparison list:
     @app.callback(
         Output("terms-store", "data"),
-        Output("terms-list", "children"),
-        Output("terms-list-termstab", "children"),
         Output("input", "value"),
         Output("input-termstab", "value"),
         Input("input", "n_submit"),
@@ -605,7 +603,7 @@ def init_callbacks(app):
                 clickable_tag(i, term_colorid)
                 for i, term_colorid in enumerate(terms_store["termtuples"])
             ]
-            return terms_store, tag_elements, tag_elements, None, None
+            return terms_store, None, None
 
         # Analyse the search term dict into a list of tuples and the color stack:
         old_term_tuples = terms_store["termtuples"]
@@ -639,12 +637,21 @@ def init_callbacks(app):
             "termtuples": old_term_tuples,
             "colorid-stack": colorid_stack,
         }
+
+        return new_terms_colors_dict, None, None
+
+    @app.callback(
+        Output("terms-list", "children"),
+        Output("terms-list-termstab", "children"),
+        Input("terms-store", "data"),
+    )
+    def update_terms_lists(terms_store):
         tag_elements = [
             clickable_tag(i, term_colorid)
-            for i, term_colorid in enumerate(old_term_tuples)
+            for i, term_colorid in enumerate(terms_store["termtuples"])
         ]
-
-        return new_terms_colors_dict, tag_elements, tag_elements, None, None
+        return tag_elements, tag_elements
+        
 
 
     # # Update frequency dict:
