@@ -44,7 +44,7 @@ def init_dashboard(flask_app, route, es_client):
         routes_pathname_prefix=route,
         # relevant for standalone launch, not used by main flask app:
         # TODO: FIX this overrides our custom CSS!
-        # external_stylesheets=[dbc.themes.CERULEAN],
+        external_stylesheets=[dbc.themes.CERULEAN],
     )
 
     app.es_client = es_client
@@ -259,6 +259,10 @@ def init_dashboard(flask_app, route, es_client):
                         dbc.Col(
                             id="episode-column",
                             children=[
+                                dcc.Store(
+                                    id="selected-episode",
+                                    data="",
+                                ),
                                 dbc.Row(
                                     id="sort-buttons",
                                     children=[
@@ -497,6 +501,7 @@ def init_callbacks(app):
         State("transcript-episode-date", "children"),
         State("transcript-episode-duration", "children"),
         State("terms-store", "data"),
+        State("selected-episode", "data"),
     )
     def update_transcript(
         resultcard_nclicks,
@@ -508,6 +513,7 @@ def init_callbacks(app):
         current_transcript_date,
         current_transcript_duration,
         terms_store,
+        selected_episode,
     ):
         """
         Callback that reacts to clicks on result cards, given pagination.
@@ -525,6 +531,7 @@ def init_callbacks(app):
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+        # Click on result card:
         if "result-card" in trigger_id and resultcard_nclicks and any(i is not None for i in resultcard_nclicks):
             
             episode_id = json.loads(trigger_id)["index"]
@@ -566,6 +573,8 @@ def init_callbacks(app):
         Output("terms-store", "data"),
         Output("terms-list", "children"),
         Output("terms-list-termstab", "children"),
+        Output("input", "value"),
+        Output("input-termstab", "value"),
         Input("input", "n_submit"),
         Input("input-termstab", "n_submit"),
         Input("add-button", "n_clicks"),
@@ -596,7 +605,7 @@ def init_callbacks(app):
                 clickable_tag(i, term_colorid)
                 for i, term_colorid in enumerate(terms_store["termtuples"])
             ]
-            return terms_store, tag_elements, tag_elements
+            return terms_store, tag_elements, tag_elements, None, None
 
         # Analyse the search term dict into a list of tuples and the color stack:
         old_term_tuples = terms_store["termtuples"]
@@ -635,7 +644,7 @@ def init_callbacks(app):
             for i, term_colorid in enumerate(old_term_tuples)
         ]
 
-        return new_terms_colors_dict, tag_elements, tag_elements
+        return new_terms_colors_dict, tag_elements, tag_elements, None, None
 
 
     # # Update frequency dict:

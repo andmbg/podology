@@ -432,7 +432,7 @@ class DiarizedTranscript:
             # Highlighting to do?
             if re_pattern_colorid:
                 for pattern, colorid in re_pattern_colorid.items():
-                    fmt_str = f'<span class="half-circle-highlight term-color-{colorid}">'
+                    fmt_str = f'<span class="half-circle-highlight term-color-{colorid} highlight-color-{colorid}">'
                     text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
 
             highlighted_turn = highlight_to_html_elements(text)

@@ -44,6 +44,7 @@
   
 # IMMINENT
 
-redo hit display in card: one number per term/color
-Remake callback update_episode_hitlist:
-upon change in terms store, send terms and colors to ResultSet. In ResultSet, work colors into html representation.
+- clear input field upon hitting enter or clicking "Add"
+- update transcript upot change in terms-store
+- replug input to termslist to terms-store instead of direct update from existing callback (new callback)
+- fix bug where a cached bootstrap somehow overrides custom styling of result countss

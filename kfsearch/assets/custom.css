@@ -143,6 +143,19 @@ Search term_colorid tags
 .term-color-8 { border-color: #555555; }
 .term-color-9 { border-color: #606805; }
 
+.highlight-color-0 { box-shadow: 0 0 20px #4c72b0; }
+.highlight-color-1 { box-shadow: 0 0 20px #3aba57; }
+.highlight-color-2 { box-shadow: 0 0 20px #c53a5b; }
+.highlight-color-3 { box-shadow: 0 0 20px #8172b3; }
+.highlight-color-4 { box-shadow: 0 0 20px #bfa545; }
+.highlight-color-5 { box-shadow: 0 0 20px #64b5cd; }
+.highlight-color-6 { box-shadow: 0 0 20px #6c4c20; }
+.highlight-color-7 { box-shadow: 0 0 20px #e37c4d; }
+.highlight-color-8 { box-shadow: 0 0 20px #555555; }
+.highlight-color-9 { box-shadow: 0 0 20px #606805; }
+
+
+
 /*
 Term tag alignment within their container
 */
@@ -168,15 +181,17 @@ Experimental: Half-circle highlight effect for text spans
     line-height: 1.2;
     display: inline-block;
     vertical-align: middle;
-    background-color: #ddd;
+    background-color: #fff;
     /* box-shadow: #00000020 5px 5px 5px; */
     border-radius: 12px;
+    border: 0px solid white;
+    /* box-shadow: 0 0 10px #cc88ff; */
   }
   
 .half-circle-highlight::before {
     content: "";
-    width: 9px;
-    height: 19px;
+    width: 9.75px;
+    height: 19.5px;
     border-radius: 13px 0 0 13px;
     border: 2px;
     position: absolute;
