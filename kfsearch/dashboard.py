@@ -7,11 +7,11 @@ from loguru import logger
 from datetime import datetime
 
 from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
-from kfsearch.search.search_classes import ResultSet
+from kfsearch.search.search_classes import ResultSet, create_cards
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
-from kfsearch.frontend.utils import clickable_tag, colorway
+from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
 episode_store = EpisodeStore(name=PROJECT_NAME)
@@ -205,7 +205,6 @@ def init_dashboard(flask_app, route, es_client):
                         # ------------------------------
                         dbc.Col(
                             children=[
-                                # TODO Header: Metadata of the currently selected episode  <<<
                                 html.Div(
                                     children = [
                                         dbc.Row([
@@ -242,12 +241,7 @@ def init_dashboard(flask_app, route, es_client):
                                 ),
                                 html.Div(
                                     id="transcript",
-                                    style={
-                                        "max-height": "calc(100vh - 300px)",
-                                        "overflow-y": "auto",
-                                        "padding": "1rem",
-                                        "box-shadow": "inset 0 6px 12px rgba(0, 0, 0, 0.2)",
-                                    },
+                                    className="transcript",
                                 ),
                             ],
                             xs=12,
@@ -259,37 +253,21 @@ def init_dashboard(flask_app, route, es_client):
                         dbc.Col(
                             id="episode-column",
                             children=[
-                                dcc.Store(
-                                    id="selected-episode",
-                                    data="",
-                                ),
+                                dcc.Store(id="selected-episode", data=""),
+                                dcc.Store(id="sorting", data={}),
+                                dcc.Store(id="episode-list-data", data=[]),
                                 dbc.Row(
                                     id="sort-buttons",
-                                    children=[
-                                        html.Div(
-                                            html.P("sort-buttons")
-                                        )
-                                    ],
+                                    style={"position": "relative"},
                                 ),
                                 dbc.Row(
                                     children=[
                                         html.Div(
                                             id="episode-list",
+                                            className="episode-list",
                                             children=["Episodes"]
                                         )
                                     ]
-                                ),
-                                dbc.Row(
-                                    dbc.Col(
-                                        dbc.Pagination(
-                                            id="pagination",
-                                            max_value=5,
-                                            first_last=True,
-                                        ),
-                                        width="auto"
-                                    ),
-                                    align="center",
-                                    justify="center"
                                 ),
                                 # 
                                 # Wordcloud
@@ -452,38 +430,116 @@ def init_callbacks(app):
             return row_data
 
         return no_update
+    
 
     @app.callback(
-        Output("episode-list", "children"),
+        Output("episode-list-data", "data"),
         Input("terms-store", "data"),
+        Input({"type": "sort-button", "index": ALL}, "n_clicks"),
+        State({"type": "sort-button", "index": ALL}, "id"),
+        State("episode-list-data", "data"),
+        State("terms-store", "data"),
     )
-    def update_episode_hitlist(terms_store):
+    def update_episode_list_from_terms(
+        terms_store_input,
+        sortbtn_nclicks,
+        sortbtn_id,
+        current_data,
+        terms_store_state,
+    ):
         """
-        React to changes in terms-store, update list of search hits by episode.
+        If the terms list has changed, create a new ResultSet and store its
+        hits_by_ep in the episode-list-data Store.
+        If a sort button was clicked, work with the Store content and re-sort it.
         """
-
         # Nothing has happened yet, fill target components with defaults:
         if (
             not ctx.triggered
-            or terms_store["termtuples"] == []
+            or terms_store_input["termtuples"] == []
         ):
             return []
+        
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+        # Terms list has changed - get search results as a set:
+        if terms_store_input:
+            result_set = ResultSet(
+                es_client=app.es_client,
+                index_name=TRANSCRIPT_INDEX_NAME,
+                term_colorids=terms_store_input["termtuples"],
+            )
+            eplist_updated = result_set.hits_by_ep
+        
+        # A sort button has been clicked - re-sort the current data:
+        if (
+            "sort-button" in trigger_id
+            and sortbtn_nclicks
+            and any(i is not None for i in sortbtn_nclicks)
+        ):
+            sort_btn_id = json.loads(trigger_id)["index"]
+            sort_term = [i for i, j in terms_store_state["termtuples"] if j == sort_btn_id][0]
+            eplist_updated = dict(
+                sorted(
+                    current_data.items(),
+                    key=lambda item: item[1].get(sort_term, float(0)),
+                    reverse=True,
+                )
+            )
+
+        return eplist_updated
+
+
+
+    @app.callback(
+        Output("episode-list", "children"),
+        Input("episode-list-data", "data"),
+        State("terms-store", "data")
+    )
+    def update_episode_hitlist(eplist, terms_store):
+        """
+        React to changes in episode list and re-render html episode list.
+        """
         # Get search results as a set:
-        result_set = ResultSet(
-            es_client=app.es_client,
-            index_name=TRANSCRIPT_INDEX_NAME,
-            term_colorids=terms_store["termtuples"],
+        if not eplist:
+            return []
+
+        term_colorid_dict = {k: v for k, v in terms_store["termtuples"]}
+        result_cards = create_cards(eplist, term_colorid_dict)
+
+        result_card_elements = [c.to_html() for c in result_cards]
+
+        return result_card_elements
+    
+
+    @app.callback(
+        Output("sort-buttons", "children"),
+        Input("terms-store", "data"),
+    )
+    def update_sort_buttons(terms_store):
+        termtuples = terms_store["termtuples"]
+
+        out = html.Div(
+            [
+                get_sort_button(i)
+                for i in termtuples
+            ],
         )
 
-        current_results_list = result_set.cards
-        if current_results_list is None:
-            return ["No hits found."]
+        return out
+    
 
-        total_hits = result_set.total_hits
-        result_cards = [c.to_html() for c in result_set.cards]
-
-        return result_cards
+    # @app.callback(
+    #     Output("episode-list", "children"),
+    #     Input({"type": "sort-button", "index": ALL}, "n_clicks"),
+    #     State({"type": "sort-button", "index": ALL}, "id"),
+    #     State("episode-list", "children"),
+    # )
+    # def sort_episode_list(
+    #     sortbtn_nclicks,
+    #     sortbtn_id,
+    #     episode_list,
+    # ):
+    #     pass
     
 
     @app.callback(

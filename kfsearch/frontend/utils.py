@@ -32,3 +32,15 @@ def clickable_tag(index: int, term_colorid: Tuple[str, int]) -> html.Button:
         className=f"term-item term-color-{term_colorid[1]}",
         title=term_colorid[0],
     )
+
+
+def get_sort_button(term_colorid: Tuple[str, int]) -> html.Button:
+    return html.Button(
+        "⇩",
+        id={"type": "sort-button", "index": term_colorid[1]},
+        className=(
+            f"m-2 half-circle-highlight highlight-color-{term_colorid[1]} "
+            f"term-color-{term_colorid[1]}"
+        ),
+        title=term_colorid[0]
+    )

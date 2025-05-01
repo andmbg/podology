@@ -25,7 +25,7 @@ class ResultSet:
         self.term_colorids = term_colorids
         self.term_colorid_dict = {k: v for k, v in term_colorids}
         self.term_hits, self.total_hits = self._perform_search()
-        self.hits_by_ep = self._group_by_episode()
+        self.hits_by_ep = self._count_by_episode()
         self.cards = self._create_cards()
 
     def _perform_search(self):
@@ -65,7 +65,7 @@ class ResultSet:
 
         return term_hits, total_hits
 
-    def _group_by_episode(self):
+    def _count_by_episode(self) -> dict:
         """
         Return a dict of the form:
         {
@@ -89,9 +89,9 @@ class ResultSet:
                     }
 
                 if term not in episodes[eid]:
-                    episodes[eid][term] = []
+                    episodes[eid][term] = 0
 
-                episodes[eid][term].append(hit)
+                episodes[eid][term] += 1
 
         return episodes
 
@@ -102,13 +102,20 @@ class ResultSet:
             in self.hits_by_ep.items()
         ]
 
+def create_cards(hits_by_ep, term_colorid_dict):
+    return [
+        ResultCard(eid, term_hits_dict, term_colorid_dict)
+        for eid, term_hits_dict
+        in hits_by_ep.items()
+    ]
+
 
 class ResultCard:
     def __init__(self, eid, term_hits_dict, term_colorid_dict: dict):
         self.title = term_hits_dict["_title"]
         self.pub_date = term_hits_dict["_pub_date"]
         self.term_nhits = {
-            k: len(v) for k, v in term_hits_dict.items()
+            k: v for k, v in term_hits_dict.items()
             if k not in ["_title", "_pub_date"]
         }
         self.term_colorid_dict = term_colorid_dict
