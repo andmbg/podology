@@ -484,6 +484,35 @@ def init_callbacks(app):
         result_cards = [c.to_html() for c in result_set.cards]
 
         return result_cards
+    
+
+    @app.callback(
+        Output("selected-episode", "data"),
+        Input({"type": "result-card", "index": ALL}, "n_clicks"),
+        State({"type": "result-card", "index": ALL}, "id"),
+        State("selected-episode", "data"),
+    )
+    def update_selected_episode(
+        resultcard_nclicks,
+        resultcard_id,
+        current_eid,
+    ):
+        if not ctx.triggered:
+            return no_update
+        
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        # Click on result card:
+        if (
+            "result-card" in trigger_id
+            and resultcard_nclicks
+            and any(i is not None for i in resultcard_nclicks)
+        ):
+            selected_eid = json.loads(trigger_id)["index"]
+
+            return selected_eid
+        
+        return no_update
 
 
     @app.callback(
@@ -492,80 +521,58 @@ def init_callbacks(app):
         Output("transcript-episode-title", "children"),
         Output("transcript-episode-date", "children"),
         Output("transcript-episode-duration", "children"),
-        Input({"type": "result-card", "index": ALL}, "n_clicks"),
-        State({"type": "result-card", "index": ALL}, "id"),
-        State("input", "value"),
-        State("transcript", "children"),
-        State("wordcloud", "children"),
-        State("transcript-episode-title", "children"),
-        State("transcript-episode-date", "children"),
-        State("transcript-episode-duration", "children"),
-        State("terms-store", "data"),
+        Input("selected-episode", "data"),
         State("selected-episode", "data"),
+        Input("terms-store", "data"),
+        State("terms-store", "data"),
+        prevent_initial_call=True,
     )
     def update_transcript(
-        resultcard_nclicks,
-        card_ids,
-        search_term,
-        current_transcript,
-        current_wordcloud,
-        current_transcript_title,
-        current_transcript_date,
-        current_transcript_duration,
-        terms_store,
-        selected_episode,
+        selected_eid_input,
+        selected_eid_state,
+        terms_store_input,
+        terms_store_state,
     ):
         """
-        Callback that reacts to clicks on result cards, given pagination.
+        Callback that updates the displayed transcript and its highlights.
         """
-        default_return = (
-            current_transcript,
-            current_wordcloud,
-            current_transcript_title,
-            current_transcript_date,
-            current_transcript_duration,
+
+        # Unify input for both cases of each Input being the trigger:
+        eid = selected_eid_input or selected_eid_state
+        terms_store = terms_store_input or terms_store_state
+
+        if not eid:
+            return no_update
+
+        episode = episode_store[eid]
+        termtuples = terms_store["termtuples"]
+
+        # Get the transcript of the selected episode as HTML:
+        dia_script = DiarizedTranscript(episode=episode)
+        dia_script_element = dia_script.to_html(termtuples)
+
+        # Get the word cloud of the selected episode as HTML img element:
+        with open(episode.wordcloud_path, "rb") as f:
+            encoded_image = base64.b64encode(f.read()).decode("utf-8")
+            encoded_image = f"data:image/png;base64,{encoded_image}"
+        
+        word_cloud_element = html.Img(
+            src=encoded_image,
+            style={
+                "max-height": "300px",
+                "width": "100%",
+                "object-fit": "contain",
+                "margin-top": "1rem",
+            },
         )
 
-        if not ctx.triggered:
-            return default_return
-
-        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-        # Click on result card:
-        if "result-card" in trigger_id and resultcard_nclicks and any(i is not None for i in resultcard_nclicks):
-            
-            episode_id = json.loads(trigger_id)["index"]
-            episode = episode_store[episode_id]
-            termtuples = terms_store["termtuples"]
-
-            # Get the transcript of the selected episode as HTML:
-            dia_script = DiarizedTranscript(episode=episode)
-            dia_script_element = dia_script.to_html(termtuples)
-
-            # Get the word cloud of the selected episode as HTML img element:
-            with open(episode.wordcloud_path, "rb") as f:
-                encoded_image = base64.b64encode(f.read()).decode("utf-8")
-                encoded_image = f"data:image/png;base64,{encoded_image}"
-            
-            word_cloud_element = html.Img(
-                src=encoded_image,
-                style={
-                    "max-height": "300px",
-                    "width": "100%",
-                    "object-fit": "contain",
-                    "margin-top": "1rem",
-                },
-            )
-
-            return (
-                dia_script_element,
-                word_cloud_element,
-                episode.title,
-                episode.pub_date,
-                episode.duration,
-            )
-
-        return default_return
+        return (
+            dia_script_element,
+            word_cloud_element,
+            episode.title,
+            episode.pub_date,
+            episode.duration,
+        )
 
 
     # Update search terms in the comparison list:

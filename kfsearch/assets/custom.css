@@ -143,16 +143,16 @@ Search term_colorid tags
 .term-color-8 { border-color: #555555; }
 .term-color-9 { border-color: #606805; }
 
-.highlight-color-0 { box-shadow: 0 0 20px #4c72b0; }
-.highlight-color-1 { box-shadow: 0 0 20px #3aba57; }
-.highlight-color-2 { box-shadow: 0 0 20px #c53a5b; }
-.highlight-color-3 { box-shadow: 0 0 20px #8172b3; }
-.highlight-color-4 { box-shadow: 0 0 20px #bfa545; }
-.highlight-color-5 { box-shadow: 0 0 20px #64b5cd; }
-.highlight-color-6 { box-shadow: 0 0 20px #6c4c20; }
-.highlight-color-7 { box-shadow: 0 0 20px #e37c4d; }
-.highlight-color-8 { box-shadow: 0 0 20px #555555; }
-.highlight-color-9 { box-shadow: 0 0 20px #606805; }
+.highlight-color-0 { box-shadow: 0 0 7px #4c72b0; }
+.highlight-color-1 { box-shadow: 0 0 7px #3aba57; }
+.highlight-color-2 { box-shadow: 0 0 7px #c53a5b; }
+.highlight-color-3 { box-shadow: 0 0 7px #8172b3; }
+.highlight-color-4 { box-shadow: 0 0 7px #bfa545; }
+.highlight-color-5 { box-shadow: 0 0 7px #64b5cd; }
+.highlight-color-6 { box-shadow: 0 0 7px #6c4c20; }
+.highlight-color-7 { box-shadow: 0 0 7px #e37c4d; }
+.highlight-color-8 { box-shadow: 0 0 7px #555555; }
+.highlight-color-9 { box-shadow: 0 0 7px #606805; }
 
 
 
@@ -172,10 +172,10 @@ Term tag alignment within their container
 }
 
 /*
-Experimental: Half-circle highlight effect for text spans
+Half-circle highlight effect for text spans
 */
 .half-circle-highlight {
-    padding: 0 7px 0 12px; /* Add padding around the text */
+    padding: 0 5px 0 12px; /* Add padding around the text */
     position: relative;
     top: -2px;
     line-height: 1.2;
