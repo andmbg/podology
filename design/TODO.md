@@ -20,7 +20,6 @@
 ## Transcript/Episode tab:
 
 - Transcript display: Playback if audio present
-- Transcript search result list as scrollable table, sortable
 - Show hits in scrollbar
 
 ## Terms tab:
@@ -39,5 +38,5 @@
   
 # IMMINENT
 
-- update transcript upon change in terms-store
-- fix bug where a cached bootstrap somehow overrides custom styling of result countss
+- Transcript search result list as scrollable table, sortable
+- highlight episode card of currently shown transcript

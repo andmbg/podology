@@ -1,0 +1,201 @@
+.result-card-body {
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.result-card-citation-text {
+    margin-bottom: 0;
+    font-size: small;
+}
+
+.result-card-location-text {
+    margin-bottom: 0;
+}
+
+.card-button {
+    color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background-color: transparent !important;
+    width: 100% !important;
+    text-align: left !important;
+    margin-bottom: 0 !important;
+}
+
+/* Remove top border from dbc.Card element that contains all Tab contents */
+.no-top-border {
+    border-top: none !important;
+    border-radius: 0 0 10px 10px;
+    border-color: rgb(222, 226, 230);
+}
+
+/* .card-button :active {
+    box-shadow: none;
+    background-color: transparent;
+}
+.card-button :hover {
+    box-shadow: none;
+    background-color: transparent;
+} */
+
+
+.speaker-00 {
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-01 {
+    background-color: #fff3e0;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-02 {
+    background-color: #ffebee;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.speaker-03 {
+    background-color: #f1f8e9;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+/*
+Search term_colorid tags
+*/
+.term-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px 6px 28px;
+    margin: 4px 2px;
+    border: 0;
+    border-radius: 20px;
+    background-color: #f3f3f3;
+    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+    cursor: pointer;
+    white-space: nowrap;  /* Prevent text from wrapping */
+    overflow: hidden;     /* Hide overflow text */
+    text-overflow: ellipsis;  /* Add ellipsis to cropped text */
+    flex-shrink: 0;  /* Allow the item to shrink if necessary */
+    box-sizing: border-box;
+}
+
+.term-item::before {
+    content: "";
+    width: 20px;
+    height: 40px;
+    border-radius: 16px 0 0 16px;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.hit-count {
+    display: inline-block;
+    padding: 0px 8px 0px 15px;
+    margin: 1px 5px;
+    border: 0 solid;
+    border-radius: 14px;
+    background-color: #eee;
+    text-align: left;
+    white-space: nowrap;
+    vertical-align: middle;
+    position: relative;
+    cursor: pointer;
+    width: auto !important;
+}
+
+.hit-count::before {
+    content: "";
+    width: 12px;
+    height: 24px;
+    border-radius: 12px 0 0 12px;
+    border: 2px;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.term-color-0::before { background-color: #4c72b0; }
+.term-color-1::before { background-color: #3aba57; }
+.term-color-2::before { background-color: #c53a5b; }
+.term-color-3::before { background-color: #8172b3; }
+.term-color-4::before { background-color: #bfa545; }
+.term-color-5::before { background-color: #64b5cd; }
+.term-color-6::before { background-color: #6c4c20; }
+.term-color-7::before { background-color: #e37c4d; }
+.term-color-8::before { background-color: #555555; }
+.term-color-9::before { background-color: #606805; }
+
+.term-color-0 { border-color: #4c72b0; }
+.term-color-1 { border-color: #3aba57; }
+.term-color-2 { border-color: #c53a5b; }
+.term-color-3 { border-color: #8172b3; }
+.term-color-4 { border-color: #bfa545; }
+.term-color-5 { border-color: #64b5cd; }
+.term-color-6 { border-color: #6c4c20; }
+.term-color-7 { border-color: #e37c4d; }
+.term-color-8 { border-color: #555555; }
+.term-color-9 { border-color: #606805; }
+
+.highlight-color-0 { box-shadow: 0 0 7px #4c72b0; }
+.highlight-color-1 { box-shadow: 0 0 7px #3aba57; }
+.highlight-color-2 { box-shadow: 0 0 7px #c53a5b; }
+.highlight-color-3 { box-shadow: 0 0 7px #8172b3; }
+.highlight-color-4 { box-shadow: 0 0 7px #bfa545; }
+.highlight-color-5 { box-shadow: 0 0 7px #64b5cd; }
+.highlight-color-6 { box-shadow: 0 0 7px #6c4c20; }
+.highlight-color-7 { box-shadow: 0 0 7px #e37c4d; }
+.highlight-color-8 { box-shadow: 0 0 7px #555555; }
+.highlight-color-9 { box-shadow: 0 0 7px #606805; }
+
+
+
+/*
+Term tag alignment within their container
+*/
+.d-flex {
+    display: flex;
+}
+
+.flex-row {
+    flex-direction: row;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+/*
+Half-circle highlight effect for text spans
+*/
+.half-circle-highlight {
+    padding: 0 5px 0 12px; /* Add padding around the text */
+    position: relative;
+    top: -2px;
+    line-height: 1.2;
+    display: inline-block;
+    vertical-align: middle;
+    background-color: #fff;
+    /* box-shadow: #00000020 5px 5px 5px; */
+    border-radius: 12px;
+    border: 0px solid white;
+    /* box-shadow: 0 0 10px #cc88ff; */
+  }
+  
+.half-circle-highlight::before {
+    content: "";
+    width: 9.75px;
+    height: 19.5px;
+    border-radius: 13px 0 0 13px;
+    border: 2px;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
