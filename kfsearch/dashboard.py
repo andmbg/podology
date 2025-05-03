@@ -5,6 +5,7 @@ from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from loguru import logger
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import ResultSet, create_cards
@@ -27,8 +28,9 @@ episode_list = [
         "pub_date": e.pub_date,
         "title": e.title,
         "description": e.description,
+        "description_text": BeautifulSoup(e.description, "html.parser").get_text(),
         "duration": e.duration,
-        "transcript_exists": "Get" if e.transcript_path is None else "Yes",
+        "transcript_exists": "Get" if e.transcript_path is None else "✅",
     } for e in episode_store.episodes()
 ]
 
@@ -49,9 +51,14 @@ def init_dashboard(flask_app, route, es_client):
 
     app.es_client = es_client
 
+    #
+    #  _________________
+    # | Search Metadata |
+    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+
     # AG Grid column definitions for the episode list in the Metadata tab:
     conditional_style  = {
-        "function": "params.data.transcript_exists == 'Yes' ? {backgroundColor: '#00ff0011'} : ("
+        "function": "params.data.transcript_exists == '✅' ? {backgroundColor: '#00ff0011'} : ("
                     "params.data.transcript_exists == 'Get' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
                     "'#ffff0033'})"
     }
@@ -62,30 +69,31 @@ def init_dashboard(flask_app, route, es_client):
             "field": "eid",
             "maxWidth": 80,
             "cellStyle": conditional_style,
+            "hide": True,
         },
         {
-            "headerName": "Publication Date",
+            "headerName": "Date",
             "field": "pub_date",
             "type": "date",
             "sortable": True,
             "filter": True,
             "cellStyle": conditional_style,
-            "maxWidth": 170,
+            "maxWidth": 120,
         },
         {
             "headerName": "Title",
             "field": "title",
             "sortable": True,
             "filter": True,
+            "maxWidth": 600,
             "cellStyle": conditional_style,
         },
         {
             "headerName": "Description",
-            "field": "description",
-            "cellStyle": {
-                "whiteSpace": "pre-wrap",  # Wraps the text
-                "wordBreak": "break-word",  # Prevents overflow by breaking words
-            },
+            "field": "description_text",
+            "tooltipField": "description",
+            "tooltipComponent": "CustomTooltip",
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Duration",
@@ -98,15 +106,12 @@ def init_dashboard(flask_app, route, es_client):
         {
             "headerName": "Script",
             "field": "transcript_exists",
-            "maxWidth": 90,
+            "maxWidth": 70,
             "cellStyle": conditional_style,
+            "filter": False,
         }
     ]
 
-    #
-    #  _________________
-    # | Search Metadata |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     transcribe_tab = dbc.Card(
         className="m-0 no-top-border",
         children=dbc.CardBody(
@@ -128,6 +133,10 @@ def init_dashboard(flask_app, route, es_client):
                                     className="ag-theme-quartz",
                                     dashGridOptions={
                                         "rowSelection": "single",
+                                        "tooltipShowDelay": 0,
+                                        "tooltipHideDelay": 10000,
+                                        "tooltipInteraction": True,
+                                        "popupParent": {"function": "setPopupsParent()"}
                                     },
                                 ),
                             ],
@@ -368,7 +377,7 @@ def init_dashboard(flask_app, route, es_client):
                 dbc.Tabs(
                     [
                         dbc.Tab(transcribe_tab, label="Metadata"),
-                        dbc.Tab(browse_tab, label="Transcripts"),
+                        dbc.Tab(browse_tab, label="Transcripts", tab_id="Transcripts"),
                         dbc.Tab(terms_tab, label="Terms"),
                         dbc.Tab(
                             "This tab is under construction",
@@ -379,6 +388,7 @@ def init_dashboard(flask_app, route, es_client):
                             label="Global stats",
                         ),
                     ],
+                    id="tab-container",
                     className="mt-3"
                 ),
             ]
@@ -406,8 +416,6 @@ def init_callbacks(app):
         if selected_rows is None or selected_rows == [] or cell_clicked.get("colId", "") != "transcript_exists":
             return no_update
 
-        logger.debug(selected_rows)
-
         # Which episode and is it missing?
         is_missing = selected_rows[0]["transcript_exists"] == "Get"
         selected_eid = selected_rows[0]["eid"]
@@ -433,6 +441,21 @@ def init_callbacks(app):
 
             return row_data
 
+        return no_update
+
+
+    @app.callback(
+        Output("tab-container", "active_tab"),
+        Input("transcribe-episode-list", "selectedRows"),
+    )
+    def tab_to_transcript(
+        episodes_selected_rows,
+    ):
+        if episodes_selected_rows:
+            eid = episodes_selected_rows[0]["eid"]
+            if episode_store[eid].transcript_path is not None:
+                return "Transcripts"
+        
         return no_update
     
 
@@ -552,19 +575,33 @@ def init_callbacks(app):
 
     @app.callback(
         Output("selected-episode", "data"),
+        Input("transcribe-episode-list", "selectedRows"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("selected-episode", "data"),
     )
     def update_selected_episode(
+        episodes_selected_rows,
         resultcard_nclicks,
         resultcard_id,
         current_eid,
     ):
+
         if not ctx.triggered:
             return no_update
-        
+
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        # Click on episode list in meta tab:
+        if (
+            trigger_id == "transcribe-episode-list"
+            and episodes_selected_rows
+        ):
+            logger.debug(f"transcript episode list: {episodes_selected_rows[0]['eid']}")
+
+            eid = episodes_selected_rows[0]["eid"]
+            if episode_store[eid].transcript_path is not None:
+                return eid
 
         # Click on result card:
         if (
