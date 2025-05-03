@@ -9,8 +9,6 @@
 
 ## Meta/Download tab:
 
-- **Full show notes**: Show full HTML show notes in or around grid table.
-- **Hide EID** from grid table
 - **Download Audio**: Issue is if this is global or user-wise - it touches on the whole public aspect of the project
 - **Transcribe large episodes**: Download, split and send. LemonFox stops working around 2h duration.
   - **Consequently**, this would be a LemonFox-specific issue. This might have to be handled by the transcriber 
@@ -23,7 +21,6 @@
 
 ## Terms tab:
 
-- **Zero point** for episodes with no occurrences in frequency plot
 - Remove plot when the last term gets deleted
 
 ---
@@ -38,7 +35,6 @@
 # IMMINENT
 
 - Show hits in scrollbar
-- Metadata AG Grid: multiline display of (title and) show notes.
 
 # Bugs
 

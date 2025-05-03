@@ -2,14 +2,24 @@ import json
 from os import name
 from pathlib import Path
 from typing import List
+import multiprocessing
 
 import pandas as pd
 from loguru import logger
 import sqlite3
 
 from config import PROJECT_NAME
+from kfsearch.config import EPISODE_STORE_PATH
 from kfsearch.data.models import EpisodeStore, Episode, DiarizedTranscript
-from kfsearch.stats.nlp import get_wordcloud, get_named_entities, type_proximity
+from kfsearch.stats.nlp import (
+    get_named_entities,
+    type_proximity,
+    get_wordcloud,
+    get_named_entity_tokens,
+)
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 
 stats_folder_path = Path("data").resolve() / PROJECT_NAME / "stats"
@@ -27,15 +37,18 @@ by the functions that they apply to the whole corpus.
 
 def ensure_stats_data(episode_store: EpisodeStore, eid: List[str]|str = "all"):
     """
-    Run 
-    There are a bunch of computations that we need to do at indexing time, that take
-    too long at runtime. This function is called to compute those stats and store them
-    in the stats directory.
+    Run stats on all transcribed episodes. It is upon the individual component functions
+    to filter out episodes for already having stats artifacts in place.
+
+    :param episode_store: The episode store containing all episodes.
+    :param eid: The episode ID or list of episode IDs to process. Default is "all", which
+      is translated to all episodes that have a transcript.
+    :return: None
     """
-    initialize_stats_db()
+    if eid == "all":
+        initialize_stats_db()
 
     # Deal with eid parameter:
-
     if isinstance(eid, str):
         # eid is "all", the default:
         if eid == "all":
@@ -51,50 +64,117 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str]|str = "all"):
     else:
         raise ValueError(f"Invalid type for eid: {type(eid)}")
 
-    ensure_wordcounts(episodes)
-    ensure_wordclouds(episodes)
-    ensure_named_entity_tokens(episodes)
-    ensure_named_entity_types(episodes)
-    ensure_type_proximity(episodes)
+    get_wordcounts(episodes)
+    store_wordclouds(episodes)
+    store_named_entity_tokens(episodes)
+    store_named_entity_types(episodes)
+    store_type_proximity(episodes)
 
 
-def ensure_wordcounts(episodes: List[Episode]):
+def wordcount_worker(episode: Episode):
     """
-    Identify all episodes that are missing a word count
-    and update the word count table
+    Individual function used in multiprocessing function get_wordcounts.
     """
+    script_path = episode.transcript_path
+
+    if Path(script_path).exists():
+        with open(script_path, "r") as f:
+            segments = json.load(f)["segments"]
+            word_count = sum(len(segment["words"]) for segment in segments)
+
+        with sqlite3.connect(stats_db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO word_count (eid, count)
+                VALUES (?, ?)
+                """,
+                (episode.eid, word_count),
+            )
+    logger.debug(f"Stored word count for {episode.eid}")
+
+
+def get_wordcounts(episodes: List[Episode]):
+    """
+    Add an entry to the word_count table for each given episode.
+    Exclude episodes that are not transcribed or already have a word count entry.
+
+    :param episodes: List of episodes to process.
+    :return: None
+    """
+    # Filter: only do word counts for transcribed episodes...
+    transcribed_episodes = [ep for ep in episodes if ep.transcript_path]
+    eids = [episode.eid for episode in transcribed_episodes]
+
+    # ... that are NOT already in the word_count table:
     with sqlite3.connect(stats_db_path) as conn:
-
-        # Get all indexed episode IDs
-        indexed_eids = {row[0] for row in conn.execute("SELECT eid FROM word_count")}
-
-        # Iterate over all episodes and index missing ones
-        for episode in episodes:
-            if episode.eid not in indexed_eids:
-                update_word_count_table(episode)
+        sqlout = conn.execute("select eid from word_count").fetchall()
+        eids_in_db = {i[0] for i in sqlout}
+    ep_to_do = [ep for ep in episodes if ep.eid not in eids_in_db]
 
 
-def ensure_wordclouds(episodes: List[Episode]):
+    # Parallelize the loop using multiprocessing
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(wordcount_worker, ep_to_do)
+
+
+def wordcloud_worker(episode: Episode):
     """
-    Identify all episodes that are missing a word cloud
-    and update the word cloud table
+    Individual function used in multiprocessing function store_wordclouds.
     """
-    # Get transcribed episodes that lack a word cloud:
-    for episode in episodes:
+    logger.debug(f"Storing word cloud for {episode.eid}")
 
-        if (
-            episode.transcript_path
-            and not (clouds_path / f"{episode.eid}.png").exists()
-        ):
-            store_wordcloud(episode)
+    path = clouds_path / f"{episode.eid}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig = get_wordcloud(episode)
+    fig.savefig(path, bbox_inches="tight", dpi=300)
 
 
-def ensure_named_entity_tokens(episodes: List[Episode]):
+def store_wordclouds(episodes: List[Episode]):
     """
-    Ensure that the named entity tokens are computed and stored.
-    Like all ensure-functions, this is to be run at init time.
+    Create a png word cloud file for each given episode.
+    Exclude episodes that are not transcribed or already have a word cloud file.
 
-    :param episode_store: The episode store containing all episodes.
+    :param episodes: List of episodes to process.
+    :return: None
+    """
+    # Filter: only do word clouds for transcribed episodes without a cloud png:
+    transcribed_episodes = [ep for ep in episodes if ep.transcript_path]
+    ep_to_do = [
+        episode
+        for episode in transcribed_episodes
+        if not (clouds_path / f"{episode.eid}.png").exists()
+    ]
+    
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(wordcloud_worker, ep_to_do)
+
+
+def nament_tokens_worker(episode: Episode):
+    """
+    Individual function used in multiprocessing function store_named_entity_tokens.
+    """
+    logger.debug(f"Storing named entity tokens for {episode.eid}")
+    named_entities = get_named_entity_tokens(episode)
+
+    with sqlite3.connect(stats_db_path) as conn:
+        for i, token in enumerate(named_entities):
+            conn.execute(
+                """
+                INSERT INTO named_entity_tokens (eid, idx, token)
+                VALUES (?, ?, ?)
+                """,
+                (episode.eid, i, token),
+            )
+
+
+def store_named_entity_tokens(episodes: List[Episode]):
+    """
+    Compute and store named entity tokens for each given episode.
+    Exclude episodes that are not transcribed or already have named entity tokens.
+    The named entity tokens are a per-episode list of all tokens of named entities.
+    They're a basis for at least one stat that we need (proximity).
+
+    :param episodes: List of episodes to process.
     :return: None
     """
     with sqlite3.connect(stats_db_path) as conn:
@@ -103,17 +183,42 @@ def ensure_named_entity_tokens(episodes: List[Episode]):
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
         }
+    
+    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
 
-        # Iterate over all episodes and index missing ones
-        for episode in episodes:
-            if episode.eid not in indexed_eids:
-                update_named_entity_tokens(episode)
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(nament_tokens_worker, ep_to_do)
 
 
-def ensure_named_entity_types(episodes: List[Episode]):
+def nament_types_worker(episode: Episode):
     """
-    Ensure that the named entity types are computed and stored.
-    Like all ensure-functions, this is to be run at init time.
+    Individual function used in multiprocessing function store_named_entity_types.
+    """
+     # Get the named entities:
+    logger.debug(f"{episode.eid}: Storing named entity types")
+
+    query = f"""
+        SELECT token, idx
+        FROM named_entity_tokens
+        WHERE eid = '{episode.eid}'
+    """
+    with sqlite3.connect(stats_db_path) as conn:
+        nedf = pd.read_sql(sql=query, con=conn)
+
+    nedf = nedf.groupby("token").size().reset_index(name="count")
+    nedf["eid"] = episode.eid
+    nedf.rename(columns={"token": "type"}, inplace=True)
+
+    with sqlite3.connect(stats_db_path) as conn:
+        nedf.to_sql(
+            con=conn, if_exists="append", index=False, name="named_entity_types"
+        )
+
+
+def store_named_entity_types(episodes: List[Episode]):
+    """
+    For each given episode, store in the stats database the counts per type
+    of named entity. This facilitates type frequency calculations.
 
     :param episode_store: The episode store containing all episodes.
     :return: None
@@ -125,13 +230,14 @@ def ensure_named_entity_types(episodes: List[Episode]):
             row[0] for row in conn.execute("SELECT eid FROM named_entity_types")
         }
 
-        # Iterate over all episodes and index missing ones
-        for episode in episodes:
-            if episode.eid not in indexed_eids:
-                update_named_entity_types(episode)
+    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
+
+    # Iterate over all episodes and index missing ones
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(nament_types_worker, ep_to_do)        
 
 
-def ensure_type_proximity(episodes: List[Episode]):
+def store_type_proximity(episodes: List[Episode]):
     """
     Ensure that the type proximity data is computed and stored.
     Like all ensure-functions, this is to be run at init time.
@@ -145,12 +251,50 @@ def ensure_type_proximity(episodes: List[Episode]):
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
         }
+    
+    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
 
-        # Iterate over all episodes and index missing ones
-        for episode in episodes:
-            if episode.eid not in indexed_eids:
-                logger.info(f"Checking {episode.eid} for type proximity")
-                update_type_proximity_table(episode)
+    # Iterate over all episodes and index missing ones
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(type_proximity_worker, ep_to_do)
+
+
+def type_proximity_worker(episode: Episode):
+    """
+    For a given episode, store in the stats database the pairwise proximity
+    scores of its named entities.
+    """
+    # Skip if this episode is already in this table. Not necessary for
+    # the ensure function, but who knows where else we might call this later.
+    with sqlite3.connect(stats_db_path) as conn:
+        cursor = conn.execute(
+            """
+            SELECT 1 FROM type_proximity_episode WHERE eid = ? LIMIT 1
+            """,
+            (episode.eid,),
+        )
+        if cursor.fetchone():
+            return
+
+    # Get the named entities:
+    logger.debug(f"{episode.eid}: Updating type proximity table")
+    query = f"""
+        SELECT token, idx
+        FROM named_entity_tokens
+        WHERE eid = '{episode.eid}'
+    """
+    named_entities = pd.read_sql(sql=query, con=sqlite3.connect(stats_db_path))
+    ne_dict = named_entities.groupby("token")["idx"].apply(list).to_dict()
+
+    # Get the proximity:
+    proximity_df = type_proximity(ne_dict)
+    proximity_df["eid"] = episode.eid
+
+    # Store the proximity in the database:
+    with sqlite3.connect(stats_db_path) as conn:
+        proximity_df.to_sql(
+            con=conn, if_exists="append", index=False, name="type_proximity_episode"
+        )
 
 
 def get_pub_dates(episode_store: EpisodeStore) -> list:
@@ -254,137 +398,3 @@ def update_word_count_table(episode: Episode):
 #     return pd.DataFrame(eps_list)
 
 
-def store_wordcloud(episode: Episode):
-    """
-    Get the wordcloud for a given episode and store it as a png file.
-    """
-    logger.debug(f"Creating wordcloud for {episode.eid}")
-
-    # Prepare storage path:
-    path = clouds_path / f"{episode.eid}.png"
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Plain text of transcript without speaker labels:
-    diarized_transcript = DiarizedTranscript(episode)
-    text = [i["text"] for i in diarized_transcript.to_json()]
-    text = " ".join(text)
-
-    fig_cloud = get_wordcloud(text)
-
-    fig_cloud.savefig(path, bbox_inches="tight")
-
-
-def update_named_entity_tokens(episode: Episode):
-    """
-    For a given episode, store in the stats database the tokens of named
-    entities and their index among NEs. This facilitates type frequency and
-    proximity calculations.
-    """
-    # Skip if this episode is already in this table. Not necessary for
-    # the ensure function, but who knows where else we might call this later.
-    with sqlite3.connect(stats_db_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT 1 FROM named_entity_tokens WHERE eid = ? LIMIT 1
-            """,
-            (episode.eid,),
-        )
-        if cursor.fetchone():
-            return
-
-    # Get the transcript text:
-    logger.debug(f"{episode.eid}: Updating named entity tokens")
-    transcript = DiarizedTranscript(episode)
-    text = [i["text"] for i in transcript.to_json()]
-    text = " ".join(text)
-
-    # Get the named entities:
-    named_entities = [i[0] for i in get_named_entities(text)]
-
-    # Store the named entities in the database:
-    with sqlite3.connect(stats_db_path) as conn:
-        for token, index in zip(named_entities, range(len(named_entities))):
-            conn.execute(
-                """
-                INSERT INTO named_entity_tokens (eid, idx, token)
-                VALUES (?, ?, ?)
-            """,
-                (episode.eid, index, token),
-            )
-
-
-def update_named_entity_types(episode: Episode):
-    """
-    For a given episode, store in the stats database the counts per type
-    of named entities. This facilitates type frequency and proximity
-    calculations.
-    """
-    # Skip if this episode is already in this table. Not necessary for
-    # the ensure function, but who knows where else we might call this later.
-    with sqlite3.connect(stats_db_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT 1 FROM named_entity_types WHERE eid = ? LIMIT 1
-            """,
-            (episode.eid,),
-        )
-        if cursor.fetchone():
-            return
-
-    # Get the named entities:
-    logger.debug(f"{episode.eid}: Updating named entity types")
-
-    query = f"""
-        SELECT token, idx
-        FROM named_entity_tokens
-        WHERE eid = '{episode.eid}'
-    """
-    with sqlite3.connect(stats_db_path) as conn:
-        nedf = pd.read_sql(sql=query, con=conn)
-
-    nedf = nedf.groupby("token").size().reset_index(name="count")
-    nedf["eid"] = episode.eid
-    nedf.rename(columns={"token": "type"}, inplace=True)
-
-    with sqlite3.connect(stats_db_path) as conn:
-        nedf.to_sql(
-            con=conn, if_exists="append", index=False, name="named_entity_types"
-        )
-
-
-def update_type_proximity_table(episode: Episode):
-    """
-    For a given episode, store in the stats database the pairwise proximity
-    scores of named entities.
-    """
-    # Skip if this episode is already in this table. Not necessary for
-    # the ensure function, but who knows where else we might call this later.
-    with sqlite3.connect(stats_db_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT 1 FROM type_proximity_episode WHERE eid = ? LIMIT 1
-            """,
-            (episode.eid,),
-        )
-        if cursor.fetchone():
-            return
-
-    # Get the named entities:
-    logger.debug(f"{episode.eid}: Updating type proximity table")
-    query = f"""
-        SELECT token, idx
-        FROM named_entity_tokens
-        WHERE eid = '{episode.eid}'
-    """
-    named_entities = pd.read_sql(sql=query, con=sqlite3.connect(stats_db_path))
-    ne_dict = named_entities.groupby("token")["idx"].apply(list).to_dict()
-
-    # Get the proximity:
-    proximity_df = type_proximity(ne_dict)
-    proximity_df["eid"] = episode.eid
-
-    # Store the proximity in the database:
-    with sqlite3.connect(stats_db_path) as conn:
-        proximity_df.to_sql(
-            con=conn, if_exists="append", index=False, name="type_proximity_episode"
-        )

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
@@ -7,8 +8,9 @@ from matplotlib.figure import Figure
 from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
+from loguru import logger
 
-from kfsearch.data.models import EpisodeStore
+from kfsearch.data.models import EpisodeStore, Episode, DiarizedTranscript
 from config import ADDITIONAL_STOPWORDS
 
 stop_words = set(stopwords.words("english"))
@@ -19,9 +21,11 @@ def get_named_entities(text) -> list[tuple[str, str]]:
     """
     Extract named entities from the given text using NLTK's named entity chunker.
     Returns a list of tuples containing the entity name and its type.
+
+    :param text: The whole contiguous input text from which to extract named entities.
+    :return: A list of tuples, where each tuple contains the entity name and its type.
     """
     tokens = word_tokenize(text)
-    # tokens = [word for word in tokens if word.lower() not in stop_words]
     pos_tags = pos_tag(tokens)
 
     # Chunk the tokens into named entities:
@@ -40,11 +44,35 @@ def get_named_entities(text) -> list[tuple[str, str]]:
     return named_entities
 
 
-def get_wordcloud(text: str) -> Figure:
+def get_named_entity_tokens(episode: Episode) -> List[str]:
     """
-    Generate a wordcloud from the named entities in the given text.
-    Return it as a matplotlib figure.
+    For a given episode, store in the stats database the tokens of named
+    entities and their index among NEs. This facilitates type frequency and
+    proximity calculations.
     """
+    # Get the transcript text:
+    transcript = DiarizedTranscript(episode)
+    text = [i["text"] for i in transcript.to_json()]
+    text = " ".join(text)
+
+    # Get the named entities:
+    named_entities: List[str] = [i[0] for i in get_named_entities(text)]
+
+    return named_entities
+
+
+def get_wordcloud(episode: Episode) -> plt.Figure:
+    """
+    Create a word cloud Figure for the given episode.
+
+    :param episode: The episode object for which to create the word cloud.
+    :return: A matplotlib Figure object containing the word cloud.
+    """
+    # Plain text of transcript without speaker labels:
+    diarized_transcript = DiarizedTranscript(episode)
+    text = [i["text"] for i in diarized_transcript.to_json()]
+    text = " ".join(text)
+
     names = get_named_entities(text)
     names = [i[0] for i in names]
 
@@ -68,9 +96,9 @@ def get_wordcloud(text: str) -> Figure:
 
 def type_proximity(type_token_dict: dict) -> pd.DataFrame:
     """
-    Calculate the proximity score between different tokens based on their indices.
-    The proximity score is defined as the sum of the exponential of the negative squared differences
-    between the indices of the tokens.
+    Type proximity score: Expresses how closely related two dictionary entries are in a given transcript.
+      For each token of TYPE_A, if >0 tokens of TYPE_B are within a maximum perimeter, we take the squared
+      distances in words and do 1/x with each. Then, the sum of these scores is the proximity SCORE(A, B).
 
     :param type_token_dict: A dictionary where keys are types and values are lists of indices.
         Currently, index means order of a named entity in a list of NE extracted from the transcript.

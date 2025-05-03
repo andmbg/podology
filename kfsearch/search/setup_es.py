@@ -100,7 +100,7 @@ def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool
 
         # Update word count table:
         # (Might become a more general stats update call)
-        update_word_count_table(episode)
+        # update_word_count_table(episode)
 
         return True
 

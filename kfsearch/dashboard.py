@@ -597,8 +597,6 @@ def init_callbacks(app):
             trigger_id == "transcribe-episode-list"
             and episodes_selected_rows
         ):
-            logger.debug(f"transcript episode list: {episodes_selected_rows[0]['eid']}")
-
             eid = episodes_selected_rows[0]["eid"]
             if episode_store[eid].transcript_path is not None:
                 return eid
