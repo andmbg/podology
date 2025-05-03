@@ -1,4 +1,7 @@
-# kfsearch/data/connectors/base.py
+"""
+Base class for connectors.
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -8,6 +11,7 @@ class Connector(ABC):
     """
     Base class for all data connectors. Connectors are responsible for getting episode metadata.
     """
+
     resource: str
     store: "EpisodeStore" = field(default=None, init=False)
 
@@ -16,7 +20,7 @@ class Connector(ABC):
         if self.store:
             out += f"  store={self.store.name}\n"
         else:
-            out += f"  store=None\n"
+            out += "  store=None\n"
 
         return out
 
@@ -33,4 +37,3 @@ class Connector(ABC):
           - description,
           - duration.
         """
-        pass

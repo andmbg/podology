@@ -1,17 +1,18 @@
+"""setup_es.py"""
+# pylint: disable=W1514
 import os
 import json
-from loguru import logger
 from pathlib import Path
 from datetime import datetime
 from typing import List
 import multiprocessing
 
+from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.search.utils import make_index_name
-from kfsearch.stats.preparation import update_word_count_table
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)

@@ -1,8 +1,6 @@
 import os
 import json
 import base64
-from loguru import logger
-from datetime import datetime
 
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
@@ -14,9 +12,8 @@ from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import ResultSet, create_cards
 from kfsearch.search.setup_es import (
     TRANSCRIPT_INDEX_NAME,
-    ensure_transcript_index,
-    index_episode_transcript,
     index_all_transcripts,
+    index_episode_worker,
 )
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
@@ -39,10 +36,15 @@ episode_list = [
         "description_text": BeautifulSoup(e.description, "html.parser").get_text(),
         "duration": e.duration,
         "transcript_exists": "Get" if e.transcript_path is None else "✅",
-    } for e in episode_store.episodes()
+    }
+    for e in episode_store.episodes()
 ]
 
+
 def init_dashboard(flask_app, route):
+    """
+    Main function to initialize the dashboard.
+    """
 
     # Fill the ES index with transcripts:
     # ensure_transcript_index(es_client)
@@ -61,7 +63,7 @@ def init_dashboard(flask_app, route):
         server=flask_app,
         routes_pathname_prefix=route,
         # relevant for standalone launch, not used by main flask app:
-        # TODO: FIX this overrides our custom CSS!
+        # FIXME this overrides our custom CSS!
         external_stylesheets=[dbc.themes.CERULEAN],
     )
 
@@ -73,10 +75,10 @@ def init_dashboard(flask_app, route):
     #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
     # AG Grid column definitions for the episode list in the Metadata tab:
-    conditional_style  = {
+    conditional_style = {
         "function": "params.data.transcript_exists == '✅' ? {backgroundColor: '#00ff0011'} : ("
-                    "params.data.transcript_exists == 'Get' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
-                    "'#ffff0033'})"
+        "params.data.transcript_exists == 'Get' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
+        "'#ffff0033'})"
     }
 
     column_defs = [
@@ -125,7 +127,7 @@ def init_dashboard(flask_app, route):
             "maxWidth": 70,
             "cellStyle": conditional_style,
             "filter": False,
-        }
+        },
     ]
 
     transcribe_tab = dbc.Card(
@@ -142,9 +144,16 @@ def init_dashboard(flask_app, route):
                                     id="transcribe-episode-list",
                                     columnDefs=column_defs,
                                     columnSize="sizeToFit",
-                                    defaultColDef={"resizable": True, "sortable": True, "filter": True},
+                                    defaultColDef={
+                                        "resizable": True,
+                                        "sortable": True,
+                                        "filter": True,
+                                    },
                                     rowModelType="clientSide",
-                                    style={"height": "calc(100vh - 200px)", "width": "100%"},
+                                    style={
+                                        "height": "calc(100vh - 200px)",
+                                        "width": "100%",
+                                    },
                                     rowData=episode_list,
                                     className="ag-theme-quartz",
                                     dashGridOptions={
@@ -152,7 +161,9 @@ def init_dashboard(flask_app, route):
                                         "tooltipShowDelay": 0,
                                         "tooltipHideDelay": 10000,
                                         "tooltipInteraction": True,
-                                        "popupParent": {"function": "setPopupsParent()"}
+                                        "popupParent": {
+                                            "function": "setPopupsParent()"
+                                        },
                                     },
                                 ),
                             ],
@@ -162,7 +173,7 @@ def init_dashboard(flask_app, route):
                     className="mt-3",
                 ),
             ],
-        )
+        ),
     )
 
     #
@@ -198,7 +209,6 @@ def init_dashboard(flask_app, route):
                     ],
                     className="mt-3",
                 ),
-
                 # Term Tags
                 # ---------
                 dbc.Row(
@@ -206,12 +216,15 @@ def init_dashboard(flask_app, route):
                         [
                             dcc.Store(
                                 id="terms-store",
-                                data={"termtuples": [], "colorid-stack": [i.id for i in colorway]}
+                                data={
+                                    "termtuples": [],
+                                    "colorid-stack": [i.id for i in colorway],
+                                },
                             ),
                             html.Div(
                                 id="terms-list",
                                 className="d-flex flex-row flex-wrap justify-content-center align-items-center",
-                            )
+                            ),
                         ],
                         xs=12,
                         md=12,
@@ -231,29 +244,56 @@ def init_dashboard(flask_app, route):
                         dbc.Col(
                             children=[
                                 html.Div(
-                                    children = [
-                                        dbc.Row([
-                                            dbc.Col(
-                                                [
-                                                    dcc.Store(id="playback-time-store", data=0),
-                                                    dbc.Button("⏸", id="play", color="secondary", size="sm", className="me-1"),
-                                                    html.H5(html.B("Title", id="transcript-episode-title"), className="mb-0 text-truncate"),
-                                                ],
-                                                width=12,
-                                                className="d-flex align-items-center",
-                                            ),
-                                        ]),
+                                    children=[
                                         dbc.Row(
                                             [
                                                 dbc.Col(
-                                                    html.P("", id="transcript-episode-date", className="text-muted mb-0"),
+                                                    [
+                                                        dcc.Store(
+                                                            id="playback-time-store",
+                                                            data=0,
+                                                        ),
+                                                        dbc.Button(
+                                                            "⏸",
+                                                            id="play",
+                                                            color="secondary",
+                                                            size="sm",
+                                                            className="me-1",
+                                                        ),
+                                                        html.H5(
+                                                            html.B(
+                                                                "Title",
+                                                                id="transcript-episode-title",
+                                                            ),
+                                                            className="mb-0 text-truncate",
+                                                        ),
+                                                    ],
+                                                    width=12,
+                                                    className="d-flex align-items-center",
+                                                ),
+                                            ]
+                                        ),
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.P(
+                                                        "",
+                                                        id="transcript-episode-date",
+                                                        className="text-muted mb-0",
+                                                    ),
                                                     width=6,
                                                 ),
                                                 dbc.Col(
                                                     html.P(
                                                         [
-                                                            html.Span("Duration: ", className="text-secondary"),
-                                                            html.Span("", id="transcript-episode-duration"),
+                                                            html.Span(
+                                                                "Duration: ",
+                                                                className="text-secondary",
+                                                            ),
+                                                            html.Span(
+                                                                "",
+                                                                id="transcript-episode-duration",
+                                                            ),
                                                         ],
                                                         className="mb-0 text-end",
                                                     ),
@@ -290,20 +330,14 @@ def init_dashboard(flask_app, route):
                                         html.Div(
                                             id="episode-list",
                                             className="episode-list",
-                                            children=["Episodes"]
+                                            children=["Episodes"],
                                         )
                                     ]
                                 ),
-                                # 
+                                #
                                 # Wordcloud
                                 # ----------------
-                                dbc.Row(
-                                    dbc.Col(
-                                        html.Div(
-                                            id="wordcloud"
-                                        )
-                                    )
-                                )
+                                dbc.Row(dbc.Col(html.Div(id="wordcloud"))),
                             ],
                             xs=12,
                             md=6,
@@ -341,14 +375,15 @@ def init_dashboard(flask_app, route):
                         ),
                         dbc.Col(
                             [
-                                dbc.Button("Add", id="add-button-termstab", color="secondary"),
+                                dbc.Button(
+                                    "Add", id="add-button-termstab", color="secondary"
+                                ),
                             ],
                             width=2,
                         ),
                     ],
                     className="mt-3",
                 ),
-
                 # Term Tags
                 # ---------
                 dbc.Row(
@@ -366,7 +401,6 @@ def init_dashboard(flask_app, route):
                     ),
                     className="mt-3",
                 ),
-
                 # Word frequency plot
                 # ----------------------------
                 dbc.Row(
@@ -382,9 +416,8 @@ def init_dashboard(flask_app, route):
                     ]
                 ),
             ]
-        )
+        ),
     )
-
 
     app.layout = html.Div(
         dbc.Container(
@@ -405,7 +438,7 @@ def init_dashboard(flask_app, route):
                         ),
                     ],
                     id="tab-container",
-                    className="mt-3"
+                    className="mt-3",
                 ),
             ]
         )
@@ -417,6 +450,9 @@ def init_dashboard(flask_app, route):
 
 
 def init_callbacks(app):
+    """
+    Initialize the callbacks for the Dash app.
+    """
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
         Input("transcribe-episode-list", "selectedRows"),
@@ -429,7 +465,11 @@ def init_callbacks(app):
         no transcript yet, get it, index it, and update the stats, so it will be shown
         in the search results and analyses.
         """
-        if selected_rows is None or selected_rows == [] or cell_clicked.get("colId", "") != "transcript_exists":
+        if (
+            selected_rows is None
+            or selected_rows == []
+            or cell_clicked.get("colId", "") != "transcript_exists"
+        ):
             return no_update
 
         # Which episode and is it missing?
@@ -439,11 +479,10 @@ def init_callbacks(app):
         # Clicked on an episode that has no transcript yet:
         if is_missing:
             # TODO color the cell yellow immediately (may take chained callbacks):
-            pass
 
             episode: Episode = episode_store[selected_eid]
             episode.transcribe()
-            index_episode_transcript(episode, app.es_client)
+            index_episode_worker(episode)
             episode_store.to_json()  # TODO necessary? Doesn't seem to change upon transcription.
 
             # Update the episode metadata table:
@@ -451,14 +490,13 @@ def init_callbacks(app):
                 if row["eid"] == selected_eid:
                     row_data[i]["transcript_exists"] = "Yes"
                     break
-            
+
             # Update the stats database:
             ensure_stats_data(episode_store, eid=selected_eid)
 
             return row_data
 
         return no_update
-
 
     @app.callback(
         Output("tab-container", "active_tab"),
@@ -471,9 +509,8 @@ def init_callbacks(app):
             eid = episodes_selected_rows[0]["eid"]
             if episode_store[eid].transcript_path is not None:
                 return "Transcripts"
-        
+
         return no_update
-    
 
     @app.callback(
         Output("episode-list-data", "data"),
@@ -496,12 +533,9 @@ def init_callbacks(app):
         If a sort button was clicked, work with the Store content and re-sort it.
         """
         # Nothing has happened yet, fill target components with defaults:
-        if (
-            not ctx.triggered
-            or terms_store_input["termtuples"] == []
-        ):
+        if not ctx.triggered or terms_store_input["termtuples"] == []:
             return []
-        
+
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         eplist_updated = None
@@ -514,7 +548,7 @@ def init_callbacks(app):
                 term_colorids=terms_store_input["termtuples"],
             )
             eplist_updated = result_set.hits_by_ep
-        
+
         # A sort button has been clicked - re-sort the current data:
         if (
             "sort-button" in trigger_id
@@ -522,7 +556,9 @@ def init_callbacks(app):
             and any(i is not None for i in sortbtn_nclicks)
         ):
             sort_btn_id = json.loads(trigger_id)["index"]
-            sort_term = [i for i, j in terms_store_state["termtuples"] if j == sort_btn_id][0]
+            sort_term = [
+                i for i, j in terms_store_state["termtuples"] if j == sort_btn_id
+            ][0]
             eplist_updated = dict(
                 sorted(
                     current_data.items(),
@@ -530,17 +566,16 @@ def init_callbacks(app):
                     reverse=True,
                 )
             )
-        
+
         if eplist_updated is None:
             return no_update
-        
-        return eplist_updated
 
+        return eplist_updated
 
     @app.callback(
         Output("episode-list", "children"),
         Input("episode-list-data", "data"),
-        State("terms-store", "data")
+        State("terms-store", "data"),
     )
     def update_episode_hitlist(eplist, terms_store):
         """
@@ -556,7 +591,6 @@ def init_callbacks(app):
         result_card_elements = [c.to_html() for c in result_cards]
 
         return result_card_elements
-    
 
     @app.callback(
         Output("sort-buttons", "children"),
@@ -566,14 +600,10 @@ def init_callbacks(app):
         termtuples = terms_store["termtuples"]
 
         out = html.Div(
-            [
-                get_sort_button(i)
-                for i in termtuples
-            ],
+            [get_sort_button(i) for i in termtuples],
         )
 
         return out
-    
 
     # @app.callback(
     #     Output("episode-list", "children"),
@@ -587,7 +617,6 @@ def init_callbacks(app):
     #     episode_list,
     # ):
     #     pass
-    
 
     @app.callback(
         Output("selected-episode", "data"),
@@ -609,10 +638,7 @@ def init_callbacks(app):
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         # Click on episode list in meta tab:
-        if (
-            trigger_id == "transcribe-episode-list"
-            and episodes_selected_rows
-        ):
+        if trigger_id == "transcribe-episode-list" and episodes_selected_rows:
             eid = episodes_selected_rows[0]["eid"]
             if episode_store[eid].transcript_path is not None:
                 return eid
@@ -626,9 +652,8 @@ def init_callbacks(app):
             selected_eid = json.loads(trigger_id)["index"]
 
             return selected_eid
-        
-        return no_update
 
+        return no_update
 
     @app.callback(
         Output("transcript", "children"),
@@ -670,7 +695,7 @@ def init_callbacks(app):
         with open(episode.wordcloud_path, "rb") as f:
             encoded_image = base64.b64encode(f.read()).decode("utf-8")
             encoded_image = f"data:image/png;base64,{encoded_image}"
-        
+
         word_cloud_element = html.Img(
             src=encoded_image,
             style={
@@ -689,7 +714,6 @@ def init_callbacks(app):
             episode.duration,
         )
 
-
     # Update search terms in the comparison list:
     @app.callback(
         Output("terms-store", "data"),
@@ -705,14 +729,14 @@ def init_callbacks(app):
         State("terms-store", "data"),
     )
     def update_terms_store(
-            n_submit,
-            n_submit_termstab,
-            add_clicks,
-            add_clicks_termstab,
-            remove_clicks,
-            input_term_searchtab,
-            input_term_termstab,
-            terms_store
+        n_submit,
+        n_submit_termstab,
+        add_clicks,
+        add_clicks_termstab,
+        remove_clicks,
+        input_term_searchtab,
+        input_term_termstab,
+        terms_store,
     ):
         """
         Update the terms Storage by adding the newly entered search term or removing
@@ -721,10 +745,6 @@ def init_callbacks(app):
         At the same time, updates the visual representation of the Store.
         """
         if not ctx.triggered:
-            tag_elements = [
-                clickable_tag(i, term_colorid)
-                for i, term_colorid in enumerate(terms_store["termtuples"])
-            ]
             return terms_store, None, None
 
         # Analyse the search term dict into a list of tuples and the color stack:
@@ -742,7 +762,10 @@ def init_callbacks(app):
                 old_term_tuples.append(new_term_tuple)
 
         # "Add" button on terms tab was clicked:
-        elif trigger_id in ["add-button-termstab", "input-termstab"] and input_term_termstab:
+        elif (
+            trigger_id in ["add-button-termstab", "input-termstab"]
+            and input_term_termstab
+        ):
             if len(old_term_tuples) < 10 and input_term_termstab not in old_terms:
                 # assign the first available color to the new term_colorid:
                 new_term_tuple = (input_term_termstab, colorid_stack.pop())
@@ -773,8 +796,6 @@ def init_callbacks(app):
             for i, term_colorid in enumerate(terms_store["termtuples"])
         ]
         return tag_elements, tag_elements
-        
-
 
     # # Update frequency dict:
     # @app.callback(
@@ -807,7 +828,6 @@ def init_callbacks(app):
     #             freq_dict.update(new_freq_entry)
 
     #     return freq_dict
-
 
     @app.callback(
         Output("word-count-plot", "figure"),

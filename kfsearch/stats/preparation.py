@@ -1,25 +1,26 @@
+"""
+This module contains functions to prepare and store statistics for episodes.
+First come the ensure-functions, which are to be run at init time, followed
+by the functions that they apply to the whole corpus.
+"""
+
+# pylint: disable=W1514
 import json
-from os import name
 from pathlib import Path
 from typing import List
 import multiprocessing
+import sqlite3
 
 import pandas as pd
 from loguru import logger
-import sqlite3
 
 from config import PROJECT_NAME
-from kfsearch.config import EPISODE_STORE_PATH
-from kfsearch.data.models import EpisodeStore, Episode, DiarizedTranscript
+from kfsearch.data.models import EpisodeStore, Episode
 from kfsearch.stats.nlp import (
-    get_named_entities,
     type_proximity,
     get_wordcloud,
     get_named_entity_tokens,
 )
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 
 
 stats_folder_path = Path("data").resolve() / PROJECT_NAME / "stats"
@@ -28,14 +29,7 @@ clouds_path = stats_folder_path / "wordclouds"
 stats_folder_path.mkdir(parents=True, exist_ok=True)
 
 
-"""
-This module contains functions to prepare and store statistics for episodes.
-First come the ensure-functions, which are to be run at init time, followed
-by the functions that they apply to the whole corpus.
-"""
-
-
-def ensure_stats_data(episode_store: EpisodeStore, eid: List[str]|str = "all"):
+def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all"):
     """
     Run stats on all transcribed episodes. It is upon the individual component functions
     to filter out episodes for already having stats artifacts in place.
@@ -102,15 +96,11 @@ def get_wordcounts(episodes: List[Episode]):
     :return: None
     """
     # Filter: only do word counts for transcribed episodes...
-    transcribed_episodes = [ep for ep in episodes if ep.transcript_path]
-    eids = [episode.eid for episode in transcribed_episodes]
-
     # ... that are NOT already in the word_count table:
     with sqlite3.connect(stats_db_path) as conn:
         sqlout = conn.execute("select eid from word_count").fetchall()
         eids_in_db = {i[0] for i in sqlout}
     ep_to_do = [ep for ep in episodes if ep.eid not in eids_in_db]
-
 
     # Parallelize the loop using multiprocessing
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
@@ -144,7 +134,7 @@ def store_wordclouds(episodes: List[Episode]):
         for episode in transcribed_episodes
         if not (clouds_path / f"{episode.eid}.png").exists()
     ]
-    
+
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(wordcloud_worker, ep_to_do)
 
@@ -183,8 +173,10 @@ def store_named_entity_tokens(episodes: List[Episode]):
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
         }
-    
-    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
+
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+    ]
 
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(nament_tokens_worker, ep_to_do)
@@ -194,7 +186,7 @@ def nament_types_worker(episode: Episode):
     """
     Individual function used in multiprocessing function store_named_entity_types.
     """
-     # Get the named entities:
+    # Get the named entities:
     logger.debug(f"{episode.eid}: Storing named entity types")
 
     query = f"""
@@ -230,11 +222,13 @@ def store_named_entity_types(episodes: List[Episode]):
             row[0] for row in conn.execute("SELECT eid FROM named_entity_types")
         }
 
-    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+    ]
 
     # Iterate over all episodes and index missing ones
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(nament_types_worker, ep_to_do)        
+        pool.map(nament_types_worker, ep_to_do)
 
 
 def store_type_proximity(episodes: List[Episode]):
@@ -251,8 +245,10 @@ def store_type_proximity(episodes: List[Episode]):
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
         }
-    
-    ep_to_do = [ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids]
+
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+    ]
 
     # Iterate over all episodes and index missing ones
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
@@ -298,11 +294,16 @@ def type_proximity_worker(episode: Episode):
 
 
 def get_pub_dates(episode_store: EpisodeStore) -> list:
-
+    """
+    Batch return publication dates of all episodes in the episode store.
+    """
     return [pd.Timestamp(ep.pub_date) for ep in episode_store.episodes()]
 
 
 def initialize_stats_db():
+    """
+    Initialize the SQLite database for storing statistics.
+    """
     logger.info("Initializing stats database")
 
     with sqlite3.connect(stats_db_path) as conn:
@@ -396,5 +397,3 @@ def update_word_count_table(episode: Episode):
 #         )
 
 #     return pd.DataFrame(eps_list)
-
-

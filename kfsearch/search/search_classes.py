@@ -1,13 +1,10 @@
-from os import terminal_size
 import re
-from collections import defaultdict
 from datetime import datetime
-from typing import List, Union
 
 import dash_bootstrap_components as dbc
 from dash import html
 
-from kfsearch.search.utils import format_time, highlight_search_term
+from kfsearch.search.utils import format_time
 
 
 HLTAG = "bling"
@@ -19,6 +16,7 @@ class ResultSet:
     Contains a paged set of hits for the search term in the given index, along with a
     by-episode grouping of the hits.
     """
+
     def __init__(self, es_client, index_name, term_colorids):
         self.es_client = es_client
         self.index_name = index_name
@@ -46,7 +44,9 @@ class ResultSet:
                 index=self.index_name,
                 body={
                     "query": {
-                        "match_phrase": {"text": term}  # Search for the term as a phrase
+                        "match_phrase": {
+                            "text": term
+                        }  # Search for the term as a phrase
                     },
                     "size": 10000,
                     "highlight": {
@@ -85,7 +85,7 @@ class ResultSet:
                 if eid not in episodes:
                     episodes[eid] = {
                         "_title": hit["_source"]["episode_title"],
-                        "_pub_date": hit["_source"]["pub_date"]
+                        "_pub_date": hit["_source"]["pub_date"],
                     }
 
                 if term not in episodes[eid]:
@@ -98,31 +98,38 @@ class ResultSet:
     def _create_cards(self):
         return [
             ResultCard(eid, term_hits_dict, self.term_colorid_dict)
-            for eid, term_hits_dict
-            in self.hits_by_ep.items()
+            for eid, term_hits_dict in self.hits_by_ep.items()
         ]
 
+
+# FIXME: This function is a twin of ResultSet._create_cards(). Looks ugly.
 def create_cards(hits_by_ep, term_colorid_dict):
+    """
+    Twin function to ResultSet._create_cards() to be used in the search page.
+    """
     return [
         ResultCard(eid, term_hits_dict, term_colorid_dict)
-        for eid, term_hits_dict
-        in hits_by_ep.items()
+        for eid, term_hits_dict in hits_by_ep.items()
     ]
 
 
 class ResultCard:
+    """
+    A class to represent a single search result card.
+    """
     def __init__(self, eid, term_hits_dict, term_colorid_dict: dict):
         self.title = term_hits_dict["_title"]
         self.pub_date = term_hits_dict["_pub_date"]
         self.term_nhits = {
-            k: v for k, v in term_hits_dict.items()
-            if k not in ["_title", "_pub_date"]
+            k: v for k, v in term_hits_dict.items() if k not in ["_title", "_pub_date"]
         }
         self.term_colorid_dict = term_colorid_dict
         self.id = eid
 
- 
     def to_html(self):
+        """
+        Create a Dash HTML representation for the result card.
+        """
         formatted_date = datetime.strptime(
             self.pub_date,
             "%Y-%m-%dT%H:%M:%S",
@@ -159,16 +166,19 @@ class ResultCard:
                             ],
                             className="g-0",
                         ),
-
                         dbc.Row(
-                            [
-                                html.Button(
-                                    i,
-                                    className=f"text-secondary hit-count term-color-{self.term_colorid_dict[term]}",
-                                )
-                            for term, i in self.term_nhits.items()
-                            ] if self.term_nhits else [],
-                        )
+                            (
+                                [
+                                    html.Button(
+                                        i,
+                                        className=f"text-secondary hit-count term-color-{self.term_colorid_dict[term]}",
+                                    )
+                                    for term, i in self.term_nhits.items()
+                                ]
+                                if self.term_nhits
+                                else []
+                            ),
+                        ),
                     ],
                     className="py-2",
                 ),
@@ -188,7 +198,7 @@ def highlight_to_html_elements(text):
 
     for part in parts:
         if part.startswith("<span ") and part.endswith("</span>"):
-            match = re.match(r'(<span .*?>)(.*)(</span>)', part)
+            match = re.match(r"(<span .*?>)(.*)(</span>)", part)
             if match:
                 opening_tag = match.group(1)
                 opening_match = re.match(r'.*?="(.*?)"', opening_tag)
@@ -210,6 +220,7 @@ def diarize_transcript(eid, episode_store, search_term) -> list:
     """
     Create a diarized transcript with highlighted search terms.
     """
+
     def speaker_class(speaker):
         return f"speaker-{speaker[-2:]}"
 
@@ -230,17 +241,27 @@ def diarize_transcript(eid, episode_store, search_term) -> list:
         while segments and segments[0]["speaker"] == this_speaker:
             # Highlight search terms in segment text
             text = segments.pop(0)["text"]
-            highlighted_text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
+            highlighted_text = pattern.sub(
+                lambda m: f"<bling>{m.group()}</bling>", text
+            )
             turn_segments.append(highlighted_text)
 
         # Convert highlighted text to HTML elements
         highlighted_turn = highlight_to_html_elements(" ".join(turn_segments))
         turn_header = dbc.Row(
             children=[
-                dbc.Col([html.B([this_speaker + ":"])], className="text-start text-bf", width=6),
-                dbc.Col([format_time(this_start)], className="text-end text-secondary", width=6),
+                dbc.Col(
+                    [html.B([this_speaker + ":"])],
+                    className="text-start text-bf",
+                    width=6,
+                ),
+                dbc.Col(
+                    [format_time(this_start)],
+                    className="text-end text-secondary",
+                    width=6,
+                ),
             ],
-            className="mt-2"
+            className="mt-2",
         )
         turn_body = dbc.Row(
             children=[

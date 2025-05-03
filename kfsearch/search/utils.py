@@ -1,6 +1,9 @@
+"""
+Miscellaneous utility functions.
+"""
+
 import re
 from bs4 import BeautifulSoup
-from dash import html
 
 
 def extract_text_from_html(html_string):
@@ -8,7 +11,7 @@ def extract_text_from_html(html_string):
     Parse strings such as the description of a podcast episode, which can contain HTML
     tags, and convert them to Dash components.
     """
-    soup = BeautifulSoup(html_string, 'html.parser')
+    soup = BeautifulSoup(html_string, "html.parser")
     return soup.get_text()
 
 
@@ -61,22 +64,15 @@ def make_index_name(project_name):
     project_name = project_name.lower()
 
     # Replace spaces with underscores
-    project_name = project_name.replace(' ', '_')
+    project_name = project_name.replace(" ", "_")
 
     # Remove leading underscores
-    project_name = re.sub(r'^_+', '', project_name)
+    project_name = re.sub(r"^_+", "", project_name)
 
     # Remove invalid characters
-    project_name = re.sub(r'[,*\\]', '', project_name)
+    project_name = re.sub(r"[,*\\]", "", project_name)
 
     # Truncate to 255 bytes
-    project_name = project_name.encode('utf-8')[:255].decode('utf-8', 'ignore')
+    project_name = project_name.encode("utf-8")[:255].decode("utf-8", "ignore")
 
     return project_name
-
-
-def highlight_search_term(text, search_term):
-    pattern = re.compile(re.escape(search_term), re.IGNORECASE)
-    highlighted_text = pattern.sub(lambda m: f"<bling>{m.group()}</bling>", text)
-
-    return highlighted_text

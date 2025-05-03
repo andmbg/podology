@@ -1,15 +1,18 @@
-from typing import List
+"""
+Plotting functions
+"""
 
-from numpy import zeros
+from typing import List
+import sqlite3
+
 import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
-import sqlite3
 
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 from kfsearch.data.models import EpisodeStore
 from kfsearch.search.search_classes import ResultSet
-from kfsearch.stats.preparation import get_pub_dates, stats_db_path
+from kfsearch.stats.preparation import stats_db_path
 from kfsearch.frontend.utils import colorway
 
 
@@ -17,17 +20,20 @@ episode_store = EpisodeStore("Knowledge Fight")
 colordict = {i[0]: i[1] for i in colorway}
 
 
-def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> go.Figure:
-
+def plot_word_freq(
+    term_colid_tuples: List[tuple], es_client: Elasticsearch
+) -> go.Figure:
+    """
+    Time series plot of word frequencies in the transcripts of all episodes.
+    """
     term_colid_dict = {i[0]: i[1] for i in term_colid_tuples}
     terms = term_colid_dict.keys()
     eids = [ep.eid for ep in episode_store.episodes(script=True)]
-    
+
     # Span all episodes & dates for every term:
-    df = pd.MultiIndex.from_product(
-        [terms, eids],
-        names=["term", "eid"]
-    ).to_frame(index=False)
+    df = pd.MultiIndex.from_product([terms, eids], names=["term", "eid"]).to_frame(
+        index=False
+    )
     df["pub_date"] = df.eid.apply(lambda x: episode_store[x].pub_date)
     df["title"] = df.eid.apply(lambda x: episode_store[x].title)
     df["count"] = 0
@@ -52,7 +58,9 @@ def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> 
     # Add total word counts of each episode:
     unique_eps = tuple(df.eid.unique())
     unique_eps_query = ",".join(["?"] * len(unique_eps))
-    query = f"select eid, count as total from word_count where eid in ({unique_eps_query})"
+    query = (
+        f"select eid, count as total from word_count where eid in ({unique_eps_query})"
+    )
     word_counts = pd.read_sql(
         query,
         sqlite3.connect(stats_db_path),
@@ -94,7 +102,7 @@ def plot_word_freq(term_colid_tuples: List[tuple], es_client: Elasticsearch) -> 
             paper_bgcolor="rgba(255,255,255, .0)",
             margin=dict(l=0, r=0, t=0, b=0),
             legend=dict(
-                y=.5,
+                y=0.5,
                 yanchor="middle",
             ),
         )

@@ -1,11 +1,15 @@
+"""
+RSS Connector class
+"""
+from xml.etree import ElementTree
 from datetime import datetime
 from pathlib import Path
-import requests
-from xml.etree import ElementTree
 from dataclasses import dataclass, field
+
+import requests
 from loguru import logger
 
-from kfsearch.data.models import Episode, EpisodeStore, UniqueEpisodeError
+from kfsearch.data.models import Episode, UniqueEpisodeError
 from kfsearch.data.connectors.base import Connector
 
 
@@ -30,7 +34,7 @@ class RSSConnector(Connector):
 
     def _download_rss(self):
         try:
-            response = requests.get(self.resource)
+            response = requests.get(self.resource, timeout=10)
             response.raise_for_status()  # Raise an error for bad status codes
         except Exception:
             # No web connection or so: Use existing RSS file if possible:

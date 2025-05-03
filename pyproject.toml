@@ -39,6 +39,7 @@ transformers = "^4.51.2"
 svgling = "^0.5.0"
 wordcloud = "^1.9.4"
 openpyxl = "^3.1.5"
+pylint = "^3.3.6"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"

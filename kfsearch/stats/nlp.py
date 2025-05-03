@@ -1,16 +1,15 @@
-from pathlib import Path
+"""NLP-related computations"""
+
 from typing import List
 
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
-from loguru import logger
 
-from kfsearch.data.models import EpisodeStore, Episode, DiarizedTranscript
+from kfsearch.data.models import Episode, DiarizedTranscript
 from config import ADDITIONAL_STOPWORDS
 
 stop_words = set(stopwords.words("english"))
