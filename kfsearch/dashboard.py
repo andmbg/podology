@@ -1,15 +1,23 @@
+import os
 import json
 import base64
+from loguru import logger
+from datetime import datetime
+
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
-from loguru import logger
-from datetime import datetime
 from bs4 import BeautifulSoup
+from elasticsearch import Elasticsearch
 
 from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
 from kfsearch.search.search_classes import ResultSet, create_cards
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, ensure_transcript_index, index_episode_transcript
+from kfsearch.search.setup_es import (
+    TRANSCRIPT_INDEX_NAME,
+    ensure_transcript_index,
+    index_episode_transcript,
+    index_all_transcripts,
+)
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
@@ -34,10 +42,18 @@ episode_list = [
     } for e in episode_store.episodes()
 ]
 
-def init_dashboard(flask_app, route, es_client):
+def init_dashboard(flask_app, route):
 
     # Fill the ES index with transcripts:
-    ensure_transcript_index(es_client)
+    # ensure_transcript_index(es_client)
+    es_client = Elasticsearch(
+        "http://localhost:9200",
+        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
+        # verify_certs=True,
+        # ca_certs=basedir / "http_ca.crt"
+    )
+
+    index_all_transcripts(episode_store)
     ensure_stats_data(episode_store)
 
     app = Dash(

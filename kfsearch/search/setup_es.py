@@ -1,8 +1,12 @@
+import os
 import json
 from loguru import logger
 from pathlib import Path
 from datetime import datetime
-from elasticsearch import Elasticsearch
+from typing import List
+import multiprocessing
+
+from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME
 from kfsearch.data.models import EpisodeStore, Episode
@@ -44,64 +48,65 @@ META_INDEX_SETTINGS = {
 }
 
 
-def ensure_transcript_index(es_client: Elasticsearch):
+def index_episode_worker(episode: Episode):
     """
-    Create both an Elasticsearch index for the transcripts of podcast episodes,
-    and a mixed dataset of some stats about the episodes.
+    Worker function to index a single episode in Elasticsearch.
     """
-    # Init index if it does not exist:
-    if not es_client.indices.exists(index=TRANSCRIPT_INDEX_NAME):
-        es_client.indices.create(index=TRANSCRIPT_INDEX_NAME, body=TRANSCRIPT_INDEX_SETTINGS)
-        logger.info(f"Initialized index {TRANSCRIPT_INDEX_NAME}")
+    es_client = Elasticsearch(
+        "http://localhost:9200",
+        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
+        # verify_certs=True,
+        # ca_certs=basedir / "http_ca.crt"
+    )
 
-    # Init stats index if it does not exist:
-    if not STATS_PATH.exists():
-        STATS_PATH.mkdir(parents=True)
-        logger.info(f"Created stats directory {STATS_PATH}")
-
-    episode_store = EpisodeStore(name=PROJECT_NAME)
-
-    # Index transcripts from all transcribed episodes:
-    for episode in episode_store.episodes(script=True):
-        if index_episode_transcript(episode, es_client):
-            logger.debug(f"Indexed transcript for episode {episode.eid}.")
-
-    # Collect episode stats for plotting and reporting:
-
-
-def index_episode_transcript(episode: Episode, es_client: Elasticsearch) -> bool:
-    logger.debug(f"Indexing episode {episode.eid}")
+    logger.debug(f"{episode.eid}: Indexing in Elasticsearch")
 
     transcript_path = Path(episode.transcript_path)
     if transcript_path.exists():
         with open(transcript_path, "r") as f:
             transcript_data = json.load(f)
 
-        # Check if first segment in index (means episode was indexed):
+        # Check if the episode is already indexed
         s0 = transcript_data["segments"][0]
         first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
-
         if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
-            logger.debug(f"Found index for episode {episode.eid}.")
-            return False
+            logger.debug(f"Episode {episode.eid} is already indexed.")
+            return
 
-        # Do the indexing:
+        # Index segments
+        actions = []
         for entry in transcript_data["segments"]:
             doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
             doc = {
-                "eid": episode.eid,
-                "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
-                "episode_title": episode.title,
-                "text": entry["text"],
-                "start_time": entry["start"],
-                "end_time": entry["end"],
+                "_index": TRANSCRIPT_INDEX_NAME,
+                "_id": doc_id,
+                "_source": {
+                    "eid": episode.eid,
+                    "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
+                    "episode_title": episode.title,
+                    "text": entry["text"],
+                    "start_time": entry["start"],
+                    "end_time": entry["end"],
+                },
             }
-            es_client.index(index=TRANSCRIPT_INDEX_NAME, body=doc, id=doc_id)
+            actions.append(doc)
 
-        # Update word count table:
-        # (Might become a more general stats update call)
-        # update_word_count_table(episode)
+        # Use the bulk API for efficient indexing
+        helpers.bulk(es_client, actions)
+        logger.debug(f"Indexed transcript for episode {episode.eid}.")
 
-        return True
 
-    return False
+def parallel_index_episodes(episodes: List[Episode]):
+    """
+    Parallelize the indexing of episodes into Elasticsearch.
+    """
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(index_episode_worker, episodes)
+
+
+def index_all_transcripts(episode_store: EpisodeStore):
+    """
+    Index transcripts for all transcribed episodes in parallel.
+    """
+    episodes = episode_store.episodes(script=True)
+    parallel_index_episodes(episodes)
