@@ -1,6 +1,7 @@
 import json
 from os import name
 from pathlib import Path
+from typing import List
 
 import pandas as pd
 from loguru import logger
@@ -24,22 +25,40 @@ by the functions that they apply to the whole corpus.
 """
 
 
-def ensure_stats_data(episode_store: EpisodeStore):
+def ensure_stats_data(episode_store: EpisodeStore, eid: List[str]|str = "all"):
     """
+    Run 
     There are a bunch of computations that we need to do at indexing time, that take
     too long at runtime. This function is called to compute those stats and store them
     in the stats directory.
     """
     initialize_stats_db()
-    ensure_wordcounts(episode_store)
-    # get_metadata(episode_store).to_parquet(metadata_path)
-    ensure_named_entity_tokens(episode_store)
-    ensure_named_entity_types(episode_store)
-    ensure_wordclouds(episode_store)
-    ensure_type_proximity(episode_store)
+
+    # Deal with eid parameter:
+
+    if isinstance(eid, str):
+        # eid is "all", the default:
+        if eid == "all":
+            episodes = episode_store.episodes(script=True)
+
+        # eid is a single episode ID:
+        else:
+            episodes = [episode_store[eid]]
+
+    elif isinstance(eid, list):
+        episodes = [episode_store[i] for i in eid]
+
+    else:
+        raise ValueError(f"Invalid type for eid: {type(eid)}")
+
+    ensure_wordcounts(episodes)
+    ensure_wordclouds(episodes)
+    ensure_named_entity_tokens(episodes)
+    ensure_named_entity_types(episodes)
+    ensure_type_proximity(episodes)
 
 
-def ensure_wordcounts(episode_store: EpisodeStore):
+def ensure_wordcounts(episodes: List[Episode]):
     """
     Identify all episodes that are missing a word count
     and update the word count table
@@ -50,18 +69,18 @@ def ensure_wordcounts(episode_store: EpisodeStore):
         indexed_eids = {row[0] for row in conn.execute("SELECT eid FROM word_count")}
 
         # Iterate over all episodes and index missing ones
-        for episode in episode_store.episodes(script=True):
+        for episode in episodes:
             if episode.eid not in indexed_eids:
                 update_word_count_table(episode)
 
 
-def ensure_wordclouds(episode_store: EpisodeStore):
+def ensure_wordclouds(episodes: List[Episode]):
     """
     Identify all episodes that are missing a word cloud
     and update the word cloud table
     """
     # Get transcribed episodes that lack a word cloud:
-    for episode in episode_store.episodes(script=True):
+    for episode in episodes:
 
         if (
             episode.transcript_path
@@ -70,7 +89,7 @@ def ensure_wordclouds(episode_store: EpisodeStore):
             store_wordcloud(episode)
 
 
-def ensure_named_entity_tokens(episode_store: EpisodeStore):
+def ensure_named_entity_tokens(episodes: List[Episode]):
     """
     Ensure that the named entity tokens are computed and stored.
     Like all ensure-functions, this is to be run at init time.
@@ -86,12 +105,12 @@ def ensure_named_entity_tokens(episode_store: EpisodeStore):
         }
 
         # Iterate over all episodes and index missing ones
-        for episode in episode_store.episodes(script=True):
+        for episode in episodes:
             if episode.eid not in indexed_eids:
                 update_named_entity_tokens(episode)
 
 
-def ensure_named_entity_types(episode_store: EpisodeStore):
+def ensure_named_entity_types(episodes: List[Episode]):
     """
     Ensure that the named entity types are computed and stored.
     Like all ensure-functions, this is to be run at init time.
@@ -107,12 +126,12 @@ def ensure_named_entity_types(episode_store: EpisodeStore):
         }
 
         # Iterate over all episodes and index missing ones
-        for episode in episode_store.episodes(script=True):
+        for episode in episodes:
             if episode.eid not in indexed_eids:
                 update_named_entity_types(episode)
 
 
-def ensure_type_proximity(episode_store: EpisodeStore):
+def ensure_type_proximity(episodes: List[Episode]):
     """
     Ensure that the type proximity data is computed and stored.
     Like all ensure-functions, this is to be run at init time.
@@ -128,7 +147,7 @@ def ensure_type_proximity(episode_store: EpisodeStore):
         }
 
         # Iterate over all episodes and index missing ones
-        for episode in episode_store.episodes(script=True):
+        for episode in episodes:
             if episode.eid not in indexed_eids:
                 logger.info(f"Checking {episode.eid} for type proximity")
                 update_type_proximity_table(episode)
@@ -210,29 +229,29 @@ def update_word_count_table(episode: Episode):
             )
 
 
-def get_metadata(episode_store: EpisodeStore) -> pd.DataFrame:
-    """
-    Save the metadata of the episodes in a DataFrame.
+# def get_metadata(episode_store: EpisodeStore) -> pd.DataFrame:
+#     """
+#     Save the metadata of the episodes in a DataFrame.
 
-    pd.DataFrame:
-    - eid (str): The episode ID
-    - pub_date (str): The publication date of the episode
-    - episode_title (str): The title of the episode
-    - description (str): The description of the episode
-    """
-    eps_list = []
+#     pd.DataFrame:
+#     - eid (str): The episode ID
+#     - pub_date (str): The publication date of the episode
+#     - episode_title (str): The title of the episode
+#     - description (str): The description of the episode
+#     """
+#     eps_list = []
 
-    for episode in episode_store.episodes(script=True):
-        eps_list.append(
-            {
-                "eid": episode.eid,
-                "pub_date": episode.pub_date,
-                "episode_title": episode.title,
-                "description": episode.description,
-            }
-        )
+#     for episode in episode_store.episodes(script=True):
+#         eps_list.append(
+#             {
+#                 "eid": episode.eid,
+#                 "pub_date": episode.pub_date,
+#                 "episode_title": episode.title,
+#                 "description": episode.description,
+#             }
+#         )
 
-    return pd.DataFrame(eps_list)
+#     return pd.DataFrame(eps_list)
 
 
 def store_wordcloud(episode: Episode):

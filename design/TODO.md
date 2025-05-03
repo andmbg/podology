@@ -20,7 +20,6 @@
 ## Transcript/Episode tab:
 
 - Transcript display: Playback if audio present
-- Show hits in scrollbar
 
 ## Terms tab:
 
@@ -38,5 +37,10 @@
   
 # IMMINENT
 
-- Transcript search result list as scrollable table, sortable
-- highlight episode card of currently shown transcript
+- Show hits in scrollbar
+- Metadata AG Grid: multiline display of (title and) show notes.
+
+# Bugs
+
+- When an episode gets transcribed (and indexed and statsed), the plotting function in the same runtime session misses something, probably the current EpisodeStore instance.
+  - => we could make the DummyTranscriber a little nicer and copy an existing episode into the transcript (instead of writing just a sentence), so we can also run stats on it.

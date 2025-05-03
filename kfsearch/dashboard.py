@@ -420,12 +420,16 @@ def init_callbacks(app):
             episode: Episode = episode_store[selected_eid]
             episode.transcribe()
             index_episode_transcript(episode, app.es_client)
-            episode_store.to_json()
+            episode_store.to_json()  # TODO necessary? Doesn't seem to change upon transcription.
 
+            # Update the episode metadata table:
             for i, row in enumerate(row_data):
                 if row["eid"] == selected_eid:
                     row_data[i]["transcript_exists"] = "Yes"
                     break
+            
+            # Update the stats database:
+            ensure_stats_data(episode_store, eid=selected_eid)
 
             return row_data
 
@@ -461,6 +465,8 @@ def init_callbacks(app):
         
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+        eplist_updated = None
+
         # Terms list has changed - get search results as a set:
         if terms_store_input:
             result_set = ResultSet(
@@ -485,9 +491,11 @@ def init_callbacks(app):
                     reverse=True,
                 )
             )
-
+        
+        if eplist_updated is None:
+            return no_update
+        
         return eplist_updated
-
 
 
     @app.callback(
