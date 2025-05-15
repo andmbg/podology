@@ -7,4 +7,7 @@ elastic-down:
 	docker compose down
 
 run:
-	poetry run python -m kfsearch.dashboard
+	poetry run python main.py
+
+install:
+	poetry install

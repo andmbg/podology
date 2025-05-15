@@ -47,13 +47,16 @@ def init_dashboard(flask_app, route):
     """
 
     # Fill the ES index with transcripts:
-    # ensure_transcript_index(es_client)
-    es_client = Elasticsearch(
-        "http://localhost:9200",
-        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
-        # verify_certs=True,
-        # ca_certs=basedir / "http_ca.crt"
-    )
+    try:
+        es_client = Elasticsearch(
+            "http://localhost:9200",
+            basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
+            # verify_certs=True,
+            # ca_certs=basedir / "http_ca.crt"
+        )
+    except TypeError:
+        print("Elasticsearch client not initialized. Check environment variables.")
+        return
 
     index_all_transcripts(episode_store)
     ensure_stats_data(episode_store)
