@@ -11,17 +11,26 @@ CONNECTOR = RSSConnector(
 TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
 # TRANSCRIBER = DummyTranscriber(delay=2)
 
+PROJECT_STOPWORDS = [
+        "alex",
+        "jones",
+        "alex jones",
+        "dan",
+        "jordan",
+]
+
 ADDITIONAL_STOPWORDS = [
     i.lower() for i in [
         "okay",
         "fair",
         "which",
         "anyway",
-        "alex",
-        "jones",
-        "alex jones",
-        "dan",
-        "jordan",
         "hello",
-    ]
+        "uh",
+        "right",
+        "yep",
+        "same",
+        "wait"
+    ] + PROJECT_STOPWORDS
 ]
+

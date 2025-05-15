@@ -1,6 +1,7 @@
 """NLP-related computations"""
 
 from typing import List
+import multiprocessing
 
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
@@ -43,11 +44,13 @@ def get_named_entities(text) -> list[tuple[str, str]]:
     return named_entities
 
 
-def get_named_entity_tokens(episode: Episode) -> List[str]:
+def get_named_entity_tokens(episode: Episode) -> List[tuple[str, float]]:
     """
-    For a given episode, store in the stats database the tokens of named
-    entities and their index among NEs. This facilitates type frequency and
-    proximity calculations.
+    For a given episode, return the tokens of named entities, their index among NEs
+    and their timestamp. This is the basis for some further computations.
+
+    :param episode: The episode object for which to extract named entity tokens.
+    :return: A list of named entity tokens.
     """
     # Get the transcript text:
     transcript = DiarizedTranscript(episode)
@@ -147,3 +150,65 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
     prox_df.columns = ["type", "other_type", "proximity"]
 
     return prox_df
+
+
+def indexed_named_entities(transcript) -> List[tuple]:
+    """
+    Extract named entities from the given transcript and associate them with word indices.
+    
+    :param transcript: A list of dictionaries, where each dictionary contains "text", "start", and "end".
+    :return: A list of tuples (entity_name, entity_type, word_index).
+    """
+    # Prepare arguments for each segment
+    args = []
+    current_index = 0
+    for segment in transcript:
+        args.append((segment, current_index))
+        current_index += len(word_tokenize(segment["text"]))  # Update the starting index for the next segment
+
+    # Use multiprocessing to process segments in parallel
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1) as pool:
+        results = pool.map(process_segment_wrapper, args)
+
+    # Flatten the list of results
+    named_entities = [entity for segment_entities in results for entity in segment_entities]
+    named_entities = [entity for entity in named_entities if entity[0].lower() not in stop_words]
+    
+    return named_entities
+
+
+def process_segment_wrapper(args):
+    """
+    Wrapper function to unpack arguments for multiprocessing.
+    """
+    return process_segment_with_word_index(*args)
+
+
+def process_segment_with_word_index(segment, start_index):
+    """
+    Process a single segment to extract named entities and associate them with word indices.
+    
+    :param segment: A dictionary containing "text", "start", and "end".
+    :param start_index: The starting word index for this segment.
+    :return: A list of tuples (entity_name, entity_type, word_index).
+    """
+    segment_text = segment["text"]
+
+    # Tokenize the segment text
+    tokens = word_tokenize(segment_text)
+    pos_tags = pos_tag(tokens)
+    chunked = ne_chunk(pos_tags)
+
+    named_entities = []
+    current_index = start_index
+
+    for subtree in chunked:
+        if isinstance(subtree, Tree):  # Named Entity subtree
+            entity_name = " ".join(token for token, pos in subtree.leaves())
+            entity_type = subtree.label()
+            named_entities.append((entity_name, entity_type, current_index))
+        
+        # Increment the word index for each token in the subtree
+        current_index += len(subtree.leaves()) if isinstance(subtree, Tree) else 1
+
+    return named_entities

@@ -1,3 +1,6 @@
+"""Classes for Episodes and the EpisodeStore."""
+
+# pylint: disable=W1514
 import re
 import json
 from dataclasses import dataclass, field
@@ -40,9 +43,6 @@ class Episode:
         # Generate a 5-character alphanumeric hash from the URL
         self.eid = episode_hash(self.audio_url.encode())
 
-        # Use file name stem for audio and transcript files
-        name = self.audio_url.split("/")[-1].split(".")[0][:50]
-
         # If a transcript file already exists, set its name as attribute:
         transcript_path = self.store.transcripts_dir() / f"{self.eid}.json"
         if transcript_path.exists():
@@ -52,7 +52,7 @@ class Episode:
         audio_path = self.store.audio_dir() / f"{self.eid}.mp3"
         if audio_path.exists():
             self.audio_path = str(audio_path)
-        
+
         # If a word cloud file already exists, set its name as attribute:
         wordcloud_path = self.store.wordclouds_dir() / f"{self.eid}.png"
         if wordcloud_path.exists():
@@ -82,12 +82,10 @@ class Episode:
             return
 
         if not self.store.transcriber:
-            logger.error(f"No Transcriber attached to this EpisodeStore.")
+            logger.error("No Transcriber attached to this EpisodeStore.")
             return
 
-        script_filename = (
-            self.store.transcripts_dir() / f"{self.eid}.json"
-        )
+        script_filename = self.store.transcripts_dir() / f"{self.eid}.json"
 
         # Get dict of the transcript from the transcriber:
         transcript: dict = self.store.transcriber.transcribe(self)
@@ -97,7 +95,7 @@ class Episode:
 
         self.transcript_path = script_filename
 
-    def get_transcript(self) -> dict:
+    def raw_transcript(self) -> dict:
         """
         Load the transcript from the transcript directory if it exists.
         Return it as a dict.
@@ -129,7 +127,9 @@ class Episode:
 
 
 class UniqueEpisodeError(Exception):
-    pass
+    """
+    Raised when trying to add an episode to the store that already exists.
+    """
 
 
 @dataclass
@@ -138,6 +138,7 @@ class EpisodeStore:
     Manage episodes and their transcripts by setting storage paths and providing
     methods to add, remove, and get episodes.
     """
+
     name: str
     connector: Connector = None
     transcriber: Transcriber = None
@@ -176,18 +177,25 @@ class EpisodeStore:
                     )
 
     def set_connector(self, connector: Connector):
+        """
+        Set the metadata connector for the store. The connector is responsible for procuring
+        episode metadata from an external source (e.g., RSS feed).
+        """
         self.connector = connector
         self.connector.store = self
         self.connector.rss_file = self.path / "rss.xml"
 
     def set_transcriber(self, transcriber: Transcriber):
+        """
+        Set the transcriber for the store. The transcriber is responsible for generating
+        transcripts from audio files, local or online.
+        """
         self.transcriber = transcriber
         self.transcriber.store = self
 
     def populate(self):
         if self.connector:
             self.connector.populate_store()
-
 
     def to_json(self):
         """
@@ -211,36 +219,6 @@ class EpisodeStore:
         with open(json_file, "w") as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
 
-    def __repr__(self):
-        out = f"EpisodeStore \"{self.name}\" ({len(self._episodes)} entries)\n"
-
-        if self.connector:
-            out += (
-                "Metadata Connector: "
-                f"{self.connector.__class__.__name__} "
-                f"({self.connector.resource})\n"
-            )
-        else:
-            out += "Metadata Connector: None\n"
-
-        if self.transcriber:
-            out += f"Transcriber: {self.transcriber.__class__.__name__}\n"
-        else:
-            out += "Transcriber: None\n"
-
-        out += "\nEpisodes:\n"
-
-        if len(self._episodes) < 8:
-            for i, episode in enumerate(self._episodes):
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-        else:
-            for i, episode in list(enumerate(self._episodes))[:3]:
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-            out += "  ...\n"
-            for i, episode in list(enumerate(self._episodes))[-3:]:
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-
-        return out
 
     def add(self, episode: Episode):
         """
@@ -259,25 +237,13 @@ class EpisodeStore:
                 f"Episode with URL '{episode.audio_url}' already exists in store."
             )
 
-    def remove(self, episode: Episode):
-        if episode.audio_url in self._urls:
-            self._urls.remove(episode.audio_url)
-            self._episodes.remove(episode)
-
-    def get_episode(self, eid: str):
+    def __getitem__(self, eid: str) -> Episode:
+        # Retrieve the episode by its ID
         for episode in self._episodes:
             if episode.eid == eid:
                 return episode
-    
-    def __getitem__(self, episode_id) -> Episode:
-        # Retrieve the episode by its ID
-        return self.get_episode(episode_id)
 
-    def __iter__(self):
-        return iter(self._episodes)
-
-    def __len__(self):
-        return len(self._episodes)
+        raise KeyError(f"Episode with ID '{eid}' not found in store.")
 
     def episodes(self, script: bool = None, audio: bool = None):
         """
@@ -307,7 +273,7 @@ class EpisodeStore:
 
     def audio_dir(self):
         return self._audio_path
-    
+
     def wordclouds_dir(self):
         return self._wordclouds_dir
 
@@ -320,6 +286,36 @@ class EpisodeStore:
     def __len__(self):
         return len(self._episodes)
 
+    def __repr__(self):
+        out = f'EpisodeStore "{self.name}" ({len(self._episodes)} entries)\n'
+
+        if self.connector:
+            out += (
+                "Metadata Connector: "
+                f"{self.connector.__class__.__name__} "
+                f"({self.connector.resource})\n"
+            )
+        else:
+            out += "Metadata Connector: None\n"
+
+        if self.transcriber:
+            out += f"Transcriber: {self.transcriber.__class__.__name__}\n"
+        else:
+            out += "Transcriber: None\n"
+
+        out += "\nEpisodes:\n"
+
+        if len(self._episodes) < 8:
+            for i, episode in enumerate(self._episodes):
+                out += f'  {i}: {episode.eid} "{episode.title}" \n'
+        else:
+            for i, episode in list(enumerate(self._episodes))[:3]:
+                out += f'  {i}: {episode.eid} "{episode.title}" \n'
+            out += "  ...\n"
+            for i, episode in list(enumerate(self._episodes))[-3:]:
+                out += f'  {i}: {episode.eid} "{episode.title}" \n'
+
+        return out
 
 class DiarizedTranscript:
     """
@@ -328,16 +324,17 @@ class DiarizedTranscript:
     - a method that returns the HTML representation of the transcript that we
       use in the transcripts tab
     """
+
     def __init__(self, episode: Episode):
         self.eid = episode.eid
         self.episode_store = episode.store
 
         # Auto-filled from the episode store:
-        self.title = self.episode_store.get_episode(self.eid).title
-        self.pub_date = self.episode_store.get_episode(self.eid).pub_date
-        self.description = self.episode_store.get_episode(self.eid).description
-        self.audio_url = self.episode_store.get_episode(self.eid).audio_url
-        self.duration = self.episode_store.get_episode(self.eid).duration
+        self.title = self.episode_store[self.eid].title
+        self.pub_date = self.episode_store[self.eid].pub_date
+        self.description = self.episode_store[self.eid].description
+        self.audio_url = self.episode_store[self.eid].audio_url
+        self.duration = self.episode_store[self.eid].duration
 
         # The meat of the class - the diarized transcript:
         self.diarized_script = self._diarize_script()
@@ -349,8 +346,8 @@ class DiarizedTranscript:
         we have a dedicated output method.
         """
 
-        episode = self.episode_store.get_episode(self.eid)
-        segments = episode.get_transcript()["segments"]
+        episode = self.episode_store[self.eid]
+        segments = episode.raw_transcript()["segments"]
 
         turns = []
         while segments:
@@ -378,12 +375,23 @@ class DiarizedTranscript:
         transcript_metadata: list = None,
     ):
         """
+        Return the transcript in JSON format, with the selected level of metadata.
 
+        :param episode_metadata: List of metadata fields about the episode to include.
+        :param transcript_metadata: List of metadata fields about each turn to include.
         """
         episode_metadata = episode_metadata or []
         transcript_metadata = transcript_metadata or []
-        episode_metadata = [episode_metadata] if isinstance(episode_metadata, str) else episode_metadata
-        transcript_metadata = [transcript_metadata] if isinstance(transcript_metadata, str) else transcript_metadata
+        episode_metadata = (
+            [episode_metadata]
+            if isinstance(episode_metadata, str)
+            else episode_metadata
+        )
+        transcript_metadata = (
+            [transcript_metadata]
+            if isinstance(transcript_metadata, str)
+            else transcript_metadata
+        )
 
         out = []
 
@@ -437,17 +445,26 @@ class DiarizedTranscript:
 
             highlighted_turn = highlight_to_html_elements(text)
 
-
             turn_header = dbc.Row(
                 children=[
-                    dbc.Col([html.B([seg["speaker"] + ":"])], className="text-start text-bf", width=6),
-                    dbc.Col([format_time(seg["start"])], className="text-end text-secondary", width=6),
+                    dbc.Col(
+                        [html.B([seg["speaker"] + ":"])],
+                        className="text-start text-bf",
+                        width=6,
+                    ),
+                    dbc.Col(
+                        [format_time(seg["start"])],
+                        className="text-end text-secondary",
+                        width=6,
+                    ),
                 ],
-                className="mt-2"
+                className="mt-2",
             )
             turn_body = dbc.Row(
                 children=[
-                    html.Div([highlighted_turn], className=speaker_class(seg["speaker"])),
+                    html.Div(
+                        [highlighted_turn], className=speaker_class(seg["speaker"])
+                    ),
                 ]
             )
 

@@ -20,6 +20,7 @@ from kfsearch.stats.nlp import (
     type_proximity,
     get_wordcloud,
     get_named_entity_tokens,
+    indexed_named_entities,
 )
 
 
@@ -58,14 +59,35 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all")
     else:
         raise ValueError(f"Invalid type for eid: {type(eid)}")
 
-    get_wordcounts(episodes)
+    store_indexed_named_entities(episodes)
+    get_word_counts(episodes)
     store_wordclouds(episodes)
-    store_named_entity_tokens(episodes)
+    # store_named_entity_tokens(episodes)
     store_named_entity_types(episodes)
     store_type_proximity(episodes)
 
 
-def wordcount_worker(episode: Episode):
+def get_word_counts(episodes: List[Episode]):
+    """
+    Add an entry to the word_count table for each given episode.
+    Exclude episodes that are not transcribed or already have a word count entry.
+
+    :param episodes: List of episodes to process.
+    :return: None
+    """
+    # Filter: only do word counts for transcribed episodes...
+    # ... that are NOT already in the word_count table:
+    with sqlite3.connect(stats_db_path) as conn:
+        sqlout = conn.execute("select eid from word_count").fetchall()
+        eids_in_db = {i[0] for i in sqlout}
+    ep_to_do = [ep for ep in episodes if ep.eid not in eids_in_db]
+
+    # Parallelize the loop using multiprocessing
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(word_count_worker, ep_to_do)
+
+
+def word_count_worker(episode: Episode):
     """
     Individual function used in multiprocessing function get_wordcounts.
     """
@@ -85,38 +107,6 @@ def wordcount_worker(episode: Episode):
                 (episode.eid, word_count),
             )
     logger.debug(f"Stored word count for {episode.eid}")
-
-
-def get_wordcounts(episodes: List[Episode]):
-    """
-    Add an entry to the word_count table for each given episode.
-    Exclude episodes that are not transcribed or already have a word count entry.
-
-    :param episodes: List of episodes to process.
-    :return: None
-    """
-    # Filter: only do word counts for transcribed episodes...
-    # ... that are NOT already in the word_count table:
-    with sqlite3.connect(stats_db_path) as conn:
-        sqlout = conn.execute("select eid from word_count").fetchall()
-        eids_in_db = {i[0] for i in sqlout}
-    ep_to_do = [ep for ep in episodes if ep.eid not in eids_in_db]
-
-    # Parallelize the loop using multiprocessing
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(wordcount_worker, ep_to_do)
-
-
-def wordcloud_worker(episode: Episode):
-    """
-    Individual function used in multiprocessing function store_wordclouds.
-    """
-    logger.debug(f"Storing word cloud for {episode.eid}")
-
-    path = clouds_path / f"{episode.eid}.png"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig = get_wordcloud(episode)
-    fig.savefig(path, bbox_inches="tight", dpi=300)
 
 
 def store_wordclouds(episodes: List[Episode]):
@@ -139,72 +129,59 @@ def store_wordclouds(episodes: List[Episode]):
         pool.map(wordcloud_worker, ep_to_do)
 
 
-def nament_tokens_worker(episode: Episode):
+def wordcloud_worker(episode: Episode):
     """
-    Individual function used in multiprocessing function store_named_entity_tokens.
+    Individual function used in multiprocessing function store_wordclouds.
     """
-    logger.debug(f"Storing named entity tokens for {episode.eid}")
-    named_entities = get_named_entity_tokens(episode)
+    logger.debug(f"Storing word cloud for {episode.eid}")
 
-    with sqlite3.connect(stats_db_path) as conn:
-        for i, token in enumerate(named_entities):
-            conn.execute(
-                """
-                INSERT INTO named_entity_tokens (eid, idx, token)
-                VALUES (?, ?, ?)
-                """,
-                (episode.eid, i, token),
-            )
+    path = clouds_path / f"{episode.eid}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig = get_wordcloud(episode)
+    fig.savefig(path, bbox_inches="tight", dpi=300)
 
 
-def store_named_entity_tokens(episodes: List[Episode]):
-    """
-    Compute and store named entity tokens for each given episode.
-    Exclude episodes that are not transcribed or already have named entity tokens.
-    The named entity tokens are a per-episode list of all tokens of named entities.
-    They're a basis for at least one stat that we need (proximity).
+# def store_named_entity_tokens(episodes: List[Episode]):
+#     """
+#     Compute and store named entity tokens for each given episode.
+#     Exclude episodes that are not transcribed or already have named entity tokens.
+#     The named entity tokens are a per-episode list of all tokens of named entities.
+#     They're a basis for at least one stat that we need (proximity).
 
-    :param episodes: List of episodes to process.
-    :return: None
-    """
-    with sqlite3.connect(stats_db_path) as conn:
+#     :param episodes: List of episodes to process.
+#     :return: None
+#     """
+#     with sqlite3.connect(stats_db_path) as conn:
 
-        # Get all indexed episode IDs
-        indexed_eids = {
-            row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
-        }
+#         # Get all indexed episode IDs
+#         indexed_eids = {
+#             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
+#         }
 
-    ep_to_do = [
-        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
-    ]
+#     ep_to_do = [
+#         ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+#     ]
 
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(nament_tokens_worker, ep_to_do)
+#     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+#         pool.map(nament_tokens_worker, ep_to_do)
 
 
-def nament_types_worker(episode: Episode):
-    """
-    Individual function used in multiprocessing function store_named_entity_types.
-    """
-    # Get the named entities:
-    logger.debug(f"{episode.eid}: Storing named entity types")
+# def nament_tokens_worker(episode: Episode):
+#     """
+#     Individual function used in multiprocessing function store_named_entity_tokens.
+#     """
+#     logger.debug(f"Storing named entity tokens for {episode.eid}")
+#     named_entities = get_named_entity_tokens(episode)
 
-    query = f"""
-        SELECT token, idx
-        FROM named_entity_tokens
-        WHERE eid = '{episode.eid}'
-    """
-    with sqlite3.connect(stats_db_path) as conn:
-        nedf = pd.read_sql(sql=query, con=conn)
-
-    nedf = nedf.groupby("token").size().reset_index(name="count")
-    nedf["eid"] = episode.eid
-    nedf.rename(columns={"token": "type"}, inplace=True)
-
-    with sqlite3.connect(stats_db_path) as conn:
-        nedf.to_sql(
-            con=conn, if_exists="append", index=False, name="named_entity_types"
-        )
+#     with sqlite3.connect(stats_db_path) as conn:
+#         for i, token in enumerate(named_entities):
+#             conn.execute(
+#                 """
+#                 INSERT INTO named_entity_tokens (eid, idx, token)
+#                 VALUES (?, ?, ?)
+#                 """,
+#                 (episode.eid, i, token),
+#             )
 
 
 def store_named_entity_types(episodes: List[Episode]):
@@ -231,28 +208,29 @@ def store_named_entity_types(episodes: List[Episode]):
         pool.map(nament_types_worker, ep_to_do)
 
 
-def store_type_proximity(episodes: List[Episode]):
+def nament_types_worker(episode: Episode):
     """
-    Ensure that the type proximity data is computed and stored.
-    Like all ensure-functions, this is to be run at init time.
+    Individual function used in multiprocessing function store_named_entity_types.
+    """
+    # Get the named entities:
+    logger.debug(f"{episode.eid}: Storing named entity types")
 
-    :param episode_store: The episode store containing all episodes.
-    :return: None
+    query = f"""
+        SELECT token, idx
+        FROM named_entity_tokens
+        WHERE eid = '{episode.eid}'
     """
     with sqlite3.connect(stats_db_path) as conn:
+        nedf = pd.read_sql(sql=query, con=conn)
 
-        # Get all indexed episode IDs
-        indexed_eids = {
-            row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
-        }
+    nedf = nedf.groupby("token").size().reset_index(name="count")
+    nedf["eid"] = episode.eid
+    nedf.rename(columns={"token": "type"}, inplace=True)
 
-    ep_to_do = [
-        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
-    ]
-
-    # Iterate over all episodes and index missing ones
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(type_proximity_worker, ep_to_do)
+    with sqlite3.connect(stats_db_path) as conn:
+        nedf.to_sql(
+            con=conn, if_exists="append", index=False, name="named_entity_types"
+        )
 
 
 def type_proximity_worker(episode: Episode):
@@ -291,6 +269,66 @@ def type_proximity_worker(episode: Episode):
         proximity_df.to_sql(
             con=conn, if_exists="append", index=False, name="type_proximity_episode"
         )
+
+
+def store_type_proximity(episodes: List[Episode]):
+    """
+    Ensure that the type proximity data is computed and stored.
+    Like all ensure-functions, this is to be run at init time.
+
+    :param episode_store: The episode store containing all episodes.
+    :return: None
+    """
+    with sqlite3.connect(stats_db_path) as conn:
+
+        # Get all indexed episode IDs
+        indexed_eids = {
+            row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
+        }
+
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+    ]
+
+    # Iterate over all episodes and index missing ones
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(type_proximity_worker, ep_to_do)
+
+
+def store_indexed_named_entities(episodes: List[Episode]):
+    """
+    Store named entities for each given episode along with their word index.
+    This is for the experimental dynamic word cloud.
+
+    :param episodes: List of episodes to process.
+    """
+    with sqlite3.connect(stats_db_path) as conn:
+    # Get all indexed episode IDs
+        indexed_eids = {
+            row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
+        }
+
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+    ]
+
+    for ep in ep_to_do:
+        logger.debug(f"{ep.eid}: Storing named entity tokens with word index")
+
+        segments = ep.raw_transcript()["segments"]
+        ine = indexed_named_entities(segments)
+
+        with sqlite3.connect(stats_db_path) as conn:
+            for token in ine:
+                entity_name, _, idx = token
+                conn.execute(
+                    """
+                    INSERT INTO named_entity_tokens (eid, idx, token)
+                    VALUES (?, ?, ?)
+                    """,
+                    (ep.eid, idx, entity_name),
+                )
+
 
 
 def get_pub_dates(episode_store: EpisodeStore) -> list:

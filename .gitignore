@@ -12,3 +12,5 @@ launch.json
 *.crt
 *.log
 __pycache__/
+*.blend1
+*.ipynb
