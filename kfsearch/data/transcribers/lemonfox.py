@@ -1,6 +1,7 @@
 import os
-import requests
 from dataclasses import dataclass
+
+import requests
 from loguru import logger
 from dotenv import load_dotenv, find_dotenv
 

@@ -117,7 +117,7 @@ class Episode:
             logger.debug(f"Audio for episode '{self.eid}' already exists.")
             return
         else:
-            response = requests.get(self.audio_url)
+            response = requests.get(self.audio_url, timeout=60)
             filename = f"{self.eid or 'audio'}.mp3"
 
             with open(self.store.audio_dir() / filename, "wb") as file:

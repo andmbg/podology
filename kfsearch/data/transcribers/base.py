@@ -1,7 +1,5 @@
-# kfsearch/data/connectors/base.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import json
 
 
 @dataclass
@@ -19,7 +17,7 @@ class Transcriber(ABC):
         if self.store:
             out += f"  store: {self.store.name}\n"
         else:
-            out += f"  store: None\n"
+            out += "  store: None\n"
 
         return out
 
@@ -40,4 +38,3 @@ class Transcriber(ABC):
             ],
         }
         """
-        pass

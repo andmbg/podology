@@ -36,6 +36,7 @@ episode_list = [
         "description_text": BeautifulSoup(e.description, "html.parser").get_text(),
         "duration": e.duration,
         "transcript_exists": "Get" if e.transcript_path is None else "✅",
+        "audio_exists": "Get" if e.audio_path is None else "✅",
     }
     for e in episode_store.episodes()
 ]
@@ -56,7 +57,7 @@ def init_dashboard(flask_app, route):
         )
     except TypeError:
         print("Elasticsearch client not initialized. Check environment variables.")
-        return
+        raise
 
     index_all_transcripts(episode_store)
     ensure_stats_data(episode_store)
@@ -89,8 +90,8 @@ def init_dashboard(flask_app, route):
             "headerName": "EID",
             "field": "eid",
             "maxWidth": 80,
-            "cellStyle": conditional_style,
-            "hide": True,
+            # "cellStyle": conditional_style,
+            # "hide": True,
         },
         {
             "headerName": "Date",
@@ -98,7 +99,7 @@ def init_dashboard(flask_app, route):
             "type": "date",
             "sortable": True,
             "filter": True,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
             "maxWidth": 120,
         },
         {
@@ -107,14 +108,14 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             "maxWidth": 600,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
         },
         {
             "headerName": "Description",
             "field": "description_text",
             "tooltipField": "description",
             "tooltipComponent": "CustomTooltip",
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
         },
         {
             "headerName": "Duration",
@@ -122,15 +123,22 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             "maxWidth": 100,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
         },
         {
             "headerName": "Script",
             "field": "transcript_exists",
             "maxWidth": 70,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
             "filter": False,
         },
+        {
+            "headerName": "Audio",
+            "field": "audio_exists",
+            "maxWidth": 70,
+            # "cellStyle": conditional_style,
+            "filter": False,
+        }
     ]
 
     transcribe_tab = dbc.Card(
@@ -468,49 +476,81 @@ def init_callbacks(app):
         no transcript yet, get it, index it, and update the stats, so it will be shown
         in the search results and analyses.
         """
+
+        # Do nothing if nothing relevant is clicked:
         if (
             selected_rows is None
             or selected_rows == []
-            or cell_clicked.get("colId", "") != "transcript_exists"
         ):
             return no_update
 
-        # Which episode and is it missing?
-        is_missing = selected_rows[0]["transcript_exists"] == "Get"
-        selected_eid = selected_rows[0]["eid"]
+        column_clicked = cell_clicked.get("colId", "")
 
-        # Clicked on an episode that has no transcript yet:
-        if is_missing:
+        if column_clicked not in ["transcript_exists", "audio_exists"]:
+            return no_update
+
+        # Which episode was clicked?
+        is_missing = selected_rows[0][column_clicked] == "Get"
+        selected_eid = selected_rows[0]["eid"]
+        
+        if not is_missing:
+            return no_update
+
+        if column_clicked == "transcript_exists":
             # TODO color the cell yellow immediately (may take chained callbacks):
 
+            # Transcribe episode and index in Elasticsearch:
             episode: Episode = episode_store[selected_eid]
             episode.transcribe()
             index_episode_worker(episode)
-            episode_store.to_json()  # TODO necessary? Doesn't seem to change upon transcription.
+            # TODO: add stats of new episode to the stats database
+            ensure_stats_data(episode_store, eid=selected_eid)
 
             # Update the episode metadata table:
             for i, row in enumerate(row_data):
                 if row["eid"] == selected_eid:
-                    row_data[i]["transcript_exists"] = "Yes"
+                    row_data[i]["transcript_exists"] = "✅"
                     break
 
             # Update the stats database:
             ensure_stats_data(episode_store, eid=selected_eid)
+        
+        if column_clicked == "audio_exists":
+            # TODO color the cell yellow immediately (may take chained callbacks):
 
-            return row_data
+            # Download episode audio:
+            episode: Episode = episode_store[selected_eid]
+            episode.download_audio()
 
-        return no_update
+            # Update the episode metadata table:
+            for i, row in enumerate(row_data):
+                if row["eid"] == selected_eid:
+                    row_data[i]["audio_exists"] = "✅"
+                    break
+
+        return row_data
+
 
     @app.callback(
         Output("tab-container", "active_tab"),
         Input("transcribe-episode-list", "selectedRows"),
+        Input("transcribe-episode-list", "cellClicked"),
     )
-    def tab_to_transcript(
-        episodes_selected_rows,
-    ):
+    def tab_to_transcript(episodes_selected_rows, cell_clicked):
+        """
+        If the user clicks on an episode that has a transcript, switch to the
+        Transcripts tab and show the transcript, unless the user clicked on the
+        transcript_exists or audio_exists column, in which case the episode is
+        being transcribed or its audio downloaded.
+        """
         if episodes_selected_rows:
             eid = episodes_selected_rows[0]["eid"]
-            if episode_store[eid].transcript_path is not None:
+            column_clicked = cell_clicked.get("colId", "")
+
+            if (
+                column_clicked not in ["transcript_exists", "audio_exists"]
+                and episode_store[eid].transcript_path is not None
+            ):
                 return "Transcripts"
 
         return no_update
