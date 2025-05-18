@@ -22,7 +22,9 @@ class WhisperXTranscriber(Transcriber):
         """
         logger.debug(f"Requesting transcription from {self.server_url} for file {episode.audio_path}")
 
-        audio_path = Path(episode.audio_path)
+        # DEBUG
+        audio_path = Path(episode.audio_path).parent / "2iPRY_med.mp3"
+        # audio_path = Path(episode.audio_path)
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 

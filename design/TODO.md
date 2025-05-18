@@ -55,6 +55,8 @@ Next to the transcript, display an animation whose frame is linked to the scroll
   
 # IMMINENT
 
+- Transcription works (currently a short dummy audio gets transcribed). But the wordcloud doesn't update on-line yet.
+
 # Bugs
 
 - When an episode gets transcribed (and indexed and statsed), the plotting function in the same runtime session misses something, probably the current EpisodeStore instance.
