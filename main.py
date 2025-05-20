@@ -1,7 +1,5 @@
-import os
 import sys
 from flask import Flask
-from elasticsearch import Elasticsearch
 from kfsearch.dashboard import init_dashboard
 from dotenv import find_dotenv, load_dotenv
 

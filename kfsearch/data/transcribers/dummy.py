@@ -3,10 +3,11 @@ import json
 from loguru import logger
 from dataclasses import dataclass
 
-from kfsearch.data.models import Episode
+from kfsearch.data.Episode import Episode
+from kfsearch.data.transcribers.base import Transcriber
 
 @dataclass
-class DummyTranscriber:
+class DummyTranscriber(Transcriber):
     """
     Dummy transcriber that return a dummy transcript.
     """

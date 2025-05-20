@@ -9,14 +9,15 @@ import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
 
+import config
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
-from kfsearch.data.models import EpisodeStore
+from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.search.search_classes import ResultSet
 from kfsearch.stats.preparation import stats_db_path
 from kfsearch.frontend.utils import colorway
 
 
-episode_store = EpisodeStore("Knowledge Fight")
+episode_store = EpisodeStore(config.PROJECT_NAME)
 colordict = {i[0]: i[1] for i in colorway}
 
 
@@ -28,7 +29,7 @@ def plot_word_freq(
     """
     term_colid_dict = {i[0]: i[1] for i in term_colid_tuples}
     terms = term_colid_dict.keys()
-    eids = [ep.eid for ep in episode_store.episodes(script=True)]
+    eids = [ep.eid for ep in episode_store if ep.transcript.status]
 
     # Span all episodes & dates for every term:
     df = pd.MultiIndex.from_product([terms, eids], names=["term", "eid"]).to_frame(

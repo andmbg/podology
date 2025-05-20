@@ -1,6 +1,8 @@
 """
 RSS Connector class
 """
+
+import json
 from xml.etree import ElementTree
 from datetime import datetime
 from pathlib import Path
@@ -9,8 +11,9 @@ from dataclasses import dataclass, field
 import requests
 from loguru import logger
 
-from kfsearch.data.models import Episode, UniqueEpisodeError
-from kfsearch.data.connectors.base import Connector
+from kfsearch.data.Episode import Episode
+from kfsearch.data.UniqueEpisodeError import UniqueEpisodeError
+from kfsearch.data.connectors.base import Connector, PublicEpisodeInfo
 
 
 @dataclass
@@ -21,8 +24,109 @@ class RSSConnector(Connector):
     the populate_store method to extract episode metadata from the RSS feed and save it
     in the EpisodeStore JSON file.
     """
-    # The rss_file path is set by the EpisodeStore that the connector attaches to.
-    rss_file: Path = None
+
+    TEMPFILE: Path = field(default_factory=lambda: Path("/tmp/rss_feed.xml"))
+
+    def fetch_episodes(self) -> list[PublicEpisodeInfo]:
+        """
+        Build a list of Episode data objects from the RSS feed to update the EpisodeStore.
+        """
+        self._download_rss()
+
+        # The arduous part of extracting XML data and dealing with varieties of form:
+        tree = ElementTree.parse(self.TEMPFILE)
+        root = tree.getroot()
+
+        episodes = []
+
+        for item in root.findall(".//item"):
+
+            # Checking for empty values is the verbose part here:
+            title_elem = item.find("title")
+            if title_elem is None or title_elem.text is None:
+                logger.error("No title found in item.")
+                title = ""
+            else:
+                title = title_elem.text
+
+            pub_date = item.find("pubDate")
+            if pub_date is None or pub_date.text is None:
+                logger.error("No publication date found in item.")
+                pub_date = ""
+            else:
+                pub_date = datetime.strptime(
+                    pub_date.text,
+                    "%a, %d %b %Y %H:%M:%S %z"
+                ).strftime("%Y-%m-%d")
+
+            description=item.find("description")
+            if description is None or description.text is None:
+                logger.error("No description found in item.")
+                description = ""
+            else:
+                description = description.text
+
+            url=item.find("enclosure")
+            if url is None:
+                logger.error("No URL found in item. Skipping.")
+                continue
+            else:
+                url = url.attrib["url"]
+
+            duration=item.find("{http://www.itunes.com/dtds/podcast-1.0.dtd}duration")
+            if duration is None or duration.text is None:
+                logger.error("No duration found in item.")
+                duration = ""
+            else:
+                duration = duration.text
+
+            # The distilled result:
+            episode = PublicEpisodeInfo(
+                url=url,
+                title=title,
+                pub_date=pub_date,
+                description=description,
+                duration=duration,
+            )
+
+            episodes.append(episode)
+
+        return episodes
+
+    def _download_rss(self):
+        """
+        Download the RSS feed from the given URL or file path and save it to a temp file.
+        """
+        if self._is_url(self.remote_resource):
+            try:
+                response = requests.get(self.remote_resource, timeout=10)
+                response.raise_for_status()
+                logger.debug(f"RSS feed downloaded from {self.remote_resource}")
+
+                with open(self.TEMPFILE, "wb") as file:
+                    file.write(response.content)
+                
+                return
+
+            except requests.HTTPError as e:
+                logger.error(
+                    "Failed to download RSS feed. Check the URL and connection."
+                )
+
+                return
+        
+        try:
+            with open(Path(self.remote_resource), "r") as file:
+                with open(self.TEMPFILE, "wb") as out_file:
+                    out_file.write(file.read().encode("utf-8"))
+
+        except FileNotFoundError:
+            logger.error(f"File not found: {self.remote_resource}")
+
+            return
+
+    def _is_url(self, resource: str) -> bool:
+        return resource.startswith("http://") or resource.startswith("https://")
 
     def __post_init__(self):
         pass
@@ -31,73 +135,3 @@ class RSSConnector(Connector):
         out = super().__repr__()
 
         return out
-
-    def _download_rss(self):
-        try:
-            response = requests.get(self.resource, timeout=10)
-            response.raise_for_status()  # Raise an error for bad status codes
-        except Exception:
-            # No web connection or so: Use existing RSS file if possible:
-            if self.rss_file.exists():
-                logger.error("Using existing RSS file")
-                return
-
-        with open(self.rss_file, "wb") as file:
-            file.write(response.content)
-
-    def _extract_episodes(self) -> list[dict]:
-        """
-        Extract episode metadata from the RSS feed and put it into the EpisodeStore.
-        """
-        tree = ElementTree.parse(self.rss_file)
-        root = tree.getroot()
-
-        ep_metas = []
-        for item in root.findall(".//item"):
-            ep_meta = {
-                "title": item.find("title").text,
-                "pub_date": item.find("pubDate").text,
-                "guid": item.find("guid").text,
-                "description": item.find("description").text,
-                "audio_url": item.find("enclosure").attrib["url"],
-                "duration": item.find(
-                    "{http://www.itunes.com/dtds/podcast-1.0.dtd}duration"
-                ).text,
-            }
-            ep_meta["pub_date"] = datetime.strptime(
-                ep_meta["pub_date"], "%a, %d %b %Y %H:%M:%S %z"
-            ).strftime("%Y-%m-%d")
-            ep_metas.append(ep_meta)
-
-        return ep_metas
-
-    def populate_store(self):
-        self._download_rss()
-        episodes_data: list = self._extract_episodes()
-
-        # count cases of redundancy to report once instead of 1x per episode:
-        redundancies = 0
-        additions = 0
-
-        for ep_data in episodes_data:
-            try:
-                Episode(
-                    store=self.store,
-                    audio_url=(
-                        ep_data.get("enclosure_url")
-                        or ep_data.get("audio_url")
-                    ),
-                    title=ep_data["title"],
-                    pub_date=ep_data["pub_date"],
-                    description=ep_data["description"],
-                    duration=ep_data["duration"],
-                )
-                additions += 1
-            except UniqueEpisodeError:
-                # episode already exists in store, so we skip it
-                redundancies += 1
-                continue
-
-        logger.info(
-            f"{redundancies} episodes already present in the Store, {additions} added."
-        )

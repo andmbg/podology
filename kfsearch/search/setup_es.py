@@ -11,7 +11,8 @@ from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME
-from kfsearch.data.models import EpisodeStore, Episode
+from kfsearch.data.EpisodeStore import EpisodeStore
+from kfsearch.data.Episode import Episode
 from kfsearch.search.utils import make_index_name
 
 
@@ -62,9 +63,10 @@ def index_episode_worker(episode: Episode):
 
     logger.debug(f"{episode.eid}: Indexing in Elasticsearch")
 
-    transcript_path = Path(episode.transcript_path)
-    if transcript_path.exists():
-        with open(transcript_path, "r") as f:
+    # Indexing is not using the Transcript class, but implements the route
+    # from JSON path to segments directly here. Might wanna change that later.
+    if episode.transcript.path and episode.transcript.path.exists():
+        with open(episode.transcript.path, "r") as f:
             transcript_data = json.load(f)
 
         # Check if the episode is already indexed
@@ -109,5 +111,5 @@ def index_all_transcripts(episode_store: EpisodeStore):
     """
     Index transcripts for all transcribed episodes in parallel.
     """
-    episodes = episode_store.episodes(script=True)
+    episodes = [ep for ep in episode_store if ep.transcript.status]
     parallel_index_episodes(episodes)

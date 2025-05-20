@@ -6,7 +6,8 @@ import base64
 def episode_hash(input_string, length=5):
     """
     Return a custom 5-character hash of a string using SHA-256 and base64 encoding.
-    Only returns a-z, A-Z, and 0-9 characters, allowing for 916,132,832 hashes.
+    Only returns a-z, A-Z, and 0-9 characters, allowing for 916,132,832 hashes if
+    using 5 characters.
     """
     # Create a sha256 hash object
     hash_object = hashlib.sha256(input_string)

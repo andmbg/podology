@@ -1,6 +1,7 @@
 from collections import namedtuple
 from typing import Tuple
 
+from bs4 import BeautifulSoup
 from dash import html
 
 idcolor = namedtuple("idcolor", ["id", "color"])
@@ -17,6 +18,7 @@ colorway = [
     idcolor(id=9, color="#606805"),
 ]
 colorway.reverse()
+
 
 def clickable_tag(index: int, term_colorid: Tuple[str, int]) -> html.Button:
     """
@@ -42,5 +44,5 @@ def get_sort_button(term_colorid: Tuple[str, int]) -> html.Button:
             f"m-2 half-circle-highlight highlight-color-{term_colorid[1]} "
             f"term-color-{term_colorid[1]}"
         ),
-        title=term_colorid[0]
+        title=term_colorid[0],
     )

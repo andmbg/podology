@@ -15,7 +15,9 @@ import pandas as pd
 from loguru import logger
 
 from config import PROJECT_NAME
-from kfsearch.data.models import EpisodeStore, Episode
+from kfsearch.data.EpisodeStore import EpisodeStore
+from kfsearch.data.Episode import Episode
+from kfsearch.data.Transcript import Transcript
 from kfsearch.stats.nlp import (
     type_proximity,
     get_wordcloud,
@@ -47,7 +49,7 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all")
     if isinstance(eid, str):
         # eid is "all", the default:
         if eid == "all":
-            episodes = episode_store.episodes(script=True)
+            episodes = [ep for ep in episode_store if ep.transcript.status]
 
         # eid is a single episode ID:
         else:
@@ -309,13 +311,13 @@ def store_indexed_named_entities(episodes: List[Episode]):
         }
 
     ep_to_do = [
-        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
     ]
 
     for ep in ep_to_do:
         logger.debug(f"{ep.eid}: Storing named entity tokens with word index")
 
-        segments = ep.raw_transcript()["segments"]
+        segments = Transcript(ep).segments()
         ine = indexed_named_entities(segments)
 
         with sqlite3.connect(stats_db_path) as conn:
@@ -335,7 +337,7 @@ def get_pub_dates(episode_store: EpisodeStore) -> list:
     """
     Batch return publication dates of all episodes in the episode store.
     """
-    return [pd.Timestamp(ep.pub_date) for ep in episode_store.episodes()]
+    return [pd.Timestamp(ep.pub_date) for ep in episode_store]
 
 
 def initialize_stats_db():

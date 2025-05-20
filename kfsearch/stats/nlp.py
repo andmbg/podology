@@ -10,7 +10,8 @@ from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
 
-from kfsearch.data.models import Episode, DiarizedTranscript
+from kfsearch.data.Episode import Episode
+from kfsearch.data.Transcript import Transcript
 from config import ADDITIONAL_STOPWORDS
 
 stop_words = set(stopwords.words("english"))
@@ -53,7 +54,7 @@ def get_named_entity_tokens(episode: Episode) -> List[tuple[str, float]]:
     :return: A list of named entity tokens.
     """
     # Get the transcript text:
-    transcript = DiarizedTranscript(episode)
+    transcript = Transcript(episode)
     text = [i["text"] for i in transcript.to_json()]
     text = " ".join(text)
 
@@ -71,7 +72,7 @@ def get_wordcloud(episode: Episode) -> plt.Figure:
     :return: A matplotlib Figure object containing the word cloud.
     """
     # Plain text of transcript without speaker labels:
-    diarized_transcript = DiarizedTranscript(episode)
+    diarized_transcript = Transcript(episode)
     text = [i["text"] for i in diarized_transcript.to_json()]
     text = " ".join(text)
 
@@ -152,7 +153,7 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
     return prox_df
 
 
-def indexed_named_entities(transcript) -> List[tuple]:
+def indexed_named_entities(transcript: list[str]) -> List[tuple]:
     """
     Extract named entities from the given transcript and associate them with word indices.
     

@@ -49,7 +49,6 @@ class LemonfoxTranscriber(Transcriber):
         response = requests.post(self.location, headers=self._headers, data=data)
         logger.debug(f"Success status: {response.status_code}")
 
-        # Remove the "words" key from the response, probably too verbose:
         response_json = response.json()
 
         # Remove the single-string text transcript from the response, redundant:

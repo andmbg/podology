@@ -8,7 +8,9 @@ import dash_bootstrap_components as dbc
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 
-from kfsearch.data.models import Episode, EpisodeStore, DiarizedTranscript
+from kfsearch.data.Episode import Episode, Status
+from kfsearch.data.EpisodeStore import EpisodeStore
+from kfsearch.data.Transcript import Transcript
 from kfsearch.search.search_classes import ResultSet, create_cards
 from kfsearch.search.setup_es import (
     TRANSCRIPT_INDEX_NAME,
@@ -20,25 +22,25 @@ from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
 from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
 
-episode_store = EpisodeStore(name=PROJECT_NAME)
-episode_store.set_connector(CONNECTOR)
-episode_store.set_transcriber(TRANSCRIBER)
-episode_store.populate()
-episode_store.to_json()
 
-# Metadata tab: Pre-sort episode list by publication date:
-episode_list = [
+episode_store = EpisodeStore(
+    name=PROJECT_NAME,
+    connector=CONNECTOR,
+    transcriber=TRANSCRIBER,
+)
+
+row_data = [
     {
-        "eid": e.eid,
-        "pub_date": e.pub_date,
-        "title": e.title,
-        "description": e.description,
-        "description_text": BeautifulSoup(e.description, "html.parser").get_text(),
-        "duration": e.duration,
-        "transcript_exists": "Get" if e.transcript_path is None else "✅",
-        "audio_exists": "Get" if e.audio_path is None else "✅",
+        "eid": ep.eid,
+        "pub_date": ep.pub_date,
+        "title": ep.title,
+        "description": ep.description,
+        "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
+        "duration": ep.duration,
+        "transcript_exists": ep.transcript.status.value,
+        "audio_exists": ep.audio.status.value,
     }
-    for e in episode_store.episodes()
+    for ep in episode_store
 ]
 
 
@@ -46,12 +48,13 @@ def init_dashboard(flask_app, route):
     """
     Main function to initialize the dashboard.
     """
-
     # Fill the ES index with transcripts:
     try:
+        user = os.getenv("ELASTIC_USER") or ""
+        pwd = os.getenv("ELASTIC_PASSWORD") or ""
         es_client = Elasticsearch(
             "http://localhost:9200",
-            basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
+            basic_auth=(user, pwd),
             # verify_certs=True,
             # ca_certs=basedir / "http_ca.crt"
         )
@@ -138,7 +141,7 @@ def init_dashboard(flask_app, route):
             "maxWidth": 70,
             # "cellStyle": conditional_style,
             "filter": False,
-        }
+        },
     ]
 
     transcribe_tab = dbc.Card(
@@ -165,7 +168,7 @@ def init_dashboard(flask_app, route):
                                         "height": "calc(100vh - 200px)",
                                         "width": "100%",
                                     },
-                                    rowData=episode_list,
+                                    rowData=row_data,
                                     className="ag-theme-quartz",
                                     dashGridOptions={
                                         "rowSelection": "single",
@@ -464,24 +467,22 @@ def init_callbacks(app):
     """
     Initialize the callbacks for the Dash app.
     """
+    global episode_store
+
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
         Input("transcribe-episode-list", "selectedRows"),
         Input("transcribe-episode-list", "cellClicked"),
         State("transcribe-episode-list", "rowData"),
     )
-    def transcribe_episode(selected_rows, cell_clicked, row_data):
+    def handle_table_click(selected_rows, cell_clicked, row_data):
         """
         If you click on the Script column on the Metadata tab, then if that episode has
         no transcript yet, get it, index it, and update the stats, so it will be shown
         in the search results and analyses.
         """
-
         # Do nothing if nothing relevant is clicked:
-        if (
-            selected_rows is None
-            or selected_rows == []
-        ):
+        if selected_rows is None or selected_rows == []:
             return no_update
 
         column_clicked = cell_clicked.get("colId", "")
@@ -490,9 +491,9 @@ def init_callbacks(app):
             return no_update
 
         # Which episode was clicked?
-        is_missing = selected_rows[0][column_clicked] == "Get"
+        is_missing = selected_rows[0][column_clicked] == Status.NOT_DONE.value
         selected_eid = selected_rows[0]["eid"]
-        
+
         if not is_missing:
             return no_update
 
@@ -500,8 +501,9 @@ def init_callbacks(app):
             # TODO color the cell yellow immediately (may take chained callbacks):
 
             # Transcribe episode and index in Elasticsearch:
-            episode: Episode = episode_store[selected_eid]
-            episode.transcribe()
+            episode = episode_store[selected_eid]
+            episode.get_transcription()
+
             index_episode_worker(episode)
             # TODO: add stats of new episode to the stats database
             ensure_stats_data(episode_store, eid=selected_eid)
@@ -509,27 +511,23 @@ def init_callbacks(app):
             # Update the episode metadata table:
             for i, row in enumerate(row_data):
                 if row["eid"] == selected_eid:
-                    row_data[i]["transcript_exists"] = "✅"
-                    break
+                    row_data[i]["transcript_exists"] = Status.DONE.value
+                    return row_data
 
-            # Update the stats database:
-            ensure_stats_data(episode_store, eid=selected_eid)
-        
         if column_clicked == "audio_exists":
             # TODO color the cell yellow immediately (may take chained callbacks):
 
             # Download episode audio:
-            episode: Episode = episode_store[selected_eid]
+            episode = episode_store[selected_eid]
             episode.download_audio()
 
             # Update the episode metadata table:
             for i, row in enumerate(row_data):
                 if row["eid"] == selected_eid:
-                    row_data[i]["audio_exists"] = "✅"
+                    row_data[i]["audio_exists"] = Status.DONE.value
                     break
 
         return row_data
-
 
     @app.callback(
         Output("tab-container", "active_tab"),
@@ -664,12 +662,14 @@ def init_callbacks(app):
     @app.callback(
         Output("selected-episode", "data"),
         Input("transcribe-episode-list", "selectedRows"),
+        Input("transcribe-episode-list", "cellClicked"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("selected-episode", "data"),
     )
     def update_selected_episode(
-        episodes_selected_rows,
+        table_selected_rows,
+        table_clicked_cell,
         resultcard_nclicks,
         resultcard_id,
         current_eid,
@@ -679,11 +679,16 @@ def init_callbacks(app):
             return no_update
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        column_clicked = table_clicked_cell.get("colId", "")
 
         # Click on episode list in meta tab:
-        if trigger_id == "transcribe-episode-list" and episodes_selected_rows:
-            eid = episodes_selected_rows[0]["eid"]
-            if episode_store[eid].transcript_path is not None:
+        if (
+            trigger_id == "transcribe-episode-list"
+            and table_selected_rows
+            and column_clicked == "title"
+        ):
+            eid = table_selected_rows[0]["eid"]
+            if episode_store[eid].transcript.path is not None:
                 return eid
 
         # Click on result card:
@@ -731,11 +736,11 @@ def init_callbacks(app):
         termtuples = terms_store["termtuples"]
 
         # Get the transcript of the selected episode as HTML:
-        dia_script = DiarizedTranscript(episode=episode)
+        dia_script = Transcript(episode=episode)
         dia_script_element = dia_script.to_html(termtuples)
 
         # Get the word cloud of the selected episode as HTML img element:
-        with open(episode.wordcloud_path, "rb") as f:
+        with open(episode.transcript.wcpath, "rb") as f:
             encoded_image = base64.b64encode(f.read()).decode("utf-8")
             encoded_image = f"data:image/png;base64,{encoded_image}"
 

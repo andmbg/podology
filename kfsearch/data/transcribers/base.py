@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from queue import Queue, Empty
+from threading import Thread, Event
+from types import NoneType
 
 
 @dataclass
@@ -9,11 +12,14 @@ class Transcriber(ABC):
     specific type of audio source (chiefly URL, file) and offering a transcribe method
     that returns a transcript to store in the Episode.
     """
+
     store: "EpisodeStore" = field(default=None, init=False)
-    location: str = field(default=None, init=False)
+    job_queue: Queue = field(default_factory=Queue, init=False)
+    worker_thread: Thread | NoneType = field(default=None, init=False)
+    stop_event: Event = field(default_factory=Event, init=False)
 
     def __repr__(self):
-        out = f"{self.__class__.__name__}\n  resource={self.location}\n"
+        out = f"{self.__class__.__name__}\n"
         if self.store:
             out += f"  store: {self.store.name}\n"
         else:
@@ -22,7 +28,7 @@ class Transcriber(ABC):
         return out
 
     @abstractmethod
-    def transcribe(self, episode: "Episode", **kwargs) -> dict:
+    def transcribe(self, episode: "Episode") -> dict:
         """
         Needs to return a dictionary with the transcript of the episode, at least
         containing the following keys:
