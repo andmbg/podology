@@ -671,22 +671,19 @@ def init_callbacks(app):
         resultcard_id,
         current_eid,
     ):
-
         if not ctx.triggered:
             return no_update
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-        column_clicked = table_clicked_cell.get("colId", "")
 
         # Click on episode list in meta tab:
-        if (
-            trigger_id == "transcribe-episode-list"
-            and table_selected_rows
-            and column_clicked == "title"
-        ):
-            eid = table_selected_rows[0]["eid"]
-            if episode_store[eid].transcript.path is not None:
-                return eid
+        if trigger_id == "transcribe-episode-list":
+            column_clicked = table_clicked_cell.get("colId", "")
+            
+            if table_selected_rows and column_clicked == "title":
+                eid = table_selected_rows[0]["eid"]
+                if episode_store[eid].transcript.path is not None:
+                    return eid
 
         # Click on result card:
         if (

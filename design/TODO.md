@@ -65,9 +65,5 @@ Function:
 
 ## Dysfunction
 
-- Transcription works (currently a short dummy audio gets transcribed). But the wordcloud doesn't update on-line yet.
-- After transcription, stats are not up-to-date on-line. Transcribed episodes don't show up in plots.
-- Data on existing audio/transcripts is lost on page refresh. Nothing within python seems to remedy that. Think about using sql.
-
 # Bugs
 
