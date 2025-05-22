@@ -14,7 +14,7 @@ import sqlite3
 import pandas as pd
 from loguru import logger
 
-from config import PROJECT_NAME
+from config import DB_PATH, WORDCLOUD_DIR
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.data.Episode import Episode
 from kfsearch.data.Transcript import Transcript
@@ -24,12 +24,6 @@ from kfsearch.stats.nlp import (
     get_named_entity_tokens,
     indexed_named_entities,
 )
-
-
-stats_folder_path = Path("data").resolve() / PROJECT_NAME / "stats"
-stats_db_path = stats_folder_path / "stats.db"
-clouds_path = stats_folder_path / "wordclouds"
-stats_folder_path.mkdir(parents=True, exist_ok=True)
 
 
 def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all"):
@@ -68,6 +62,8 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all")
     store_named_entity_types(episodes)
     store_type_proximity(episodes)
 
+    logger.info(f"{eid}: Stats data stored")
+
 
 def get_word_counts(episodes: List[Episode]):
     """
@@ -79,7 +75,7 @@ def get_word_counts(episodes: List[Episode]):
     """
     # Filter: only do word counts for transcribed episodes...
     # ... that are NOT already in the word_count table:
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         sqlout = conn.execute("select eid from word_count").fetchall()
         eids_in_db = {i[0] for i in sqlout}
     ep_to_do = [ep for ep in episodes if ep.eid not in eids_in_db]
@@ -93,14 +89,14 @@ def word_count_worker(episode: Episode):
     """
     Individual function used in multiprocessing function get_wordcounts.
     """
-    script_path = episode.transcript_path
+    script_path = episode.transcript.path
 
     if Path(script_path).exists():
         with open(script_path, "r") as f:
             segments = json.load(f)["segments"]
             word_count = sum(len(segment["words"]) for segment in segments)
 
-        with sqlite3.connect(stats_db_path) as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO word_count (eid, count)
@@ -108,7 +104,7 @@ def word_count_worker(episode: Episode):
                 """,
                 (episode.eid, word_count),
             )
-    logger.debug(f"Stored word count for {episode.eid}")
+    logger.debug(f"{episode.eid}: Stored word count")
 
 
 def store_wordclouds(episodes: List[Episode]):
@@ -120,11 +116,11 @@ def store_wordclouds(episodes: List[Episode]):
     :return: None
     """
     # Filter: only do word clouds for transcribed episodes without a cloud png:
-    transcribed_episodes = [ep for ep in episodes if ep.transcript_path]
+    transcribed_episodes = [ep for ep in episodes if ep.transcript.path]
     ep_to_do = [
         episode
         for episode in transcribed_episodes
-        if not (clouds_path / f"{episode.eid}.png").exists()
+        if not (WORDCLOUD_DIR / f"{episode.eid}.png").exists()
     ]
 
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
@@ -135,12 +131,12 @@ def wordcloud_worker(episode: Episode):
     """
     Individual function used in multiprocessing function store_wordclouds.
     """
-    logger.debug(f"Storing word cloud for {episode.eid}")
-
-    path = clouds_path / f"{episode.eid}.png"
+    path = WORDCLOUD_DIR / f"{episode.eid}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     fig = get_wordcloud(episode)
     fig.savefig(path, bbox_inches="tight", dpi=300)
+
+    logger.debug(f"{episode.eid}: Stored word cloud")
 
 
 # def store_named_entity_tokens(episodes: List[Episode]):
@@ -194,7 +190,7 @@ def store_named_entity_types(episodes: List[Episode]):
     :param episode_store: The episode store containing all episodes.
     :return: None
     """
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
 
         # Get all indexed episode IDs
         indexed_eids = {
@@ -202,7 +198,7 @@ def store_named_entity_types(episodes: List[Episode]):
         }
 
     ep_to_do = [
-        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+        ep for ep in episodes if ep.transcript.path and ep.eid not in indexed_eids
     ]
 
     # Iterate over all episodes and index missing ones
@@ -222,14 +218,14 @@ def nament_types_worker(episode: Episode):
         FROM named_entity_tokens
         WHERE eid = '{episode.eid}'
     """
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         nedf = pd.read_sql(sql=query, con=conn)
 
     nedf = nedf.groupby("token").size().reset_index(name="count")
     nedf["eid"] = episode.eid
     nedf.rename(columns={"token": "type"}, inplace=True)
 
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         nedf.to_sql(
             con=conn, if_exists="append", index=False, name="named_entity_types"
         )
@@ -242,7 +238,7 @@ def type_proximity_worker(episode: Episode):
     """
     # Skip if this episode is already in this table. Not necessary for
     # the ensure function, but who knows where else we might call this later.
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
             """
             SELECT 1 FROM type_proximity_episode WHERE eid = ? LIMIT 1
@@ -259,7 +255,7 @@ def type_proximity_worker(episode: Episode):
         FROM named_entity_tokens
         WHERE eid = '{episode.eid}'
     """
-    named_entities = pd.read_sql(sql=query, con=sqlite3.connect(stats_db_path))
+    named_entities = pd.read_sql(sql=query, con=sqlite3.connect(DB_PATH))
     ne_dict = named_entities.groupby("token")["idx"].apply(list).to_dict()
 
     # Get the proximity:
@@ -267,7 +263,7 @@ def type_proximity_worker(episode: Episode):
     proximity_df["eid"] = episode.eid
 
     # Store the proximity in the database:
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         proximity_df.to_sql(
             con=conn, if_exists="append", index=False, name="type_proximity_episode"
         )
@@ -281,7 +277,7 @@ def store_type_proximity(episodes: List[Episode]):
     :param episode_store: The episode store containing all episodes.
     :return: None
     """
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
 
         # Get all indexed episode IDs
         indexed_eids = {
@@ -289,7 +285,7 @@ def store_type_proximity(episodes: List[Episode]):
         }
 
     ep_to_do = [
-        ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
+        ep for ep in episodes if ep.transcript.path and ep.eid not in indexed_eids
     ]
 
     # Iterate over all episodes and index missing ones
@@ -304,8 +300,8 @@ def store_indexed_named_entities(episodes: List[Episode]):
 
     :param episodes: List of episodes to process.
     """
-    with sqlite3.connect(stats_db_path) as conn:
-    # Get all indexed episode IDs
+    with sqlite3.connect(DB_PATH) as conn:
+        # Get all indexed episode IDs
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
         }
@@ -320,7 +316,7 @@ def store_indexed_named_entities(episodes: List[Episode]):
         segments = Transcript(ep).segments()
         ine = indexed_named_entities(segments)
 
-        with sqlite3.connect(stats_db_path) as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             for token in ine:
                 entity_name, _, idx = token
                 conn.execute(
@@ -330,7 +326,6 @@ def store_indexed_named_entities(episodes: List[Episode]):
                     """,
                     (ep.eid, idx, entity_name),
                 )
-
 
 
 def get_pub_dates(episode_store: EpisodeStore) -> list:
@@ -346,7 +341,7 @@ def initialize_stats_db():
     """
     logger.info("Initializing stats database")
 
-    with sqlite3.connect(stats_db_path) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
 
         # Word count by episode:
         conn.execute(
@@ -397,14 +392,14 @@ def update_word_count_table(episode: Episode):
     """
     Update the word count index for a single episode.
     """
-    script_path = episode.transcript_path
+    script_path = episode.transcript.path
 
     if Path(script_path).exists():
         with open(script_path, "r") as f:
             segments = json.load(f)["segments"]
             word_count = sum(len(segment["words"]) for segment in segments)
 
-        with sqlite3.connect(stats_db_path) as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO word_count (eid, count)

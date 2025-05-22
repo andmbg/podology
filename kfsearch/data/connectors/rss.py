@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 import requests
 from loguru import logger
 
-from kfsearch.data.Episode import Episode
 from kfsearch.data.UniqueEpisodeError import UniqueEpisodeError
 from kfsearch.data.connectors.base import Connector, PublicEpisodeInfo
 
@@ -26,6 +25,9 @@ class RSSConnector(Connector):
     """
 
     TEMPFILE: Path = field(default_factory=lambda: Path("/tmp/rss_feed.xml"))
+
+    def __post_init__(self):
+        pass
 
     def fetch_episodes(self) -> list[PublicEpisodeInfo]:
         """
@@ -127,9 +129,6 @@ class RSSConnector(Connector):
 
     def _is_url(self, resource: str) -> bool:
         return resource.startswith("http://") or resource.startswith("https://")
-
-    def __post_init__(self):
-        pass
 
     def __repr__(self):
         out = super().__repr__()

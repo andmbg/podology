@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
 from kfsearch.data.connectors.rss import RSSConnector
@@ -16,11 +17,12 @@ HFAPIKEY = os.getenv("HUGGINGFACE_API_KEY")
 # Where does information about the episodes come from?
 # Currently, only the RSS connector is implemented.
 CONNECTOR = RSSConnector(
-    # resource="https://feeds.libsyn.com/92106/rss"  # Knowledge Fight
-    remote_resource="https://decoding-the-gurus.captivate.fm/rssfeed"  # Decoding
-)
-TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
-# TRANSCRIBER = DummyTranscriber(delay=2)
+    remote_resource="https://decoding-the-gurus.captivate.fm/rssfeed"
+    # remote_resource="https://feeds.libsyn.com/92106/rss"
+  )
+
+# TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
+TRANSCRIBER = DummyTranscriber(delay=1)
 # TRANSCRIBER = WhisperXTranscriber(server_url="http://127.0.0.1:8001", api_key="loremipsum")
 
 # Stopwords concern only the identification of named entities. Transcription
@@ -47,4 +49,15 @@ ADDITIONAL_STOPWORDS = [
         "wait"
     ] + PROJECT_STOPWORDS
 ]
+# Where the store folder is located; typically just one of them:
+DATA_DIR = Path("data")
 
+DB_PATH = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.db"
+AUDIO_DIR = DATA_DIR / PROJECT_NAME / "audio"
+TRANSCRIPT_DIR = DATA_DIR / PROJECT_NAME / "transcripts"
+WORDCLOUD_DIR = DATA_DIR / PROJECT_NAME / "wordclouds"
+
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+WORDCLOUD_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)

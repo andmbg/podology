@@ -8,13 +8,14 @@ from typing import Optional
 import requests
 from loguru import logger
 
+from config import PROJECT_NAME, DB_PATH, AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
 from kfsearch.data.utils import episode_hash
-from kfsearch.config import EPISODE_STORE_PATH
+from config import DATA_DIR
 
 
 class Status(Enum):
     NOT_DONE = "➖️"
-    WAITING = "⏳️"
+    QUEUED = "⏳️"
     PROCESSING = "🚀"
     DONE = "✅️"
     ERROR = "💥"
@@ -31,48 +32,76 @@ class TranscriptInfo:
     wcpath: Path
     wcstatus: Status
 
+    def to_json(self):
+        """
+        Convert the TranscriptInfo object to a JSON-compatible dictionary.
+        """
+        return {
+            "path": str(self.path),
+            "status": self.status.name,
+            "wcpath": str(self.wcpath),
+            "wcstatus": self.wcstatus.name,
+        }
+
+
+def transcript_info_from_json(data):
+    """
+    Create a TranscriptInfo object from a JSON-compatible dictionary.
+    """
+    return TranscriptInfo(
+        path=Path(data["path"]),
+        status=Status[data["status"]],
+        wcpath=Path(data["wcpath"]),
+        wcstatus=Status[data["wcstatus"]],
+    )
+
 
 @dataclass
 class AudioInfo:
     path: Path
     status: Status
 
+    def to_json(self):
+        """
+        Convert the AudioInfo object to a JSON-compatible dictionary.
+        """
+        return {"path": str(self.path), "status": self.status.name}
+
+
+def audio_info_from_json(data):
+    """
+    Create an AudioInfo object from a JSON-compatible dictionary.
+    """
+    return AudioInfo(path=Path(data["path"]), status=Status[data["status"]])
+
 
 @dataclass
 class Episode:
-    """
-    Represent an episode of a podcast with a URL to the audio file.
-    """
     url: str
-    store_path: Path
-    audio: AudioInfo = field(init=False)
-    transcript: TranscriptInfo = field(init=False)
-    eid: str = field(init=False)
     title: str = ""
     pub_date: str = ""
     description: str = ""
     duration: str = ""
+    eid: str = field(init=False)
+    transcript: TranscriptInfo = field(init=False)
+    audio: AudioInfo = field(init=False)
 
     def __post_init__(self):
-        # Generate a 5-character alphanumeric hash from the URL
         self.eid = episode_hash(self.url.encode())
-        audio_path = self.store_path / "audio" / f"{self.eid}.mp3"
-        transcript_path = self.store_path / "transcripts" / f"{self.eid}.json"
-        wc_path = self.store_path / "stats" / "wordclouds" / f"{self.eid}.png"
+        audio_path = AUDIO_DIR / f"{self.eid}.mp3"
+        transcript_path = TRANSCRIPT_DIR / f"{self.eid}.json"
+        wc_path = WORDCLOUD_DIR / f"{self.eid}.png"
 
         audio_status = Status.DONE if audio_path.exists() else Status.NOT_DONE
         transcript_status = Status.DONE if transcript_path.exists() else Status.NOT_DONE
         wc_status = Status.DONE if wc_path.exists() else Status.NOT_DONE
 
-        self.audio = AudioInfo(
-            path=audio_path,
-            status=audio_status
-        )
+        self.audio = AudioInfo(path=audio_path, status=audio_status)
         self.transcript = TranscriptInfo(
             path=transcript_path,
             wcpath=wc_path,
             status=transcript_status,
-            wcstatus=wc_status
+            wcstatus=wc_status,
         )
 
     def __repr__(self):
@@ -83,45 +112,35 @@ class Episode:
         out += f"  URL:   {self.url}\n"
         out += f"  Publ:  {self.pub_date or '---'}\n"
         return out
-
-    def get_transcription(self):
+    
+    def to_json(self):
         """
-        - Check if a transcript exists and abort if so.
-        - Let the transcriber use either the audio URL or the local audio file,
-          depending on the transcriber type.
+        Convert the Episode object to a JSON-compatible dictionary.
         """
-        if self.transcript.path and self.transcript.path.exists():
-            logger.debug(f"Transcript for episode '{self.eid}' already exists.")
-            return
+        return {
+            "eid": self.eid,
+            "url": self.url,
+            "title": self.title,
+            "pub_date": self.pub_date,
+            "description": self.description,
+            "duration": self.duration,
+            "audio": self.audio.to_json(),
+            "transcript": self.transcript.to_json(),
+        }
 
-        if not self.store.transcriber:
-            logger.error("No Transcriber attached to this EpisodeStore.")
-            return
+def episode_from_json(data):
+    """
+    Create an Episode object from a JSON-compatible dictionary.
+    """
+    episode = Episode(
+        url=data["url"],
+        title=data["title"],
+        pub_date=data["pub_date"],
+        description=data["description"],
+        duration=data["duration"],
+    )
+    episode.eid = data["eid"]
+    episode.audio = audio_info_from_json(data["audio"])
+    episode.transcript = transcript_info_from_json(data["transcript"])
+    return episode
 
-        script_filename = self.store.transcripts_dir() / f"{self.eid}.json"
-
-        # Get dict of the transcript from the transcriber:
-        transcript: dict = self.store.transcriber.transcribe(self)
-
-        with open(script_filename, "w") as file:
-            json.dump(transcript, file, indent=4, ensure_ascii=False)
-
-        self.transcript_path = script_filename
-
-    def download_audio(self):
-        """
-        Download the audio file from the URL and save it to the audio directory of
-        the containing EpisodeStore. Set self.audio.status to Status.DONE and
-        self.audio.path to the audio filename.
-        """
-        if self.audio.path and self.audio.path.exists():
-            logger.debug(f"Audio for episode '{self.eid}' already exists.")
-            return
-        else:
-            response = requests.get(self.url, timeout=60)
-
-            with open(self.audio.path, "wb") as file:
-                file.write(response.content)
-            
-            self.audio.status = Status.DONE
-            logger.debug(f"Audio for episode '{self.eid}' downloaded.")

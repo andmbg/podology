@@ -5,6 +5,7 @@ Plotting functions
 from typing import List
 import sqlite3
 
+from loguru import logger
 import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
@@ -13,7 +14,7 @@ import config
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.search.search_classes import ResultSet
-from kfsearch.stats.preparation import stats_db_path
+from kfsearch.stats.preparation import DB_PATH
 from kfsearch.frontend.utils import colorway
 
 
@@ -64,7 +65,7 @@ def plot_word_freq(
     )
     word_counts = pd.read_sql(
         query,
-        sqlite3.connect(stats_db_path),
+        sqlite3.connect(DB_PATH),
         params=unique_eps,
     )
 

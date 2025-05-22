@@ -1,210 +1,179 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, List, Optional
 from types import NoneType
+import sqlite3
 
 from loguru import logger
+import requests
 
-from kfsearch.config import EPISODE_STORE_PATH
+from config import DATA_DIR
 from kfsearch.data.Episode import AudioInfo, Episode, Status, TranscriptInfo
 from kfsearch.data.connectors.base import Connector, PublicEpisodeInfo
 from kfsearch.data.UniqueEpisodeError import UniqueEpisodeError
 from kfsearch.data.transcribers.base import Transcriber
 from kfsearch.data.utils import episode_hash
+from config import DB_PATH, AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
 
 
-@dataclass
 class EpisodeStore:
     """
     Manage episodes and their transcripts by setting storage paths and providing
     methods to add, remove, and get episodes.
     """
+    def __init__(self, name: str):
+        self.name = name
+        self._ensure_table()
+        self.len = self._len()
 
-    name: str
-    connector: Connector | NoneType = None
-    transcriber: Optional[Transcriber] = None
-    _episodes: list[Episode] = field(default_factory=list)
+    def _connect(self):
+        return sqlite3.connect(DB_PATH)
 
-    def __post_init__(self):
-        # set paths to store directory
-        self.path = EPISODE_STORE_PATH / self.name
-        self._json_path = self.path / f"{self.name}.json"
-        self._audio_dir = self.path / "audio"
-        self._transcripts_dir = self.path / "transcripts"
-        self._wordclouds_dir = self.path / "stats" / "wordclouds"
-
-        # Create the directories for assets if they don't exist:
-        self._audio_dir.mkdir(parents=True, exist_ok=True)
-        self._transcripts_dir.mkdir(parents=True, exist_ok=True)
-        self._wordclouds_dir.mkdir(parents=True, exist_ok=True)
-
-        self.populate_from_json()
-
-        if self.connector:
-            self.populate_from_connector()
-
-    def populate_from_json(self):
-        """
-        If the JSON file for this Store exists already, load it and populate the
-        self._episodes list with the contained data.
-        """
-        self._episodes = []
-
-        if self._json_path.exists():
-            with open(self._json_path, "r") as file:
-                try:
-                    data = json.load(file)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding JSON file: {e}")
-                    logger.error(
-                        f"File: {self._json_path}; file length: {len(file.read())}"
-                    )
-                    return
-
-            for ep_data in data:
-
-                episode = Episode(
-                    url=ep_data["url"],
-                    store_path=self.path,
-                    title=ep_data.get("title"),
-                    pub_date=ep_data.get("pub_date"),
-                    description=ep_data.get("description"),
-                    duration=ep_data.get("duration"),
+    def _ensure_table(self):
+        with self._connect() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS episodes (
+                    eid TEXT PRIMARY KEY,
+                    url TEXT UNIQUE,
+                    title TEXT,
+                    pub_date TEXT,
+                    description TEXT,
+                    duration TEXT,
+                    transcript_path TEXT,
+                    transcript_status TEXT,
+                    transcript_wcpath TEXT,
+                    transcript_wcstatus TEXT,
+                    audio_path TEXT,
+                    audio_status TEXT
                 )
-                self._episodes.append(episode)
+            """)
+            conn.commit()
 
-        else:
-            logger.info(
-                f"JSON file '{self._json_path}' does not exist. No episodes loaded."
+    def add_or_update(self, episode: Episode):
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO episodes (
+                    eid, url, title, pub_date, description, duration,
+                    transcript_path, transcript_status, transcript_wcpath, transcript_wcstatus,
+                    audio_path, audio_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    episode.eid,
+                    episode.url,
+                    episode.title,
+                    episode.pub_date,
+                    episode.description,
+                    episode.duration,
+                    str(episode.transcript.path) if episode.transcript else None,
+                    episode.transcript.status.name if episode.transcript else None,
+                    str(episode.transcript.wcpath) if episode.transcript else None,
+                    episode.transcript.wcstatus.name if episode.transcript else None,
+                    str(episode.audio.path) if episode.audio else None,
+                    episode.audio.status.name if episode.audio else None,
+                )
             )
-
-    def populate_from_connector(self):
-        """
-        Use the connector to populate the store with episodes. The connector is
-        responsible for fetching the episode metadata from the resource and
-        populating the store.
-        """
-        if self.connector is None:
-            logger.info("No connector set. No episodes populated.")
-            return
-
-        pub_eps: list[PublicEpisodeInfo] = self.connector.fetch_episodes()
-
-        n_new_eps = 0
-        n_already_existing = 0
-
-        for pub_ep in pub_eps:
-
-            eid = episode_hash(pub_ep.url.encode())
-
-            # Ignore this public episode if it already exists in the store:
-            if eid in [ep.eid for ep in self._episodes]:
-                n_already_existing += 1
-                continue
-
-            episode = Episode(
-                store_path=self.path,
-                url=pub_ep.url,
-                title=pub_ep.title,
-                pub_date=pub_ep.pub_date,
-                description=pub_ep.description,
-                duration=pub_ep.duration,
-            )
-
-            self._episodes.append(episode)
-            n_new_eps += 1
-
-        logger.info(f"Old episodes: {n_already_existing}; new episodes: {n_new_eps}.")
-
-    def set_transcriber(self, transcriber: Transcriber):
-        """
-        Set the transcriber for the store. Currently, we could just set it during initialization,
-        and do away with this method. However, in case we want to add the functionality of
-        setting or changing the transcriber at runtime (it's thinkable), we keep it, even though
-        right now, it doesn't add much functionality. Well, none, really.
-        """
-        self._transcriber = transcriber
-
-    def to_json(self):
-        """
-        Store the metadata of the episodes in a JSON file, basically to reconstruct the
-        store from a previous state and spare building it from source every time.
-        """
-        json_file = self.path / f"{self.name}.json"
-        data = [
-            {
-                "eid": episode.eid,
-                "url": episode.url,
-                "title": episode.title,
-                "pub_date": episode.pub_date,
-                "description": episode.description,
-                "duration": episode.duration,
-                "audio": {
-                    "path": str(episode.audio.path),
-                },
-                "transcript": {
-                    "path": str(episode.transcript.path),
-                    "wcpath": str(episode.transcript.wcpath),
-                },
-            }
-            for episode in self._episodes
-        ]
-
-        with open(json_file, "w") as file:
-            json.dump(data, file, indent=4)
-
+            conn.commit()
+    
     def __getitem__(self, eid: str) -> Episode:
-        # Retrieve the episode by its ID
-        for episode in self._episodes:
-            if episode.eid == eid:
-                return episode
+        with self._connect() as conn:
+            cur = conn.execute("SELECT * FROM episodes WHERE eid = ?", (eid,))
+            row = cur.fetchone()
+            if row:
+                return self._row_to_episode(row)
 
-        raise KeyError(f"Episode with ID '{eid}' not found in store.")
+            raise KeyError(f"Episode with eid {eid} not found in the store.")
+    
+    def all(self) -> List[Episode]:
+        with self._connect() as conn:
+            cur = conn.execute("SELECT * FROM episodes")
+            return [self._row_to_episode(row) for row in cur.fetchall()]
+    
+    def _len(self) -> int:
+        with self._connect() as conn:
+            cur = conn.execute("SELECT COUNT(*) FROM episodes")
+            return cur.fetchone()[0]
 
-    def __setitem__(self, eid: str, episode: Episode):
-        # Add or update an episode in the store
-        for i, ep in enumerate(self._episodes):
-            if ep.eid == eid:
-                self._episodes[i] = episode
-                return
+    def __iter__(self) -> Iterator[Episode]:
+        return iter(self.all())
 
-        # If the episode is not found, add it to the store
-        self._episodes.append(episode)
+    def delete(self, eid: str):
+        with self._connect() as conn:
+            conn.execute("DELETE FROM episodes WHERE eid = ?", (eid,))
+            conn.commit()
 
-    def __iter__(self):
-        return iter(self._episodes)
+    def _row_to_episode(self, row) -> Episode:
+        # Adjust indices if you change the table schema!
+        (
+            eid, url, title, pub_date, description, duration,
+            transcript_path, transcript_status, transcript_wcpath, transcript_wcstatus,
+            audio_path, audio_status
+        ) = row
 
-    def __len__(self):
-        return len(self._episodes)
+        transcript = TranscriptInfo(
+            path=Path(transcript_path) if transcript_path else Path(),
+            status=Status[transcript_status] if transcript_status else Status.NOT_DONE,
+            wcpath=Path(transcript_wcpath) if transcript_wcpath else Path(),
+            wcstatus=Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE,
+        )
+
+        audio = AudioInfo(
+            path=Path(audio_path) if audio_path else Path(),
+            status=Status[audio_status] if audio_status else Status.NOT_DONE,
+        )
+
+        return Episode(
+            url=url,
+            title=title,
+            pub_date=pub_date,
+            description=description,
+            duration=duration,
+        )
+    
+    def download_audio(self, episode: Episode):
+        """
+        Download the audio file from the episode's URL, save it to disk,
+        update the episode's audio path and status, and persist to DB.
+        """
+        audio_path = AUDIO_DIR / f"{episode.eid}.mp3"
+
+        if audio_path.exists():
+            logger.debug(f"{episode.eid}: Audio for episode already exists at {audio_path}.")
+            episode.audio.path = audio_path
+            episode.audio.status = Status.DONE
+        else:
+            logger.info(f"{episode.eid}: Downloading audio from {episode.url}...")
+            response = requests.get(episode.url, timeout=30)
+            with open(audio_path, "wb") as file:
+                file.write(response.content)
+            episode.audio.path = audio_path
+            episode.audio.status = Status.DONE
+
+        # Persist changes to the database
+        self.add_or_update(episode)
+    
+    def get_transcription(self, episode: Episode, transcriber=None):
+        """
+        Generate and save a transcript for the given episode using the provided transcriber.
+        Updates the episode's transcript status and persists to DB.
+        """
+        if transcriber is None:
+            raise ValueError("A transcriber must be provided.")
+
+        transcript_path = episode.transcript.path
+        logger.debug(f"{episode.eid}: Dummy-Transcribing episode")
+        transcript_data = transcriber.transcribe(episode.audio.path)
+
+        # Save transcript to file
+        with open(transcript_path, "w", encoding="utf-8") as f:
+            json.dump(transcript_data, f, ensure_ascii=False, indent=4)
+
+        # Update episode status
+        episode.transcript.status = Status.DONE
+        self.add_or_update(episode)
 
     def __repr__(self):
-        out = f'EpisodeStore "{self.name}" ({len(self._episodes)} entries)\n'
-
-        if self.connector:
-            out += (
-                "Metadata Connector: "
-                f"{self.connector.__class__.__name__} "
-                f"({self.connector.remote_resource})\n"
-            )
-        else:
-            out += "Metadata Connector: None\n"
-
-        if self.transcriber:
-            out += f"Transcriber: {self.transcriber.__class__.__name__}\n"
-        else:
-            out += "Transcriber: None\n"
-
-        out += "\nEpisodes:\n"
-
-        if len(self._episodes) < 8:
-            for i, episode in enumerate(self._episodes):
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-        else:
-            for i, episode in list(enumerate(self._episodes))[:3]:
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-            out += "  ...\n"
-            for i, episode in list(enumerate(self._episodes))[-3:]:
-                out += f'  {i}: {episode.eid} "{episode.title}" \n'
-
+        out = f'EpisodeStore "{self.name}" ({self.len} entries)\n'
         return out

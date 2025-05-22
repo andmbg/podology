@@ -1,12 +1,14 @@
 import os
 import json
 import base64
+from typing import List
 
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
+from loguru import logger
 
 from kfsearch.data.Episode import Episode, Status
 from kfsearch.data.EpisodeStore import EpisodeStore
@@ -20,16 +22,24 @@ from kfsearch.search.setup_es import (
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
-from config import PROJECT_NAME, CONNECTOR, TRANSCRIBER
+from config import PROJECT_NAME, TRANSCRIBER, CONNECTOR
 
 
-episode_store = EpisodeStore(
-    name=PROJECT_NAME,
-    connector=CONNECTOR,
-    transcriber=TRANSCRIBER,
-)
+episode_store = EpisodeStore(name=PROJECT_NAME)
+connector = CONNECTOR
+public_episodes = connector.fetch_episodes()
+for pub_ep in public_episodes:
+    episode = Episode(
+        url=pub_ep.url,
+        title=pub_ep.title,
+        pub_date=pub_ep.pub_date,
+        description=pub_ep.description,
+        duration=pub_ep.duration,
+    )
+    episode_store.add_or_update(episode)
 
-row_data = [
+def get_row_data(episode_store: EpisodeStore) -> List[dict]:
+    return [
     {
         "eid": ep.eid,
         "pub_date": ep.pub_date,
@@ -37,8 +47,7 @@ row_data = [
         "description": ep.description,
         "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
         "duration": ep.duration,
-        "transcript_exists": ep.transcript.status.value,
-        "audio_exists": ep.audio.status.value,
+        "data": Status.DONE.value if (ep.transcript.status is Status.DONE and ep.audio.status is Status.DONE) else Status.NOT_DONE.value,
     }
     for ep in episode_store
 ]
@@ -83,8 +92,8 @@ def init_dashboard(flask_app, route):
 
     # AG Grid column definitions for the episode list in the Metadata tab:
     conditional_style = {
-        "function": "params.data.transcript_exists == '✅' ? {backgroundColor: '#00ff0011'} : ("
-        "params.data.transcript_exists == 'Get' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
+        "function": "params.data.data == '✅️' ? {backgroundColor: '#00ff0011'} : ("
+        "params.data.data == '➖️' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
         "'#ffff0033'})"
     }
 
@@ -93,7 +102,7 @@ def init_dashboard(flask_app, route):
             "headerName": "EID",
             "field": "eid",
             "maxWidth": 80,
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
             # "hide": True,
         },
         {
@@ -101,8 +110,9 @@ def init_dashboard(flask_app, route):
             "field": "pub_date",
             "type": "date",
             "sortable": True,
+            "sort": "desc",
             "filter": True,
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
             "maxWidth": 120,
         },
         {
@@ -111,14 +121,14 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             "maxWidth": 600,
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Description",
             "field": "description_text",
             "tooltipField": "description",
             "tooltipComponent": "CustomTooltip",
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
         },
         {
             "headerName": "Duration",
@@ -126,20 +136,13 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             "maxWidth": 100,
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
         },
         {
-            "headerName": "Script",
-            "field": "transcript_exists",
+            "headerName": "Data",
+            "field": "data",
             "maxWidth": 70,
-            # "cellStyle": conditional_style,
-            "filter": False,
-        },
-        {
-            "headerName": "Audio",
-            "field": "audio_exists",
-            "maxWidth": 70,
-            # "cellStyle": conditional_style,
+            "cellStyle": conditional_style,
             "filter": False,
         },
     ]
@@ -168,7 +171,7 @@ def init_dashboard(flask_app, route):
                                         "height": "calc(100vh - 200px)",
                                         "width": "100%",
                                     },
-                                    rowData=row_data,
+                                    rowData=get_row_data(episode_store),
                                     className="ag-theme-quartz",
                                     dashGridOptions={
                                         "rowSelection": "single",
@@ -454,6 +457,7 @@ def init_dashboard(flask_app, route):
                     id="tab-container",
                     className="mt-3",
                 ),
+                dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
             ]
         )
     )
@@ -467,67 +471,58 @@ def init_callbacks(app):
     """
     Initialize the callbacks for the Dash app.
     """
-    global episode_store
-
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
+        Input("pageload-trigger", "n_intervals"),
         Input("transcribe-episode-list", "selectedRows"),
         Input("transcribe-episode-list", "cellClicked"),
         State("transcribe-episode-list", "rowData"),
     )
-    def handle_table_click(selected_rows, cell_clicked, row_data):
+    def handle_table_click(pageload_trigger, selected_rows, cell_clicked, row_data):
         """
         If you click on the Script column on the Metadata tab, then if that episode has
         no transcript yet, get it, index it, and update the stats, so it will be shown
         in the search results and analyses.
         """
-        # Do nothing if nothing relevant is clicked:
-        if selected_rows is None or selected_rows == []:
-            return no_update
+        triggered = ctx.triggered_id
 
-        column_clicked = cell_clicked.get("colId", "")
+        if triggered == "pageload-trigger" and pageload_trigger:
+            logger.info("pageload-trigger went off")
+            return get_row_data(EpisodeStore(name=PROJECT_NAME))
 
-        if column_clicked not in ["transcript_exists", "audio_exists"]:
-            return no_update
+        # If user clicked on the table
+        if triggered == "transcribe-episode-list":
+            if selected_rows is None or selected_rows == []:
+                return no_update
+            
+            column_clicked = cell_clicked.get("colId", "")
+            if column_clicked != "data":
+                return no_update
+            
+            selected_eid = selected_rows[0]["eid"]
 
-        # Which episode was clicked?
-        is_missing = selected_rows[0][column_clicked] == Status.NOT_DONE.value
-        selected_eid = selected_rows[0]["eid"]
+            if selected_rows[0][column_clicked] != Status.NOT_DONE.value:
+                return no_update
 
-        if not is_missing:
-            return no_update
-
-        if column_clicked == "transcript_exists":
-            # TODO color the cell yellow immediately (may take chained callbacks):
-
-            # Transcribe episode and index in Elasticsearch:
+            # So you clicked on the Data column of a missing episode:
+            episode_store = EpisodeStore(name=PROJECT_NAME)
             episode = episode_store[selected_eid]
-            episode.get_transcription()
 
-            index_episode_worker(episode)
-            # TODO: add stats of new episode to the stats database
-            ensure_stats_data(episode_store, eid=selected_eid)
+            episode_store.download_audio(episode=episode)
+            episode_store.get_transcription(episode=episode, transcriber=TRANSCRIBER)
+            index_episode_worker(episode=episode)
+            ensure_stats_data(episode_store=episode_store, eid=selected_eid)
+            
+            # for i, row in enumerate(row_data):
+            #     if row["eid"] == selected_eid:
+            #         row_data[i]["files_exist"] = Status.DONE.value
+            #         return row_data
 
-            # Update the episode metadata table:
-            for i, row in enumerate(row_data):
-                if row["eid"] == selected_eid:
-                    row_data[i]["transcript_exists"] = Status.DONE.value
-                    return row_data
+            row_data = get_row_data(EpisodeStore(name=PROJECT_NAME))
 
-        if column_clicked == "audio_exists":
-            # TODO color the cell yellow immediately (may take chained callbacks):
-
-            # Download episode audio:
-            episode = episode_store[selected_eid]
-            episode.download_audio()
-
-            # Update the episode metadata table:
-            for i, row in enumerate(row_data):
-                if row["eid"] == selected_eid:
-                    row_data[i]["audio_exists"] = Status.DONE.value
-                    break
-
-        return row_data
+            return row_data
+        
+        return no_update
 
     @app.callback(
         Output("tab-container", "active_tab"),
@@ -543,11 +538,13 @@ def init_callbacks(app):
         """
         if episodes_selected_rows:
             eid = episodes_selected_rows[0]["eid"]
+            episode = episode_store[eid]
             column_clicked = cell_clicked.get("colId", "")
 
             if (
                 column_clicked not in ["transcript_exists", "audio_exists"]
-                and episode_store[eid].transcript_path is not None
+                and episode.transcript.path is not None
+                and episode.transcript.path.exists()
             ):
                 return "Transcripts"
 

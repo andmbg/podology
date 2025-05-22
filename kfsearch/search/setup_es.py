@@ -73,7 +73,7 @@ def index_episode_worker(episode: Episode):
         s0 = transcript_data["segments"][0]
         first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
         if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
-            logger.debug(f"Episode {episode.eid} is already indexed.")
+            logger.debug(f"{episode.eid} is already indexed.")
             return
 
         # Index segments
@@ -96,7 +96,7 @@ def index_episode_worker(episode: Episode):
 
         # Use the bulk API for efficient indexing
         helpers.bulk(es_client, actions)
-        logger.debug(f"Indexed transcript for episode {episode.eid}.")
+        logger.debug(f"{episode.eid}: Transcript indexed.")
 
 
 def parallel_index_episodes(episodes: List[Episode]):
