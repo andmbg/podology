@@ -120,16 +120,16 @@ def init_dashboard(flask_app, route):
             "field": "title",
             "sortable": True,
             "filter": True,
-            "maxWidth": 600,
+            # "maxWidth": 600,
             "cellStyle": conditional_style,
-        },
-        {
-            "headerName": "Description",
-            "field": "description_text",
             "tooltipField": "description",
             "tooltipComponent": "CustomTooltip",
-            "cellStyle": conditional_style,
         },
+        # {
+        #     "headerName": "Description",
+        #     "field": "description_text",
+        #     "cellStyle": conditional_style,
+        # },
         {
             "headerName": "Duration",
             "field": "duration",
@@ -141,7 +141,7 @@ def init_dashboard(flask_app, route):
         {
             "headerName": "Data",
             "field": "data",
-            "maxWidth": 70,
+            "maxWidth": 120,
             "cellStyle": conditional_style,
             "filter": False,
         },
@@ -175,7 +175,7 @@ def init_dashboard(flask_app, route):
                                     className="ag-theme-quartz",
                                     dashGridOptions={
                                         "rowSelection": "single",
-                                        "tooltipShowDelay": 0,
+                                        "tooltipShowDelay": 500,
                                         "tooltipHideDelay": 10000,
                                         "tooltipInteraction": True,
                                         "popupParent": {
