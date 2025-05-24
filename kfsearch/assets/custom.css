@@ -216,8 +216,8 @@ Half-circle highlight effect for text spans
 
 /* AG Table tooltip */
 .custom-tooltip {
-    max-width: 400px;
-    max-height: 200px;
+    width: 500px;
+    height: 400px;
     overflow-y: auto;
     padding: 10px;
     background-color: #ffffee;

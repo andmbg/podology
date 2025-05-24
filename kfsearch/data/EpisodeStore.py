@@ -163,7 +163,6 @@ class EpisodeStore:
             raise ValueError("A transcriber must be provided.")
 
         transcript_path = episode.transcript.path
-        logger.debug(f"{episode.eid}: Dummy-Transcribing episode")
         transcript_data = transcriber.transcribe(episode.audio.path)
 
         # Save transcript to file

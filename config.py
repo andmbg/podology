@@ -22,8 +22,8 @@ CONNECTOR = RSSConnector(
   )
 
 # TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
-TRANSCRIBER = DummyTranscriber(delay=1)
-# TRANSCRIBER = WhisperXTranscriber(server_url="http://127.0.0.1:8001", api_key="loremipsum")
+# TRANSCRIBER = DummyTranscriber(delay=1)
+TRANSCRIBER = WhisperXTranscriber(server_url="http://127.0.0.1:8001")
 
 # Stopwords concern only the identification of named entities. Transcription
 # will still include all "uhs" and "ums" and other filler words.
