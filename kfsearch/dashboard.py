@@ -22,35 +22,36 @@ from kfsearch.search.setup_es import (
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
-from config import PROJECT_NAME, TRANSCRIBER, CONNECTOR
+from config import PROJECT_NAME, WORDCLOUD_DIR, get_connector, get_transcriber
 
 
 episode_store = EpisodeStore(name=PROJECT_NAME)
-connector = CONNECTOR
-public_episodes = connector.fetch_episodes()
-for pub_ep in public_episodes:
-    episode = Episode(
-        url=pub_ep.url,
-        title=pub_ep.title,
-        pub_date=pub_ep.pub_date,
-        description=pub_ep.description,
-        duration=pub_ep.duration,
-    )
-    episode_store.add_or_update(episode)
+episode_store.sync_with_disk()
+
+for pub_ep in get_connector().fetch_episodes():
+    episode_store.add_or_update(pub_ep)
+
 
 def get_row_data(episode_store: EpisodeStore) -> List[dict]:
     return [
-    {
-        "eid": ep.eid,
-        "pub_date": ep.pub_date,
-        "title": ep.title,
-        "description": ep.description,
-        "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
-        "duration": ep.duration,
-        "data": Status.DONE.value if (ep.transcript.status is Status.DONE and ep.audio.status is Status.DONE) else Status.NOT_DONE.value,
-    }
-    for ep in episode_store
-]
+        {
+            "eid": ep.eid,
+            "pub_date": ep.pub_date,
+            "title": ep.title,
+            "description": ep.description,
+            "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
+            "duration": ep.duration,
+            "data": (
+                Status.DONE.value
+                if (
+                    ep.transcript.status is Status.DONE
+                    and ep.audio.status is Status.DONE
+                )
+                else Status.NOT_DONE.value
+            ),
+        }
+        for ep in episode_store.all()
+    ]
 
 
 def init_dashboard(flask_app, route):
@@ -71,8 +72,8 @@ def init_dashboard(flask_app, route):
         print("Elasticsearch client not initialized. Check environment variables.")
         raise
 
-    index_all_transcripts(episode_store)
-    ensure_stats_data(episode_store)
+    index_all_transcripts(episode_store=episode_store)
+    ensure_stats_data(episode_store=episode_store)
 
     app = Dash(
         __name__,
@@ -173,6 +174,7 @@ def init_dashboard(flask_app, route):
                                     },
                                     rowData=get_row_data(episode_store),
                                     className="ag-theme-quartz",
+                                    getRowId='{"function": "params => params.data.eid"}',
                                     dashGridOptions={
                                         "rowSelection": "single",
                                         "tooltipShowDelay": 500,
@@ -471,6 +473,7 @@ def init_callbacks(app):
     """
     Initialize the callbacks for the Dash app.
     """
+
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
         Input("pageload-trigger", "n_intervals"),
@@ -494,11 +497,11 @@ def init_callbacks(app):
         if triggered == "transcribe-episode-list":
             if selected_rows is None or selected_rows == []:
                 return no_update
-            
+
             column_clicked = cell_clicked.get("colId", "")
             if column_clicked != "data":
                 return no_update
-            
+
             selected_eid = selected_rows[0]["eid"]
 
             if selected_rows[0][column_clicked] != Status.NOT_DONE.value:
@@ -509,10 +512,10 @@ def init_callbacks(app):
             episode = episode_store[selected_eid]
 
             episode_store.download_audio(episode=episode)
-            episode_store.get_transcription(episode=episode, transcriber=TRANSCRIBER)
+            episode_store.get_transcription(episode=episode, transcriber=get_transcriber())
             index_episode_worker(episode=episode)
-            ensure_stats_data(episode_store=episode_store, eid=selected_eid)
-            
+            ensure_stats_data(episode_store=episode_store, episodes=[episode])
+
             # for i, row in enumerate(row_data):
             #     if row["eid"] == selected_eid:
             #         row_data[i]["files_exist"] = Status.DONE.value
@@ -521,7 +524,7 @@ def init_callbacks(app):
             row_data = get_row_data(EpisodeStore(name=PROJECT_NAME))
 
             return row_data
-        
+
         return no_update
 
     @app.callback(
@@ -543,8 +546,7 @@ def init_callbacks(app):
 
             if (
                 column_clicked not in ["transcript_exists", "audio_exists"]
-                and episode.transcript.path is not None
-                and episode.transcript.path.exists()
+                and episode.transcript.status
             ):
                 return "Transcripts"
 
@@ -679,10 +681,10 @@ def init_callbacks(app):
         # Click on episode list in meta tab:
         if trigger_id == "transcribe-episode-list":
             column_clicked = table_clicked_cell.get("colId", "")
-            
+
             if table_selected_rows and column_clicked == "title":
                 eid = table_selected_rows[0]["eid"]
-                if episode_store[eid].transcript.path is not None:
+                if episode_store[eid].transcript.status:
                     return eid
 
         # Click on result card:
@@ -734,7 +736,7 @@ def init_callbacks(app):
         dia_script_element = dia_script.to_html(termtuples)
 
         # Get the word cloud of the selected episode as HTML img element:
-        with open(episode.transcript.wcpath, "rb") as f:
+        with open(WORDCLOUD_DIR / f"{eid}.png", "rb") as f:
             encoded_image = base64.b64encode(f.read()).decode("utf-8")
             encoded_image = f"data:image/png;base64,{encoded_image}"
 

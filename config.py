@@ -1,29 +1,43 @@
 import os
+import importlib
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
-from kfsearch.data.connectors.rss import RSSConnector
-from kfsearch.data.transcribers.lemonfox import LemonfoxTranscriber
-from kfsearch.data.transcribers.dummy import DummyTranscriber
-from kfsearch.data.transcribers.whisperx import WhisperXTranscriber
-
 load_dotenv(find_dotenv())
+
+# DA is for testing: no audio files are downloaded.
+# If True, set the TRANSCRIBER to DummyTranscriber or else it will complain about
+# not finding audio files.
+DUMMY_AUDIO = True
 
 # PROJECT_NAME = "Knowledge Fight"
 PROJECT_NAME = "Decoding"
 LANGUAGE = "english"  # see the documentation of your chosen API for language codes
 HFAPIKEY = os.getenv("HUGGINGFACE_API_KEY")
 
-# Where does information about the episodes come from?
-# Currently, only the RSS connector is implemented.
-CONNECTOR = RSSConnector(
-    remote_resource="https://decoding-the-gurus.captivate.fm/rssfeed"
-    # remote_resource="https://feeds.libsyn.com/92106/rss"
-  )
+# Specify class paths as strings
+CONNECTOR_CLASS = "kfsearch.data.connectors.rss.RSSConnector"
+CONNECTOR_ARGS = {
+    "remote_resource": "https://decoding-the-gurus.captivate.fm/rssfeed"
+}
 
-# TRANSCRIBER = LemonfoxTranscriber(LANGUAGE)
-# TRANSCRIBER = DummyTranscriber(delay=1)
-TRANSCRIBER = WhisperXTranscriber(server_url="http://127.0.0.1:8001")
+TRANSCRIBER_CLASS = "kfsearch.data.transcribers.whisperx.WhisperXTranscriber"
+TRANSCRIBER_ARGS = {
+    "server_url": "http://127.0.0.1:8001"
+}
+
+def get_class(class_path):
+    module_name, class_name = class_path.rsplit(".", 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
+
+def get_connector():
+    cls = get_class(CONNECTOR_CLASS)
+    return cls(**CONNECTOR_ARGS)
+
+def get_transcriber():
+    cls = get_class(TRANSCRIBER_CLASS)
+    return cls(**TRANSCRIBER_ARGS)
 
 # Stopwords concern only the identification of named entities. Transcription
 # will still include all "uhs" and "ums" and other filler words.

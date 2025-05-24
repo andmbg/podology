@@ -2,7 +2,6 @@
 RSS Connector class
 """
 
-import json
 from xml.etree import ElementTree
 from datetime import datetime
 from pathlib import Path
@@ -11,8 +10,10 @@ from dataclasses import dataclass, field
 import requests
 from loguru import logger
 
-from kfsearch.data.UniqueEpisodeError import UniqueEpisodeError
-from kfsearch.data.connectors.base import Connector, PublicEpisodeInfo
+from config import AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
+from kfsearch.data.connectors.base import Connector
+from kfsearch.data.Episode import Episode, AudioInfo, Status, TranscriptInfo
+from kfsearch.data.utils import episode_hash
 
 
 @dataclass
@@ -29,7 +30,7 @@ class RSSConnector(Connector):
     def __post_init__(self):
         pass
 
-    def fetch_episodes(self) -> list[PublicEpisodeInfo]:
+    def fetch_episodes(self) -> list[Episode]:
         """
         Build a list of Episode data objects from the RSS feed to update the EpisodeStore.
         """
@@ -82,13 +83,33 @@ class RSSConnector(Connector):
             else:
                 duration = duration.text
 
+            eid = episode_hash(url.encode())
+
+            # If the episode already exists, we skip it:
+            if AUDIO_DIR.joinpath(f"{eid}.mp3").exists():
+                logger.debug(f"Episode {eid} already exists. Skipping Connector import.")
+                continue
+
+            audio_info = AudioInfo(
+                status=Status.NOT_DONE
+            )
+
+            transcript_info = TranscriptInfo(
+                job_id="",
+                status=Status.NOT_DONE,
+                wcstatus=Status.NOT_DONE,
+            )
+
             # The distilled result:
-            episode = PublicEpisodeInfo(
+            episode = Episode(
+                eid=eid,
                 url=url,
                 title=title,
                 pub_date=pub_date,
                 description=description,
                 duration=duration,
+                audio=audio_info,
+                transcript=transcript_info,
             )
 
             episodes.append(episode)

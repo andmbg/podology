@@ -24,7 +24,7 @@ class DummyTranscriber(Transcriber):
     def __repr__(self):
         return f"DummyTranscriber({self.delay}s)"
 
-    def transcribe(self, audio_path: Path) -> dict:
+    def transcribe(self, audio_path: Path=Path()) -> dict:
         time.sleep(self.delay)
 
         num_speakers = random.randint(2, 5)

@@ -10,6 +10,7 @@ from dash import html
 from kfsearch.data.Episode import Episode
 from kfsearch.search.search_classes import highlight_to_html_elements
 from kfsearch.search.utils import format_time
+from config import TRANSCRIPT_DIR
 
 
 class Transcript:
@@ -24,12 +25,13 @@ class Transcript:
 
     def __init__(self, episode: Episode):
         self.eid = episode.eid
-        if episode.transcript.path is not None:
-            self.path: Path = episode.transcript.path
+        if episode.transcript.status:
+            self.path: Path = TRANSCRIPT_DIR / f"{self.eid}.json"
         self.status = episode.transcript.status
 
         if self.path is None or not self.path.exists():
             raise ValueError(f"Transcript not available for episode {self.eid}.")
+
         self.raw_dict = json.load(open(self.path, "r"))
     
     def segments(self) -> list:

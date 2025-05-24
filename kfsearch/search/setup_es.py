@@ -10,7 +10,7 @@ import multiprocessing
 from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 
-from config import PROJECT_NAME
+from config import PROJECT_NAME, TRANSCRIPT_DIR
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.data.Episode import Episode
 from kfsearch.search.utils import make_index_name
@@ -65,8 +65,8 @@ def index_episode_worker(episode: Episode):
 
     # Indexing is not using the Transcript class, but implements the route
     # from JSON path to segments directly here. Might wanna change that later.
-    if episode.transcript.path and episode.transcript.path.exists():
-        with open(episode.transcript.path, "r") as f:
+    if episode.transcript.status:
+        with open(TRANSCRIPT_DIR / f"{episode.eid}.json", "r") as f:
             transcript_data = json.load(f)
 
         # Check if the episode is already indexed

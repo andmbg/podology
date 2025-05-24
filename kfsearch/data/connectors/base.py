@@ -4,6 +4,7 @@ Base class for connectors.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from kfsearch.data.Episode import Episode
 
 
 @dataclass
@@ -26,23 +27,9 @@ class Connector(ABC):
         return out
 
     @abstractmethod
-    def fetch_episodes(self) -> list["PublicEpisodeInfo"]:
+    def fetch_episodes(self) -> list[Episode]:
         """
         Return a list of Episode objects extracted from the remote resource. Necessarily
         incomplete, as file info and transcription status are not contained there. This
         method is only used to get new episodes or populate a new store.
         """
-
-@dataclass
-class PublicEpisodeInfo():
-    """
-    The publicly available information about an episode as extracted from the remote
-    resource. The only obligatory field is audio_url, as this is what we use to identify
-    episodes. Naturally, all other fields are helpful as well.
-    """
-
-    url: str
-    title: str = ""
-    pub_date: str = ""
-    description: str = ""
-    duration: str = ""

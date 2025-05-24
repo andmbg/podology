@@ -7,16 +7,16 @@ by the functions that they apply to the whole corpus.
 # pylint: disable=W1514
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import multiprocessing
 import sqlite3
 
 import pandas as pd
 from loguru import logger
 
-from config import DB_PATH, WORDCLOUD_DIR
+from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
 from kfsearch.data.EpisodeStore import EpisodeStore
-from kfsearch.data.Episode import Episode
+from kfsearch.data.Episode import Episode, Status
 from kfsearch.data.Transcript import Transcript
 from kfsearch.stats.nlp import (
     type_proximity,
@@ -26,7 +26,9 @@ from kfsearch.stats.nlp import (
 )
 
 
-def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all"):
+def ensure_stats_data(
+    episode_store: EpisodeStore, episodes: Optional[List[Episode]] = None
+):
     """
     Run stats on all transcribed episodes. It is upon the individual component functions
     to filter out episodes for already having stats artifacts in place.
@@ -36,24 +38,10 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all")
       is translated to all episodes that have a transcript.
     :return: None
     """
-    if eid == "all":
-        initialize_stats_db()
-
     # Deal with eid parameter:
-    if isinstance(eid, str):
-        # eid is "all", the default:
-        if eid == "all":
-            episodes = [ep for ep in episode_store if ep.transcript.status]
-
-        # eid is a single episode ID:
-        else:
-            episodes = [episode_store[eid]]
-
-    elif isinstance(eid, list):
-        episodes = [episode_store[i] for i in eid]
-
-    else:
-        raise ValueError(f"Invalid type for eid: {type(eid)}")
+    if episodes is None:
+        initialize_stats_db()
+        episodes = [ep for ep in episode_store if ep.transcript.status]
 
     store_indexed_named_entities(episodes)
     get_word_counts(episodes)
@@ -62,7 +50,9 @@ def ensure_stats_data(episode_store: EpisodeStore, eid: List[str] | str = "all")
     store_named_entity_types(episodes)
     store_type_proximity(episodes)
 
-    logger.info(f"{eid}: Stats data stored")
+    for episode in episodes:
+        episode.transcript.wcstatus = Status.DONE
+        episode_store.add_or_update(episode)
 
 
 def get_word_counts(episodes: List[Episode]):
@@ -89,22 +79,28 @@ def word_count_worker(episode: Episode):
     """
     Individual function used in multiprocessing function get_wordcounts.
     """
-    script_path = episode.transcript.path
+    if episode.transcript.status:
+        script_path = TRANSCRIPT_DIR / f"{episode.eid}.json"
 
-    if Path(script_path).exists():
-        with open(script_path, "r") as f:
-            segments = json.load(f)["segments"]
-            word_count = sum(len(segment["words"]) for segment in segments)
+        try:
+            with open(script_path, "r") as f:
+                segments = json.load(f)["segments"]
+                word_count = sum(len(segment["words"]) for segment in segments)
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO word_count (eid, count)
-                VALUES (?, ?)
-                """,
-                (episode.eid, word_count),
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO word_count (eid, count)
+                    VALUES (?, ?)
+                    """,
+                    (episode.eid, word_count),
+                )
+            logger.debug(f"{episode.eid}: Stored word count")
+
+        except FileNotFoundError:
+            logger.error(
+                f"Transcript file not found for episode {episode.eid}. Cannot update word count."
             )
-    logger.debug(f"{episode.eid}: Stored word count")
 
 
 def store_wordclouds(episodes: List[Episode]):
@@ -116,7 +112,8 @@ def store_wordclouds(episodes: List[Episode]):
     :return: None
     """
     # Filter: only do word clouds for transcribed episodes without a cloud png:
-    transcribed_episodes = [ep for ep in episodes if ep.transcript.path]
+    transcribed_episodes = [ep for ep in episodes if ep.transcript.status]
+
     ep_to_do = [
         episode
         for episode in transcribed_episodes
@@ -125,6 +122,10 @@ def store_wordclouds(episodes: List[Episode]):
 
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(wordcloud_worker, ep_to_do)
+
+    for episode in ep_to_do:
+        episode.transcript.wcstatus = Status.DONE
+        logger.debug(f"{episode.eid}: Word cloud stored")
 
 
 def wordcloud_worker(episode: Episode):
@@ -136,10 +137,12 @@ def wordcloud_worker(episode: Episode):
     fig = get_wordcloud(episode)
     fig.savefig(path, bbox_inches="tight", dpi=300)
 
+    episode.transcript.wcstatus = Status.DONE
+
     logger.debug(f"{episode.eid}: Stored word cloud")
 
 
-# def store_named_entity_tokens(episodes: List[Episode]):
+# def store_named_entity_tokens(episodes: List[Episode], episode_store: EpisodeStore):
 #     """
 #     Compute and store named entity tokens for each given episode.
 #     Exclude episodes that are not transcribed or already have named entity tokens.
@@ -198,7 +201,7 @@ def store_named_entity_types(episodes: List[Episode]):
         }
 
     ep_to_do = [
-        ep for ep in episodes if ep.transcript.path and ep.eid not in indexed_eids
+        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
     ]
 
     # Iterate over all episodes and index missing ones
@@ -285,7 +288,7 @@ def store_type_proximity(episodes: List[Episode]):
         }
 
     ep_to_do = [
-        ep for ep in episodes if ep.transcript.path and ep.eid not in indexed_eids
+        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
     ]
 
     # Iterate over all episodes and index missing ones
@@ -386,49 +389,3 @@ def initialize_stats_db():
             );
             """
         )
-
-
-def update_word_count_table(episode: Episode):
-    """
-    Update the word count index for a single episode.
-    """
-    script_path = episode.transcript.path
-
-    if Path(script_path).exists():
-        with open(script_path, "r") as f:
-            segments = json.load(f)["segments"]
-            word_count = sum(len(segment["words"]) for segment in segments)
-
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO word_count (eid, count)
-                VALUES (?, ?)
-            """,
-                (episode.eid, word_count),
-            )
-
-
-# def get_metadata(episode_store: EpisodeStore) -> pd.DataFrame:
-#     """
-#     Save the metadata of the episodes in a DataFrame.
-
-#     pd.DataFrame:
-#     - eid (str): The episode ID
-#     - pub_date (str): The publication date of the episode
-#     - episode_title (str): The title of the episode
-#     - description (str): The description of the episode
-#     """
-#     eps_list = []
-
-#     for episode in episode_store.episodes(script=True):
-#         eps_list.append(
-#             {
-#                 "eid": episode.eid,
-#                 "pub_date": episode.pub_date,
-#                 "episode_title": episode.title,
-#                 "description": episode.description,
-#             }
-#         )
-
-#     return pd.DataFrame(eps_list)
