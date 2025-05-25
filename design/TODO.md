@@ -12,8 +12,6 @@
 
 - Transcript display: Playback if audio present
 - Show hits in scrollbar
-- dynamic wordcloud next to transcript
-  - => move results list to terms tab
 
 ### Animated Word Cloud
 
@@ -46,17 +44,7 @@ Next to the transcript, display an animation whose frame is linked to the scroll
   
 # IMMINENT
 
-- Transcriber Class poll will be a fast method without timeout shenanigans. If in progress, it will return this as a status.
-
-## Structure
-
-Function:
-
-- EpisodeStore:
-  - enthält auch Statusinfo, Transcripts, Audio - nicht nur RSS-Klon oder Klon der Ressource
-  - hat Methode für Metadaten- und Transkript-Abruf, verarbeitet resultierende Datenstrukturen und setzt sie in Store ein
-
-## Dysfunction
+# Dysfunction
 
 # Bugs
 
