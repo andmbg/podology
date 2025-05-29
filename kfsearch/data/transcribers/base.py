@@ -22,10 +22,9 @@ class Transcriber(ABC):
         """
 
     @abstractmethod
-    def poll_job(
-        self, job_id: str, poll_interval: int = 10, timeout: int = 28800
-    ) -> dict:
+    def poll_job(self, job_id: str, poll_interval: int, timeout: int) -> dict:
         """
-        Poll the server for job completion.
-        Returns the transcription payload as a dictionary once completed.
+        Blocking method to poll the transcription job with the external service
+        until it is completed. Returns the transcription payload as a dictionary
+        once completed.
         """

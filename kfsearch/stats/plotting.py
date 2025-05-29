@@ -10,7 +10,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
 
-import config
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.search.search_classes import ResultSet
@@ -18,7 +17,7 @@ from kfsearch.stats.preparation import DB_PATH
 from kfsearch.frontend.utils import colorway
 
 
-episode_store = EpisodeStore(config.PROJECT_NAME)
+episode_store = EpisodeStore()
 colordict = {i[0]: i[1] for i in colorway}
 
 

@@ -3173,6 +3173,36 @@ files = [
 cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
+name = "redis"
+version = "6.1.0"
+description = "Python client for Redis database and key-value store"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "redis-6.1.0-py3-none-any.whl", hash = "sha256:3b72622f3d3a89df2a6041e82acd896b0e67d9f54e9bcd906d091d23ba5219f6"},
+    {file = "redis-6.1.0.tar.gz", hash = "sha256:c928e267ad69d3069af28a9823a07726edf72c7e37764f43dc0123f37928c075"},
+]
+
+[package.extras]
+hiredis = ["hiredis (>=3.0.0)"]
+jwt = ["pyjwt (>=2.9.0)"]
+ocsp = ["cryptography (>=36.0.1)", "pyopenssl (>=20.0.1)", "requests (>=2.31.0)"]
+
+[[package]]
+name = "redis-sentinel-url"
+version = "1.0.1"
+description = "A factory for redis connection that supports using Redis Sentinel"
+optional = false
+python-versions = "*"
+files = [
+    {file = "Redis-Sentinel-Url-1.0.1.tar.gz", hash = "sha256:ec1854ab9379a28789423c3cd4082739fb69c7b4b11bb50ae7858697c131b13e"},
+    {file = "Redis_Sentinel_Url-1.0.1-py2.py3-none-any.whl", hash = "sha256:c6991e2000c5c7a5e2b95eb2d62fd5b0a6b02a59554caf0f9f79d18e152d9663"},
+]
+
+[package.dependencies]
+redis = ">=2.10.3"
+
+[[package]]
 name = "referencing"
 version = "0.36.2"
 description = "JSON Referencing + Python"
@@ -3494,6 +3524,39 @@ files = [
     {file = "rpds_py-0.25.1-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:6099263f526efff9cf3883dfef505518730f7a7a93049b1d90d42e50a22b4793"},
     {file = "rpds_py-0.25.1.tar.gz", hash = "sha256:8960b6dac09b62dac26e75d7e2c4a22efb835d827a7278c34f72b2b84fa160e3"},
 ]
+
+[[package]]
+name = "rq"
+version = "2.3.3"
+description = "RQ is a simple, lightweight, library for creating background jobs, and processing them."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "rq-2.3.3-py3-none-any.whl", hash = "sha256:2202c4409c4c527ac4bee409867d6c02515dd110030499eb0de54c7374aee0ce"},
+    {file = "rq-2.3.3.tar.gz", hash = "sha256:20c41c977b6f27c852a41bd855893717402bae7b8d9607dca21fe9dd55453e22"},
+]
+
+[package.dependencies]
+click = ">=5"
+redis = ">=3.5,<6.0.0 || >6.0.0"
+
+[[package]]
+name = "rq-dashboard"
+version = "0.8.2.2"
+description = "rq-dashboard is a general purpose, lightweight, web interface to monitor your RQ queues, jobs, and workers in realtime."
+optional = false
+python-versions = "*"
+files = [
+    {file = "rq_dashboard-0.8.2.2-py2.py3-none-any.whl", hash = "sha256:764d1c6fe415b749444aec7e7bd01e72f09423fced9ecd41802853cbbfa1f382"},
+    {file = "rq_dashboard-0.8.2.2.tar.gz", hash = "sha256:7fc1655a41e52087c221e3df76a91e5785122d98e31f1facfc399dcede80e1c2"},
+]
+
+[package.dependencies]
+arrow = "*"
+Flask = "*"
+redis = "*"
+redis-sentinel-url = "*"
+rq = ">=1.0"
 
 [[package]]
 name = "safetensors"
@@ -4261,4 +4324,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "e96d1e8b5d6cd0524945f9577bbba08dc88bad163b8fc665b7907055a4d4c013"
+content-hash = "49913e63dc87e9392ecfcba686ed53ed9ee1252ebe72105921040399586200b4"

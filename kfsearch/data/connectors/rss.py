@@ -41,7 +41,7 @@ class RSSConnector(Connector):
             # Save a local copy
             with open(self.local_rss_file, "w") as f:
                 f.write(rss_content)
-        
+
         except Exception as e:
             # If download fails, try to load the local file
             logger.info("RSS download failed, using local copy.")
@@ -53,9 +53,9 @@ class RSSConnector(Connector):
                     f"Failed to fetch RSS from {self.remote_resource} ({e}) "
                     f"and failed to load local file {self.local_rss_file} ({local_e})"
                 )
-        
+
         return self._parse_rss(rss_content)
-    
+
     def _parse_rss(self, rss_content: str) -> list[Episode]:
         """
         The arduous part of extracting XML data and dealing with varieties of form:
@@ -106,21 +106,6 @@ class RSSConnector(Connector):
 
             eid = episode_hash(url.encode())
 
-            # If the episode already exists, we skip it:
-            if AUDIO_DIR.joinpath(f"{eid}.mp3").exists():
-                logger.debug(
-                    f"Episode {eid} already exists. Skipping Connector import."
-                )
-                continue
-
-            audio_info = AudioInfo(status=Status.NOT_DONE)
-
-            transcript_info = TranscriptInfo(
-                job_id="",
-                status=Status.NOT_DONE,
-                wcstatus=Status.NOT_DONE,
-            )
-
             # The distilled result:
             episode = Episode(
                 eid=eid,
@@ -129,8 +114,13 @@ class RSSConnector(Connector):
                 pub_date=pub_date,
                 description=description,
                 duration=duration,
-                audio=audio_info,
-                transcript=transcript_info,
+                audio=AudioInfo(status=Status.NOT_DONE),
+                transcript=TranscriptInfo(
+                    job_id=None,
+                    queue_id=None,
+                    status=Status.NOT_DONE,
+                    wcstatus=Status.NOT_DONE,
+                ),
             )
 
             episodes.append(episode)

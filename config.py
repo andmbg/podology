@@ -8,7 +8,7 @@ load_dotenv(find_dotenv())
 # DA is for testing: no audio files are downloaded.
 # If True, set the TRANSCRIBER to DummyTranscriber or else it will complain about
 # not finding audio files.
-DUMMY_AUDIO = True
+DUMMY_AUDIO = False
 
 # PROJECT_NAME = "Knowledge Fight"
 PROJECT_NAME = "Decoding"
@@ -21,9 +21,11 @@ CONNECTOR_ARGS = {
     "remote_resource": "https://decoding-the-gurus.captivate.fm/rssfeed"
 }
 
+# WhisperX transcription: /transcribe; Dummy: /dummytranscribe
 TRANSCRIBER_CLASS = "kfsearch.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
-    "server_url": "http://127.0.0.1:8001"
+    "server_url": "http://127.0.0.1:8001",
+    "endpoint": "dummytranscribe",  # or "transcribe"
 }
 
 def get_class(class_path):

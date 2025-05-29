@@ -1,6 +1,6 @@
 from enum import Enum
 from dataclasses import dataclass
-from pathlib import Path
+from typing import Optional
 
 
 class Status(Enum):
@@ -17,9 +17,10 @@ class Status(Enum):
 
 @dataclass
 class TranscriptInfo:
-    job_id: str
     status: Status
     wcstatus: Status
+    job_id: Optional[str|None] = None
+    queue_id: Optional[str|None] = None
 
 
 @dataclass

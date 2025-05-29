@@ -10,26 +10,25 @@ from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 from loguru import logger
 
-from kfsearch.data.Episode import Episode, Status
+from kfsearch.data.Episode import Status
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.data.Transcript import Transcript
+from kfsearch.data.transcribers.base import Transcriber
 from kfsearch.search.search_classes import ResultSet, create_cards
-from kfsearch.search.setup_es import (
-    TRANSCRIPT_INDEX_NAME,
-    index_all_transcripts,
-    index_episode_worker,
-)
+from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
 from kfsearch.stats.preparation import ensure_stats_data
 from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
-from config import PROJECT_NAME, WORDCLOUD_DIR, get_connector, get_transcriber
+from config import WORDCLOUD_DIR, get_connector, get_transcriber
 
 
-episode_store = EpisodeStore(name=PROJECT_NAME)
-episode_store.sync_with_disk()
+episode_store = EpisodeStore()
+transcriber: Transcriber = get_transcriber()
 
 for pub_ep in get_connector().fetch_episodes():
     episode_store.add_or_update(pub_ep)
+
+episode_store.update_from_files()
 
 
 def get_row_data(episode_store: EpisodeStore) -> List[dict]:
@@ -41,7 +40,7 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
             "description": ep.description,
             "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
             "duration": ep.duration,
-            "data": (
+            "status": (
                 Status.DONE.value
                 if (
                     ep.transcript.status is Status.DONE
@@ -50,7 +49,7 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
                 else Status.NOT_DONE.value
             ),
         }
-        for ep in episode_store.all()
+        for ep in episode_store
     ]
 
 
@@ -93,8 +92,8 @@ def init_dashboard(flask_app, route):
 
     # AG Grid column definitions for the episode list in the Metadata tab:
     conditional_style = {
-        "function": "params.data.data == '✅️' ? {backgroundColor: '#00ff0011'} : ("
-        "params.data.data == '➖️' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
+        "function": "params.data.status == '✅️' ? {backgroundColor: '#00ff0011'} : ("
+        "params.data.status == '➖️' ? {backgroundColor: '#ff000011'} : {backgroundColor: "
         "'#ffff0033'})"
     }
 
@@ -103,7 +102,9 @@ def init_dashboard(flask_app, route):
             "headerName": "EID",
             "field": "eid",
             "maxWidth": 80,
-            "cellStyle": conditional_style,
+            "sort": "asc",
+            "sortIndex": 1,
+            # "cellStyle": conditional_style,
             # "hide": True,
         },
         {
@@ -112,8 +113,9 @@ def init_dashboard(flask_app, route):
             "type": "date",
             "sortable": True,
             "sort": "desc",
+            "sortIndex": 0,
             "filter": True,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
             "maxWidth": 120,
         },
         {
@@ -122,7 +124,7 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             # "maxWidth": 600,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
             "tooltipField": "description",
             "tooltipComponent": "CustomTooltip",
         },
@@ -137,13 +139,13 @@ def init_dashboard(flask_app, route):
             "sortable": True,
             "filter": True,
             "maxWidth": 100,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
         },
         {
-            "headerName": "Data",
-            "field": "data",
+            "headerName": "Status",
+            "field": "status",
             "maxWidth": 120,
-            "cellStyle": conditional_style,
+            # "cellStyle": conditional_style,
             "filter": False,
         },
     ]
@@ -174,7 +176,7 @@ def init_dashboard(flask_app, route):
                                     },
                                     rowData=get_row_data(episode_store),
                                     className="ag-theme-quartz",
-                                    getRowId='{"function": "params => params.data.eid"}',
+                                    getRowId="params.data.eid",
                                     dashGridOptions={
                                         "rowSelection": "single",
                                         "tooltipShowDelay": 500,
@@ -460,6 +462,8 @@ def init_dashboard(flask_app, route):
                     className="mt-3",
                 ),
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
+                dcc.Interval(id="job-status-update", interval=1000),
+                dcc.Store(id="ongoing-jobs", data=[]),
             ]
         )
     )
@@ -477,77 +481,83 @@ def init_callbacks(app):
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
         Input("pageload-trigger", "n_intervals"),
-        Input("transcribe-episode-list", "selectedRows"),
+    )
+    def prefill_table(pageload_trigger):
+        """
+        Table update upon page load or job status update.
+        """
+        episode_store = EpisodeStore()
+        logger.debug("pageload-trigger went off")
+        return get_row_data(episode_store)
+
+    @app.callback(
+        Output("transcribe-episode-list", "rowTransaction"),
         Input("transcribe-episode-list", "cellClicked"),
+        Input("job-status-update", "n_intervals"),
         State("transcribe-episode-list", "rowData"),
     )
-    def handle_table_click(pageload_trigger, selected_rows, cell_clicked, row_data):
+    def click_or_update_table(cell_clicked, n_update, row_data):
         """
-        If you click on the Script column on the Metadata tab, then if that episode has
-        no transcript yet, get it, index it, and update the stats, so it will be shown
-        in the search results and analyses.
+        User clicks on the status column of an episode in the table.
         """
-        triggered = ctx.triggered_id
+        if not ctx.triggered:
+            return no_update
 
-        if triggered == "pageload-trigger" and pageload_trigger:
-            logger.info("pageload-trigger went off")
-            return get_row_data(EpisodeStore(name=PROJECT_NAME))
+        episode_store = EpisodeStore()
 
-        # If user clicked on the table
-        if triggered == "transcribe-episode-list":
-            if selected_rows is None or selected_rows == []:
-                return no_update
-
+        #
+        # User clicked on the status column of an episode:
+        #
+        if ctx.triggered_id == "transcribe-episode-list":
             column_clicked = cell_clicked.get("colId", "")
-            if column_clicked != "data":
-                return no_update
 
-            selected_eid = selected_rows[0]["eid"]
-
-            if selected_rows[0][column_clicked] != Status.NOT_DONE.value:
+            if column_clicked != "status":
                 return no_update
 
             # So you clicked on the Data column of a missing episode:
-            episode_store = EpisodeStore(name=PROJECT_NAME)
+            selected_eid = cell_clicked.get("rowId")
             episode = episode_store[selected_eid]
+            qid = episode_store.enqueue_transcription_job(episode=episode)
+            logger.info(f"qid {qid} for episode {selected_eid} enqueued")
 
-            episode_store.download_audio(episode=episode)
-            episode_store.get_transcription(episode=episode, transcriber=get_transcriber())
-            index_episode_worker(episode=episode)
-            ensure_stats_data(episode_store=episode_store, episodes=[episode])
+            row = [row for row in row_data if row["eid"] == selected_eid]
+            row[0]["status"] = Status.QUEUED.value
 
-            # for i, row in enumerate(row_data):
-            #     if row["eid"] == selected_eid:
-            #         row_data[i]["files_exist"] = Status.DONE.value
-            #         return row_data
+            return {"update": row}
 
-            row_data = get_row_data(EpisodeStore(name=PROJECT_NAME))
-
-            return row_data
-
-        return no_update
+        elif n_update:
+            update_rows = []
+            # row_dict = {row["eid"]: row for row in row_data}
+            for ep in episode_store:
+                # Find the corresponding row in the frontend data
+                row = next((r for r in row_data if r["eid"] == ep.eid), None)
+                if row and row["status"] != ep.transcript.status.value:
+                    row["status"] = ep.transcript.status.value
+                    update_rows.append(row)
+            if update_rows:
+                return {"update": update_rows}
+            return no_update
 
     @app.callback(
         Output("tab-container", "active_tab"),
-        Input("transcribe-episode-list", "selectedRows"),
         Input("transcribe-episode-list", "cellClicked"),
+        State("transcribe-episode-list", "selectedRows"),
     )
-    def tab_to_transcript(episodes_selected_rows, cell_clicked):
+    def tab_to_transcript(cell_clicked, selection):
         """
         If the user clicks on an episode that has a transcript, switch to the
         Transcripts tab and show the transcript, unless the user clicked on the
         transcript_exists or audio_exists column, in which case the episode is
         being transcribed or its audio downloaded.
         """
-        if episodes_selected_rows:
-            eid = episodes_selected_rows[0]["eid"]
+        if selection:
+            eid = selection[0]["eid"]
             episode = episode_store[eid]
             column_clicked = cell_clicked.get("colId", "")
 
-            if (
-                column_clicked not in ["transcript_exists", "audio_exists"]
-                and episode.transcript.status
-            ):
+            if column_clicked != "data" and episode.transcript.status:
+                logger.debug(f"Cell clicked: {cell_clicked}")
+                logger.debug(f"Selected row: {eid}")
                 return "Transcripts"
 
         return no_update

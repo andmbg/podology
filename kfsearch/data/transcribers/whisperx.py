@@ -21,13 +21,14 @@ class WhisperXTranscriber(Transcriber):
     Transcriber class that sends audio files to a WhisperX server for transcription.
     """
 
-    def __init__(self, server_url: str):
+    def __init__(self, server_url: str, endpoint: str):
         self.server_url = server_url
+        self.endpoint = endpoint
         self.api_key = API_TOKEN
         self.headers = (
             {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         )
-        logger.debug(f"Initialized WhisperXTranscriber with API key: {self.api_key}")
+        logger.debug(f"Initialized WhisperXTranscriber with API key: ...-{self.api_key[-4:]}")
 
     def submit_job(self, audio_path: Path) -> str:
         """
@@ -36,13 +37,14 @@ class WhisperXTranscriber(Transcriber):
         logger.debug(
             f"Submitting transcription job to {self.server_url} for file {audio_path}"
         )
+
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         with open(audio_path, "rb") as audio_file:
             logger.debug(f"Using headers: {self.headers}")
             response = requests.post(
-                f"{self.server_url}/transcribe",
+                f"{self.server_url}/{self.endpoint}",
                 files={"file": audio_file},
                 headers=self.headers,
             )
@@ -56,11 +58,11 @@ class WhisperXTranscriber(Transcriber):
         return job_id
 
     def poll_job(
-        self, job_id: str, poll_interval: int = 60, timeout: int = 28800
+        self, job_id: str, poll_interval: int = 2, timeout: int = 28800
     ) -> dict:
         """
-        Poll the server for job completion. If status is reported as "done",
-        call get_result() and return its dict payload.
+        Blocking poll to the API for job completion. If status is reported
+        as "done", call get_result() and return its dict payload.
         """
         elapsed = 0
         while elapsed < timeout:
@@ -70,18 +72,18 @@ class WhisperXTranscriber(Transcriber):
             if response.status_code == 200:
                 job_status = response.json().get("status")
                 logger.debug(f"Job {job_id} status: {job_status}")
-                
+
                 if job_status == "done":
                     return self._get_result(job_id)
-                
+
                 elif job_status == "failed":
                     logger.error(f"Transcription failed for job {job_id}")
                     raise RuntimeError(f"Transcription failed for job {job_id}")
-            
+
             elif response.status_code == 404:
                 logger.error(f"Job {job_id} not found")
                 raise RuntimeError(f"Job {job_id} not found")
-            
+
             # Job still ongoing:
             sleep(poll_interval)
             elapsed += poll_interval
@@ -105,9 +107,7 @@ class WhisperXTranscriber(Transcriber):
             raise RuntimeError(
                 f"Failed to fetch result for job {job_id}: {response.text}"
             )
+    
 
     def __repr__(self) -> str:
-        return(
-            f"{self.__class__.__name__}\n"
-            f"url={self.server_url})"
-        )
+        return f"{self.__class__.__name__}\n" f"url={self.server_url})"

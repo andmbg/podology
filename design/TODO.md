@@ -44,6 +44,9 @@ Next to the transcript, display an animation whose frame is linked to the scroll
   
 # IMMINENT
 
+- Intermediate status don't show up.
+- WEITER: periodic update schaut nur auf es.in_progress() Episoden
+
 # Dysfunction
 
 # Bugs
