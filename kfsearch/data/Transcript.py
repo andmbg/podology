@@ -44,7 +44,7 @@ class Transcript:
         """
         Return a JSON representation of the diarized transcript.
         """
-        segments = self.raw_dict["segments"]
+        segments = self.raw_dict["segments"].copy()
 
         turns = []
         while segments:
