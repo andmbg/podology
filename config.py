@@ -24,8 +24,9 @@ CONNECTOR_ARGS = {
 # WhisperX transcription: /transcribe; Dummy: /dummytranscribe
 TRANSCRIBER_CLASS = "kfsearch.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
-    "server_url": "http://127.0.0.1:8001",
-    "endpoint": "dummytranscribe",  # or "transcribe"
+    # "server_url": "http://127.0.0.1:8001",  # locally running
+    "server_url": "http://192.168.178.27:8001",  # Gaius Pupus
+    "endpoint": "transcribe",  # or "dummytranscribe"
 }
 
 def get_class(class_path):

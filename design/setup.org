@@ -1,0 +1,33 @@
+#+title: Set up the WhisperX server and the app
+
+* The wxtrans remote server
+
+Get a server with a GPU that can do ML/AI stuff; probably an Nvidia kind of deal.
+
+** Allow cloning private git repas (probably obsolete)
+
+#+begin_src bash
+ssh-keygen -t rsa -b 4096
+#+end_src
+
+Paste content of ~/.ssh/id_rsa.pub to github (Account > Settings > Access > SSH and GPG keys).
+
+** Prepare remote machine
+
+Ensure python3 and Docker:
+
+#+begin_src bash
+sudo apt update
+sudo apt install python3 python3-pip git
+sudo apt install docker.io
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+#+end_src
+
+Build and run docker image, watch logs:
+
+#+begin_src bash
+docker build -t wxtrans-api .
+docker run -d --rm --name wxtrans-api -p 8001:8001 wxtrans-api
+docker logs <image ID> -f
+#+end_src

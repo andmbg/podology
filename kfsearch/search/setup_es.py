@@ -78,21 +78,25 @@ def index_episode_worker(episode: Episode):
 
         # Index segments
         actions = []
-        for entry in transcript_data["segments"]:
-            doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
-            doc = {
-                "_index": TRANSCRIPT_INDEX_NAME,
-                "_id": doc_id,
-                "_source": {
-                    "eid": episode.eid,
-                    "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
-                    "episode_title": episode.title,
-                    "text": entry["text"],
-                    "start_time": entry["start"],
-                    "end_time": entry["end"],
-                },
-            }
-            actions.append(doc)
+        try:
+            for entry in transcript_data["segments"]:
+                doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
+                doc = {
+                    "_index": TRANSCRIPT_INDEX_NAME,
+                    "_id": doc_id,
+                    "_source": {
+                        "eid": episode.eid,
+                        "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
+                        "episode_title": episode.title,
+                        "text": entry["text"],
+                        "start_time": entry["start"],
+                        "end_time": entry["end"],
+                    },
+                }
+                actions.append(doc)
+        except TypeError:
+            logger.error(f"Error processing segments for episode {episode.eid}. Segment seems not to be a dict.")
+            return
 
         # Use the bulk API for efficient indexing
         helpers.bulk(es_client, actions)

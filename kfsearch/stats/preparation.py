@@ -139,8 +139,6 @@ def wordcloud_worker(episode: Episode):
 
     episode.transcript.wcstatus = Status.DONE
 
-    logger.debug(f"{episode.eid}: Stored word cloud")
-
 
 # def store_named_entity_tokens(episodes: List[Episode], episode_store: EpisodeStore):
 #     """

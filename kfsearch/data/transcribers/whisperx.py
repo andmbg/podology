@@ -43,14 +43,18 @@ class WhisperXTranscriber(Transcriber):
 
         with open(audio_path, "rb") as audio_file:
             logger.debug(f"Using headers: {self.headers}")
-            response = requests.post(
-                f"{self.server_url}/{self.endpoint}",
-                files={"file": audio_file},
-                headers=self.headers,
-            )
+
+            try:
+                response = requests.post(
+                    f"{self.server_url}/{self.endpoint}",
+                    files={"file": audio_file},
+                    headers=self.headers,
+                )
+            except requests.exceptions.ConnectionError as e:
+                raise RuntimeError(f"Connection to API failed: {e}")
+
         if response.status_code != 200:
-            logger.error(f"Failed to submit job: {response.text}")
-            raise RuntimeError(f"Failed to submit job: {response.text}")
+            raise RuntimeError(f"Non-200 status upon job submission: {response.text}")
 
         job_id = response.json().get("job_id")
         logger.debug(f"Job submitted. Job-ID: {job_id}")
@@ -58,7 +62,7 @@ class WhisperXTranscriber(Transcriber):
         return job_id
 
     def poll_job(
-        self, job_id: str, poll_interval: int = 2, timeout: int = 28800
+        self, job_id: str, poll_interval: int = 30, timeout: int = 28800
     ) -> dict:
         """
         Blocking poll to the API for job completion. If status is reported
@@ -66,9 +70,14 @@ class WhisperXTranscriber(Transcriber):
         """
         elapsed = 0
         while elapsed < timeout:
-            response = requests.get(
-                f"{self.server_url}/transcribe/status/{job_id}", headers=self.headers
-            )
+            try:
+                response = requests.get(
+                    f"{self.server_url}/transcribe/status/{job_id}", headers=self.headers
+                )
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Connection error while polling job {job_id}: {e}")
+                raise RuntimeError(f"Connection error while polling job {job_id}: {e}")
+
             if response.status_code == 200:
                 job_status = response.json().get("status")
                 logger.debug(f"Job {job_id} status: {job_status}")
@@ -83,6 +92,14 @@ class WhisperXTranscriber(Transcriber):
             elif response.status_code == 404:
                 logger.error(f"Job {job_id} not found")
                 raise RuntimeError(f"Job {job_id} not found")
+            
+            else:
+                logger.error(
+                    f"Unexpected status code {response.status_code} for job {job_id}: {response.text}"
+                )
+                raise RuntimeError(
+                    f"Unexpected status code {response.status_code} for job {job_id}: {response.text}"
+                )
 
             # Job still ongoing:
             sleep(poll_interval)
@@ -96,9 +113,14 @@ class WhisperXTranscriber(Transcriber):
         """
         Fetch the transcription result.
         """
-        response = requests.get(
-            f"{self.server_url}/transcribe/result/{job_id}", headers=self.headers
-        )
+        try:
+            response = requests.get(
+                f"{self.server_url}/transcribe/result/{job_id}", headers=self.headers
+            )
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error while fetching result for job {job_id}: {e}")
+            raise RuntimeError(f"Connection error while fetching result for job {job_id}: {e}")
+
         if response.status_code == 200:
             logger.info(f"Transcription result fetched for job {job_id}")
             return response.json()

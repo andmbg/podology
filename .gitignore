@@ -14,3 +14,4 @@ launch.json
 __pycache__/
 *.blend1
 *.ipynb
+design/dashboard_layout.drawio.svg

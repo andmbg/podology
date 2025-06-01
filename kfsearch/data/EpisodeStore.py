@@ -183,7 +183,7 @@ class EpisodeStore:
                 # Optionally: create new episode entry if not in DB
                 pass
 
-    def download_audio(self, episode: Episode):
+    def ensure_audio(self, episode: Episode):
         """
         Download the audio file from the episode's URL, save it to disk,
         update the episode's audio path and status, and persist to DB.
@@ -222,6 +222,7 @@ class EpisodeStore:
         job = q.enqueue(
             episode_worker,
             episode.eid,
+            job_timeout=28800,
             job_id=generate_queue_id(),
             result_ttl=1,  # we just care about side effects, not the result
         )
@@ -263,17 +264,26 @@ def episode_worker(eid):
     audio_path = episode_store.audio_dir / f"{episode.eid}.mp3"
 
     # 1. Download audio if not already done
-    episode_store.download_audio(episode)
+    episode_store.ensure_audio(episode)
     if episode.audio.status != Status.DONE:
         logger.error(f"{eid}: Failed to download audio.")
         return
 
     # 2. Submit job to API
+    if episode.transcript.status == Status.DONE:
+        logger.info(f"{eid}: Transcript already exists, skipping transcription.")
+        return
+
     logger.debug(f"{eid}: Submitting transcription job for episode")
-    job_id = transcriber.submit_job(audio_path)
-    episode.transcript.status = Status.PROCESSING
-    episode.transcript.job_id = job_id
-    episode_store.add_or_update(episode)
+    try:
+        job_id = transcriber.submit_job(audio_path)
+        episode.transcript.status = Status.PROCESSING
+        episode.transcript.job_id = job_id
+    except Exception as e:
+        episode.transcript.status = Status.ERROR
+        raise
+    finally:
+        episode_store.add_or_update(episode)
 
     # 3. Poll for completion, store result, and update status
     try:
