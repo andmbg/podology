@@ -21,8 +21,7 @@ from kfsearch.data.Transcript import Transcript
 from kfsearch.stats.nlp import (
     type_proximity,
     get_wordcloud,
-    get_named_entity_tokens,
-    indexed_named_entities,
+    timed_named_entity_tokens,
 )
 
 
@@ -43,7 +42,7 @@ def ensure_stats_data(
         initialize_stats_db()
         episodes = [ep for ep in episode_store if ep.transcript.status]
 
-    store_indexed_named_entities(episodes)
+    store_timed_named_entities(episodes)
     get_word_counts(episodes)
     store_wordclouds(episodes)
     # store_named_entity_tokens(episodes)
@@ -215,7 +214,7 @@ def nament_types_worker(episode: Episode):
     logger.debug(f"{episode.eid}: Storing named entity types")
 
     query = f"""
-        SELECT token, idx
+        SELECT token, timestamp
         FROM named_entity_tokens
         WHERE eid = '{episode.eid}'
     """
@@ -252,12 +251,12 @@ def type_proximity_worker(episode: Episode):
     # Get the named entities:
     logger.debug(f"{episode.eid}: Updating type proximity table")
     query = f"""
-        SELECT token, idx
+        SELECT token, timestamp
         FROM named_entity_tokens
         WHERE eid = '{episode.eid}'
     """
     named_entities = pd.read_sql(sql=query, con=sqlite3.connect(DB_PATH))
-    ne_dict = named_entities.groupby("token")["idx"].apply(list).to_dict()
+    ne_dict = named_entities.groupby("token")["timestamp"].apply(list).to_dict()
 
     # Get the proximity:
     proximity_df = type_proximity(ne_dict)
@@ -294,7 +293,7 @@ def store_type_proximity(episodes: List[Episode]):
         pool.map(type_proximity_worker, ep_to_do)
 
 
-def store_indexed_named_entities(episodes: List[Episode]):
+def store_timed_named_entities(episodes: List[Episode]):
     """
     Store named entities for each given episode along with their word index.
     This is for the experimental dynamic word cloud.
@@ -312,20 +311,19 @@ def store_indexed_named_entities(episodes: List[Episode]):
     ]
 
     for ep in ep_to_do:
-        logger.debug(f"{ep.eid}: Storing named entity tokens with word index")
+        logger.debug(f"{ep.eid}: Storing timestamped named entity tokens")
 
-        segments = Transcript(ep).segments()
-        ine = indexed_named_entities(segments)
+        ine = timed_named_entity_tokens(Transcript(ep))
 
         with sqlite3.connect(DB_PATH) as conn:
             for token in ine:
-                entity_name, _, idx = token
+                entity_name, ts = token
                 conn.execute(
                     """
-                    INSERT INTO named_entity_tokens (eid, idx, token)
+                    INSERT INTO named_entity_tokens (eid, timestamp, token)
                     VALUES (?, ?, ?)
                     """,
-                    (ep.eid, idx, entity_name),
+                    (ep.eid, ts, entity_name),
                 )
 
 
@@ -359,7 +357,7 @@ def initialize_stats_db():
             """
             CREATE TABLE IF NOT EXISTS named_entity_tokens (
                 eid TEXT,
-                idx INTEGER,
+                timestamp FLOAT,
                 token TEXT
             );
             """

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import dash_bootstrap_components as dbc
 from dash import html
+from loguru import logger
 
 from kfsearch.data.Episode import Episode
 from kfsearch.search.search_classes import highlight_to_html_elements
@@ -33,52 +34,48 @@ class Transcript:
             raise ValueError(f"Transcript not available for episode {self.eid}.")
 
         self.raw_dict = json.load(open(self.path, "r"))
-    
-    def segments(self) -> list:
-        """
-        Return the raw segments of the transcript, without timing or speaker information.
-        """
-        return self.raw_dict["segments"]
 
-    def diarized(self) -> list:
+    def _diarized(self) -> list:
         """
         Return a JSON representation of the diarized transcript.
         """
         segments = self.raw_dict["segments"].copy()
-
         turns = []
-        while segments:
-            turn_segments = []
-            this_speaker = segments[0]["speaker"]
-            this_start = segments[0]["start"]
 
-            while segments and segments[0]["speaker"] == this_speaker:
-                # Highlight search terms in segment text
-                text = segments.pop(0)["text"]
-                turn_segments.append(text)
+        while segments:
+            this_segment = segments.pop(0)
+            current_speaker = this_segment["speaker"]
+            start_time = this_segment["start"]
+            end_time = this_segment["end"]
+            texts = [this_segment["text"].strip()]
+
+            while segments and segments[0]["speaker"] == current_speaker:
+                next_segment = segments.pop(0)
+                end_time = next_segment["end"]
+                texts.append(next_segment["text"].strip())
 
             turn = {
-                "speaker": this_speaker,
-                "start": this_start,
-                "text": turn_segments,
+                "speaker": current_speaker,
+                "start": start_time,
+                "end": end_time,
+                "text": " ".join(texts),
             }
             turns.append(turn)
 
         return turns
 
-    def to_json(
+    def segments(
         self,
-        episode_metadata: Optional[list] = None,
-        transcript_metadata: Optional[list] = None,
-    ) -> list[str]:
+        episode_metadata: list = [],
+        transcript_metadata: list = [],
+        diarized: bool = False,
+    ) -> list[dict]:
         """
         Return the transcript in JSON format, with the selected level of metadata.
 
         :param episode_metadata: List of metadata fields about the episode to include.
         :param transcript_metadata: List of metadata fields about each turn to include.
         """
-        episode_metadata = episode_metadata or []
-        transcript_metadata = transcript_metadata or []
         episode_metadata = (
             [episode_metadata]
             if isinstance(episode_metadata, str)
@@ -90,9 +87,15 @@ class Transcript:
             else transcript_metadata
         )
 
-        out = []
+        if "text" not in transcript_metadata:
+            transcript_metadata.append("text")
 
-        for source_turn in self.diarized():
+        out = []
+        segments = (
+            self._diarized() if diarized else self.raw_dict["segments"].copy()
+        )
+
+        for source_turn in segments:
             # Copy episode metadata from the object to each turn:
             turn = {i: getattr(self, i) for i in episode_metadata}
 
@@ -100,13 +103,25 @@ class Transcript:
             turn.update({k: source_turn.get(k) for k in transcript_metadata})
 
             # Finally: the text
-            turn["text"] = " ".join(source_turn["text"])
 
             out.append(turn)
 
         return out
 
-    def to_html(self, termtuples: List[tuple] | NoneType = None) -> list:
+    def to_html(
+        self, termtuples: List[tuple] | NoneType = None, diarized: bool = False
+    ) -> list:
+        """HTML representation of the transcript.
+
+        Args:
+            termtuples (List[tuple] | NoneType, optional): List of search terms
+              to highlight and the color ID for each. Defaults to None.
+            diarized (bool, optional): Diarize the transcript before returning.
+              Defaults to False.
+
+        Returns:
+            list: list of HTML elements representing the transcript.
+        """
 
         # Deprecate at some point, as it's STT API dependent:
         def speaker_class(speaker):
@@ -126,11 +141,11 @@ class Transcript:
             re_pattern_colorid = None
 
         # Start iteration through transcript segments:
-        segments = self.diarized()
+        segments = self._diarized() if diarized else self.raw_dict["segments"].copy()
         turns = []
         while segments:
             seg = segments.pop(0)
-            text = " ".join(seg["text"])
+            text = seg["text"]
 
             # TODO: First replacing strings and then replacing those with elements
             # is cumbersome. We have noticeable lag here.

@@ -743,7 +743,7 @@ def init_callbacks(app):
 
         # Get the transcript of the selected episode as HTML:
         dia_script = Transcript(episode=episode)
-        dia_script_element = dia_script.to_html(termtuples)
+        dia_script_element = dia_script.to_html(termtuples, diarized=True)
 
         # Get the word cloud of the selected episode as HTML img element:
         with open(WORDCLOUD_DIR / f"{eid}.png", "rb") as f:
