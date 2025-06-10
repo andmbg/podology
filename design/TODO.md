@@ -14,9 +14,9 @@
 - Transcript display: Playback if audio present
 - Show hits in scrollbar
 
-### Animated Word Cloud ("Word Weather")
+### Animated Word Ticker
 
-- Discussed in notebook 2.01
+- Discussed in notebook 2.02
 
 ## Terms tab:
 
