@@ -1,37 +1,59 @@
+import sys
 import pickle
 import bpy
 
+from config import SCROLLVID_DIR
+
+#
+# File loading
+#
+canvas_path = "kfsearch/frontend/canvas.blend"
+
+# Process command line arguments (the pickle file path):
+args = sys.argv
+
+if "--" in args:
+    args = args[args.index("--") + 1:]
+else:
+    raise ValueError("No arguments provided.")
+
+if len(args) != 2:
+    raise ValueError("Expected two arguments: ticker pickle path and eid.")
+
+ticker_path, eid = args
+
+print(f"{ticker_path}")
+print(f"{eid}")
+# Load data, create ticker object:
+with open(ticker_path, "rb") as file:
+    ticker = pickle.load(file)
 
 #
 # Render preparations
 #
 
 # Load the prepared .blend file
-bpy.ops.wm.open_mainfile(filepath="canvas.blend")
+bpy.ops.wm.open_mainfile(filepath=canvas_path)
 
 # Verify/Set render output to video (if not already configured in the .blend file)
+bpy.context.scene.render.filepath = f"{SCROLLVID_DIR}/{eid}.mp4"
 bpy.context.scene.render.image_settings.file_format = 'FFMPEG'
 bpy.context.scene.render.ffmpeg.format = 'MPEG4'  # H.264 MP4
-bpy.context.scene.render.filepath = "wordticker.mp4"
 
 lane_spacing = 1.5
 fps = bpy.data.scenes["Scene"].render.fps
 
 #
-# Init
+# Create text objects
 #
 
-# Create or retrieve the shared material
+# First, check existence of the shared material:
 if "word_material" not in bpy.data.materials:
-    mat = bpy.data.materials.new(name="word_material")
-    mat.use_nodes = True  # Enable node editing for future customization
+    raise ValueError("Material 'word_material' not found in the .blend file.")
 else:
     mat = bpy.data.materials["word_material"]
 
-# Load data, create objects
-with open("ticker.pickle", "rb") as file:
-    ticker = pickle.load(file)
-
+# Create the objects:
 for lane_idx, lane in enumerate(ticker.lanes):
     y_loc = lane_idx * lane_spacing
     
@@ -51,9 +73,9 @@ for lane_idx, lane in enumerate(ticker.lanes):
             text_obj.data.materials.append(mat)
 
 #
-# Update upon frame change
+# Add a handler that updates the values of the text objects upon frame change;
+# Also inserts keyframes at each frame, as this is necessary for headless rendering.
 #
-
 def update_values(scene):
     current_frame = scene.frame_current
     for obj in bpy.data.objects:
@@ -62,8 +84,12 @@ def update_values(scene):
             val = ticker.get_value(obj.name, t)  # You implement this
             obj["value"] = val
             obj.location.x = obj["value"] * (-22)
+            
+            # Insert keyframes for animation
+            obj.keyframe_insert(data_path='location', frame=current_frame, index=0)  # x location
+            obj.keyframe_insert(data_path='["value"]', frame=current_frame)
 
-#bpy.app.handlers.frame_change_post.clear()  # Clear existing handlers if needed
+bpy.app.handlers.frame_change_post.clear()  # Clear existing handlers if needed
 bpy.app.handlers.frame_change_post.append(update_values)
 
 #

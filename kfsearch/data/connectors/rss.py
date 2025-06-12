@@ -120,6 +120,7 @@ class RSSConnector(Connector):
                     queue_id=None,
                     status=Status.NOT_DONE,
                     wcstatus=Status.NOT_DONE,
+                    scrollvid_status=Status.NOT_DONE,
                 ),
             )
 

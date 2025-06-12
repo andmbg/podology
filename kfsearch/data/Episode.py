@@ -19,6 +19,7 @@ class Status(Enum):
 class TranscriptInfo:
     status: Status
     wcstatus: Status
+    scrollvid_status: Status
     job_id: Optional[str|None] = None
     queue_id: Optional[str|None] = None
 

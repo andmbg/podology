@@ -16,7 +16,7 @@ from kfsearch.data.Transcript import Transcript
 from kfsearch.data.transcribers.base import Transcriber
 from kfsearch.search.search_classes import ResultSet, create_cards
 from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from kfsearch.stats.preparation import ensure_stats_data
+from kfsearch.stats.preparation import post_process
 from kfsearch.stats.plotting import plot_word_freq
 from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
 from config import WORDCLOUD_DIR, get_connector, get_transcriber
@@ -72,7 +72,7 @@ def init_dashboard(flask_app, route):
         raise
 
     index_all_transcripts(episode_store=episode_store)
-    ensure_stats_data(episode_store=episode_store)
+    post_process(episode_store=episode_store)
 
     app = Dash(
         __name__,

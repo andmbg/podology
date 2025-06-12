@@ -14,7 +14,7 @@ import sqlite3
 import pandas as pd
 from loguru import logger
 
-from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
+from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, SCROLLVID_DIR
 from kfsearch.data.EpisodeStore import EpisodeStore
 from kfsearch.data.Episode import Episode, Status
 from kfsearch.data.Transcript import Transcript
@@ -22,12 +22,11 @@ from kfsearch.stats.nlp import (
     type_proximity,
     get_wordcloud,
     timed_named_entity_tokens,
+    run_blender_render_for_episode,
 )
 
 
-def ensure_stats_data(
-    episode_store: EpisodeStore, episodes: Optional[List[Episode]] = None
-):
+def post_process(episode_store: EpisodeStore, episodes: Optional[List[Episode]] = None):
     """
     Run stats on all transcribed episodes. It is upon the individual component functions
     to filter out episodes for already having stats artifacts in place.
@@ -48,6 +47,7 @@ def ensure_stats_data(
     # store_named_entity_tokens(episodes)
     store_named_entity_types(episodes)
     store_type_proximity(episodes)
+    store_scroll_video(episodes)
 
     for episode in episodes:
         episode.transcript.wcstatus = Status.DONE
@@ -139,47 +139,19 @@ def wordcloud_worker(episode: Episode):
     episode.transcript.wcstatus = Status.DONE
 
 
-# def store_named_entity_tokens(episodes: List[Episode], episode_store: EpisodeStore):
-#     """
-#     Compute and store named entity tokens for each given episode.
-#     Exclude episodes that are not transcribed or already have named entity tokens.
-#     The named entity tokens are a per-episode list of all tokens of named entities.
-#     They're a basis for at least one stat that we need (proximity).
+def store_scroll_video(episodes: List[Episode]):
+    """Render a scroll video for each given episode."""
+    transcribed_episodes = [ep for ep in episodes if ep.transcript.status]
 
-#     :param episodes: List of episodes to process.
-#     :return: None
-#     """
-#     with sqlite3.connect(stats_db_path) as conn:
+    ep_to_do = [
+        episode
+        for episode in transcribed_episodes
+        if not (SCROLLVID_DIR / f"{episode.eid}.mp4").exists()
+    ]
 
-#         # Get all indexed episode IDs
-#         indexed_eids = {
-#             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
-#         }
-
-#     ep_to_do = [
-#         ep for ep in episodes if ep.transcript_path and ep.eid not in indexed_eids
-#     ]
-
-#     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-#         pool.map(nament_tokens_worker, ep_to_do)
-
-
-# def nament_tokens_worker(episode: Episode):
-#     """
-#     Individual function used in multiprocessing function store_named_entity_tokens.
-#     """
-#     logger.debug(f"Storing named entity tokens for {episode.eid}")
-#     named_entities = get_named_entity_tokens(episode)
-
-#     with sqlite3.connect(stats_db_path) as conn:
-#         for i, token in enumerate(named_entities):
-#             conn.execute(
-#                 """
-#                 INSERT INTO named_entity_tokens (eid, idx, token)
-#                 VALUES (?, ?, ?)
-#                 """,
-#                 (episode.eid, i, token),
-#             )
+    for episode in ep_to_do:
+        run_blender_render_for_episode(episode.eid)
+        episode.transcript.scrollvid_status = Status.DONE
 
 
 def store_named_entity_types(episodes: List[Episode]):

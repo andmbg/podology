@@ -9,7 +9,14 @@ from config import DB_PATH
 
 class Appearance:
     def __init__(
-        self, term, apid, timestamp=None, start=None, end=None, width=None, smoothing=0.1
+        self,
+        term,
+        apid,
+        timestamp=None,
+        start=None,
+        end=None,
+        width=None,
+        smoothing=0.1,
     ):
         """One instance of a term appearing and disappearing on the canvas.
 
@@ -80,6 +87,18 @@ class Appearance:
             self.nodes.insert(idx, (t, y))
         self._prepare_linear()
 
+    def to_dict(self) -> dict:
+        """Convert the appearance to a JSON-serializable dict."""
+        return {
+            "term": self.term,
+            "apid": self.apid,
+            "start": round(self.start, 2),
+            "end": round(self.end, 2),
+            "width": round(self.width, 2),
+            "smoothing": self.smoothing,
+            "nodes": self.nodes,
+        }
+
     def __repr__(self):
         return f"Appearance({self.term}, {self.start}, {self.end})"
 
@@ -102,21 +121,7 @@ class Appearance:
             raise ValueError("Cannot merge non-overlapping appearances.")
 
         c_start, c_end = a.start, b.end
-        end_diff = b.end - a.end
-        c_width = a.width + end_diff
-        link_width = end_diff / 2
-        link_start = (np.mean([a.end, b.start]), a.frame(np.mean([a.end, b.start])))
-        link_end = (np.mean([b.start, b.end]), b.frame(np.mean([b.start, b.end])))
-
-        c = cls(a.term, a.apid, start=c_start, end=c_end, width=c_width, smoothing=a.smoothing)
-        c.nodes = a.nodes[:-1]
-        c.nodes.extend(
-            [
-                link_start,
-                link_end,
-                b.nodes[-1],
-            ]
-        )
+        c = cls(a.term, a.apid, start=c_start, end=c_end, smoothing=a.smoothing)
         c._prepare_linear()
 
         return c
@@ -129,14 +134,15 @@ class Ticker:
 
     def add_lane(self):
         """Add a new lane for a term."""
-        self.lanes.append = []
+        self.lanes.append([])
 
     def add_appearance(self, appearance: Appearance):
         """Add an appearance to the ticker, manage lane placement.
 
         Place the appearance in the bottom-most lane that has no other
         appearances overlapping into this appearance's extent. If no
-        such lane exists, create a new one.
+        such lane exists, create a new one. This method takes care
+        that appearances do not overlap.
         """
         # Try to place in existing lanes:
         for i, lane in enumerate(self.lanes):
@@ -151,7 +157,7 @@ class Ticker:
 
         # If no suitable lane found, create a new one
         self.lanes.append([appearance])
-    
+
     def get_value(self, apid, t) -> float:
         """Get the value of an appearance at time t."""
         for lane in self.lanes:
@@ -161,8 +167,9 @@ class Ticker:
         return 0.0
 
     def plot(self):
+        nlanes = len(self.lanes)
         fig = make_subplots(
-            rows=len(self.lanes), cols=1, shared_xaxes=True, vertical_spacing=0.005
+            rows=nlanes, cols=1, shared_xaxes=True, vertical_spacing=0.005
         )
 
         for i, lane in enumerate(self.lanes):
@@ -177,7 +184,7 @@ class Ticker:
                         name=appearance.apid,
                         line=dict(width=1, color="blue"),
                     ),
-                    row=i + 1,
+                    row=nlanes - i,
                     col=1,
                 )
                 fig.add_trace(
@@ -190,7 +197,7 @@ class Ticker:
                         line=dict(width=0, color="rgba(0, 0, 0, 0)"),
                         hoverinfo="skip",
                     ),
-                    row=i + 1,
+                    row=nlanes - i,
                     col=1,
                 )
 
@@ -215,8 +222,16 @@ class Ticker:
 
         return fig
 
+    def to_dict(self):
+        """Convert the ticker to a JSON-serializable dict."""
+        return {
+            "lanes": [
+                [appearance.to_dict() for appearance in lane] for lane in self.lanes
+            ]
+        }
 
-def get_ticker(eid, envelope_width=120):
+
+def ticker_from_eid(eid, envelope_width=120):
     """Create a Ticker from a list of Appearances."""
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -229,7 +244,9 @@ def get_ticker(eid, envelope_width=120):
 
     df = raw.sort_values(["token", "center"])
     df["enum"] = df.groupby("token").cumcount()
-    df["apid"] = df.token.str.replace(" ", "_").str.lower() + "." + df["enum"].astype(str)
+    df["apid"] = (
+        df.token.str.replace(" ", "_").str.lower() + "." + df["enum"].astype(str)
+    )
 
     appearances = []
 

@@ -59,6 +59,7 @@ class EpisodeStore:
                     transcript_job_id TEXT,
                     transcript_queue_id TEXT,
                     transcript_wcstatus TEXT,
+                    transcript_scrollvid_status TEXT,
                     audio_status TEXT
                 )
             """
@@ -72,8 +73,9 @@ class EpisodeStore:
                 INSERT OR REPLACE INTO episodes (
                     eid, url, title, pub_date, description, duration,
                     transcript_status, transcript_job_id,
-                    transcript_queue_id, transcript_wcstatus, audio_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    transcript_queue_id, transcript_wcstatus,
+                    transcript_scrollvid_status, audio_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     episode.eid,
@@ -86,6 +88,7 @@ class EpisodeStore:
                     episode.transcript.job_id if episode.transcript else None,
                     episode.transcript.queue_id if episode.transcript else None,
                     episode.transcript.wcstatus.name if episode.transcript else None,
+                    episode.transcript.scrollvid_status.name if episode.transcript else None,
                     episode.audio.status.name if episode.audio else None,
                 ),
             )
@@ -104,6 +107,7 @@ class EpisodeStore:
             transcript_job_id,
             transcript_queue_id,
             transcript_wcstatus,
+            transcript_scrollvid_status,
             audio_status,
         ) = row
 
@@ -114,6 +118,9 @@ class EpisodeStore:
             wcstatus=(
                 Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE
             ),
+            scrollvid_status=Status[transcript_scrollvid_status]
+            if transcript_scrollvid_status
+            else Status.NOT_DONE,
         )
 
         audio = AudioInfo(
@@ -172,6 +179,7 @@ class EpisodeStore:
                 queue_id=None,
                 status=transcript_exists,
                 wcstatus=wordcloud_exists,
+                scrollvid_status=Status.NOT_DONE,  # Placeholder, adjust if needed
             )
 
             try:
@@ -255,7 +263,7 @@ def episode_worker(eid):
     """
     from kfsearch.data.Episode import Status
     from kfsearch.search.setup_es import index_episode_worker
-    from kfsearch.stats.preparation import ensure_stats_data
+    from kfsearch.stats.preparation import post_process
     from config import get_transcriber
 
     episode_store = EpisodeStore()
@@ -287,7 +295,9 @@ def episode_worker(eid):
 
     # 3. Poll for completion, store result, and update status
     try:
+        # poll_job runs in a loop until the job is done or fails:
         payload = transcriber.poll_job(job_id)
+
         transcript_path = episode_store.transcript_dir / f"{episode.eid}.json"
         with open(transcript_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=4)
@@ -295,7 +305,7 @@ def episode_worker(eid):
         episode.transcript.job_id = None
         episode.transcript.status = Status.DONE
         index_episode_worker(episode)
-        ensure_stats_data(episode_store, [episode])
+        post_process(episode_store, [episode])
         episode_store.add_or_update(episode)
         logger.debug(f"{eid}: Transcription job completed successfully.")
 

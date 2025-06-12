@@ -1,19 +1,23 @@
 """NLP-related computations"""
 
+import os
+import pickle
 from typing import List
 import multiprocessing
+import subprocess
 
-import matplotlib
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
+from loguru import logger
 
 from kfsearch.data.Episode import Episode
 from kfsearch.data.Transcript import Transcript
 from config import ADDITIONAL_STOPWORDS
+from kfsearch.frontend.wordticker import ticker_from_eid
 
 stop_words = set(stopwords.words("english"))
 stop_words.update(ADDITIONAL_STOPWORDS)
@@ -101,7 +105,9 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
         diff = np.abs(arr_i[:, None] - arr_j).astype(float)
 
         # Here is where we put the mapping function from each distance to a score:
-        tokenscore = 1 / (diff**2 + 1e-6)  # Add a small constant to avoid division by zero
+        tokenscore = 1 / (
+            diff**2 + 1e-6
+        )  # Add a small constant to avoid division by zero
 
         # Sum up for this type pair:
         typescore = np.sum(tokenscore)
@@ -112,7 +118,9 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
         return typescore
 
     keys = list(type_token_dict.keys())  # list of type names
-    values = [np.array(type_token_dict[key]) for key in keys]  # list of arrays of timestamps
+    values = [
+        np.array(type_token_dict[key]) for key in keys
+    ]  # list of arrays of timestamps
     matrix = np.zeros((len(keys), len(keys)))
 
     for i, arr_i in enumerate(values):  # arr_i is an array of timestamps for type i
@@ -136,7 +144,7 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
 def timed_named_entity_tokens(transcript: Transcript) -> List:
     """
     Extract named entities from the given transcript and associate them with timestamps.
-    
+
     :param transcript: A list of dictionaries, where each dictionary contains "text", "start", and "end".
     :return: A list of tuples (entity_name, entity_type, word_index).
     """
@@ -153,8 +161,6 @@ def timed_named_entity_tokens(transcript: Transcript) -> List:
     return flat_results
 
 
-
-
 def process_segment_wrapper(argslist):
     """
     Wrapper function to unpack arguments for multiprocessing.
@@ -162,13 +168,16 @@ def process_segment_wrapper(argslist):
     return process_segment_with_word_index(*argslist)
 
 
-def process_segment_with_word_index(segment, start_time):
-    """
-    Process a single segment to extract named entities and associate them with word indices.
-    
-    :param segment: A dictionary containing "text", "start", and "end".
-    :param start_index: The starting word index for this segment.
-    :return: A list of tuples (entity_name, entity_type, word_index).
+def process_segment_with_word_index(segment: str, timestamp: float) -> List[tuple]:
+    """Extract named entities from a timed segment.
+
+    Identifies named entities, returns a list of tuples containing the entity name and its type,
+    along with the start time of the segment.
+    (There's still room to be more precise, we have word timestamps.)
+
+    :param segment: A string of normal spoken text.
+    :param timestamp: A timestamp, typically locating the segment (start or mid time).
+    :return: A list of tuples (entity_name, segment start time).
     """
     # Tokenize the segment text
     tokens = word_tokenize(segment)
@@ -181,6 +190,33 @@ def process_segment_with_word_index(segment, start_time):
         if isinstance(subtree, Tree):  # Named Entity subtree
             entity_name = " ".join(token for token, pos in subtree.leaves())
             if entity_name.lower() not in stop_words:
-                named_entities.append((entity_name, start_time))
-        
+                named_entities.append((entity_name, timestamp))
+
     return named_entities
+
+
+def run_blender_render_for_episode(
+    eid, blender_path="/usr/bin/blender", render_script="kfsearch/frontend/render.py"
+):
+    """Call Blender to run render.py for a given episode.
+    """
+    logger.debug(f"Running Blender render for episode {eid}...")
+
+    ticker = ticker_from_eid(eid)
+    with open("tempfile.pickle", "wb") as tmpfile:
+        pickle.dump(ticker, tmpfile)
+
+    cmd = [
+        blender_path,
+        "--background",
+        "--python",
+        render_script,
+        "--",
+        "tempfile.pickle", 
+        eid,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    os.remove("tempfile.pickle")
+
+    if result.returncode != 0:
+        logger.error(f"Blender render failed for {eid}: {result.stderr}")

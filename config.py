@@ -73,6 +73,7 @@ DB_PATH = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.db"
 AUDIO_DIR = DATA_DIR / PROJECT_NAME / "audio"
 TRANSCRIPT_DIR = DATA_DIR / PROJECT_NAME / "transcripts"
 WORDCLOUD_DIR = DATA_DIR / PROJECT_NAME / "wordclouds"
+SCROLLVID_DIR = DATA_DIR / PROJECT_NAME / "scrollvids"
 
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
