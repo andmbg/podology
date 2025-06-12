@@ -2,6 +2,7 @@ import os
 import json
 import base64
 from typing import List
+from pathlib import Path
 
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
@@ -32,8 +33,9 @@ episode_store.update_from_files()
 
 
 def get_row_data(episode_store: EpisodeStore) -> List[dict]:
-    return [
-        {
+    rowdata = []
+    for ep in episode_store:
+        row = {
             "eid": ep.eid,
             "pub_date": ep.pub_date,
             "title": ep.title,
@@ -49,8 +51,17 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
                 else Status.NOT_DONE.value
             ),
         }
-        for ep in episode_store
-    ]
+        wc_path = Path("kfsearch/assets/wordclouds") / f"{ep.eid}.png"
+        wc_url = f"/assets/wordclouds/{ep.eid}.png"
+
+        if wc_path.exists():
+            row["wordcloud_url"] = wc_url
+        else:
+            row["wordcloud_url"] = ""
+
+        rowdata.append(row)
+
+    return rowdata
 
 
 def init_dashboard(flask_app, route):

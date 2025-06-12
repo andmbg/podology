@@ -33,6 +33,10 @@
   
 # IMMINENT
 
+- move the episode search result cards to tab 3 under the plot (keep the tab 2 search)
+- move transcript display to the right
+- put ticker to the left
+
 # Dysfunction
 
 # Bugs

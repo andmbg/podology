@@ -73,7 +73,7 @@ def get_wordcloud(episode: Episode) -> plt.Figure:
         width=800, height=400, background_color="white"
     ).generate_from_frequencies(namedict)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(4, 2))
     ax.imshow(wordcloud, interpolation="bilinear")
     ax.axis("off")
     fig.tight_layout()

@@ -122,7 +122,16 @@ def store_wordclouds(episodes: List[Episode]):
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(wordcloud_worker, ep_to_do)
 
+    wc_assets_dir = Path.cwd() / "kfsearch" / "assets" / "wordclouds"
+    wc_assets_dir.mkdir(parents=True, exist_ok=True)
+
     for episode in ep_to_do:
+        # Copy word clouds to the assets dir for the AG grid tooltips:
+        src_path = WORDCLOUD_DIR / f"{episode.eid}.png"
+        dest_path = wc_assets_dir / f"{episode.eid}.png"
+        dest_path.write_bytes(src_path.read_bytes())
+
+        # Update the episode's transcript status in db:
         episode.transcript.wcstatus = Status.DONE
         logger.debug(f"{episode.eid}: Word cloud stored")
 
