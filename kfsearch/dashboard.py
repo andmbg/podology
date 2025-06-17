@@ -7,6 +7,7 @@ from pathlib import Path
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
+from dash.dependencies import ClientsideFunction
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 from loguru import logger
@@ -271,6 +272,23 @@ def init_dashboard(flask_app, route):
                 dbc.Row(
                     children=[
                         #
+                        # Animated word cloud (Ticker)
+                        #
+                        dbc.Col(
+                            children=[
+                                html.Video(
+                                    id="scroll-video",
+                                    src="/assets/scrollvids/mx9fS.mp4",
+                                    autoPlay=False,
+                                    loop=False,
+                                    controls=False,
+                                    className="w-100",
+                                )
+                            ],
+                            md=6,
+                            xs=12,
+                        ),
+                        #
                         # Transcript of selected episode
                         # ------------------------------
                         dbc.Col(
@@ -340,36 +358,6 @@ def init_dashboard(flask_app, route):
                                     id="transcript",
                                     className="transcript",
                                 ),
-                            ],
-                            xs=12,
-                            md=6,
-                        ),
-                        #
-                        # List of episodes found in search
-                        # --------------------------------
-                        dbc.Col(
-                            id="episode-column",
-                            children=[
-                                dcc.Store(id="selected-episode", data=""),
-                                dcc.Store(id="sorting", data={}),
-                                dcc.Store(id="episode-list-data", data=[]),
-                                dbc.Row(
-                                    id="sort-buttons",
-                                    style={"position": "relative"},
-                                ),
-                                dbc.Row(
-                                    children=[
-                                        html.Div(
-                                            id="episode-list",
-                                            className="episode-list",
-                                            children=["Episodes"],
-                                        )
-                                    ]
-                                ),
-                                #
-                                # Wordcloud
-                                # ----------------
-                                dbc.Row(dbc.Col(html.Div(id="wordcloud"))),
                             ],
                             xs=12,
                             md=6,
@@ -447,6 +435,36 @@ def init_dashboard(flask_app, route):
                         )
                     ]
                 ),
+                #
+                # List of episodes found in search
+                # --------------------------------
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            id="episode-column",
+                            children=[
+                                dcc.Store(id="selected-episode", data=""),
+                                dcc.Store(id="sorting", data={}),
+                                dcc.Store(id="episode-list-data", data=[]),
+                                dbc.Row(
+                                    id="sort-buttons",
+                                    style={"position": "relative"},
+                                ),
+                                dbc.Row(
+                                    children=[
+                                        html.Div(
+                                            id="episode-list",
+                                            className="episode-list",
+                                            children=["Episodes"],
+                                        )
+                                    ]
+                                ),
+                            ],
+                            xs=12,
+                            md=6,
+                        ),
+                    ],
+                ),
             ]
         ),
     )
@@ -460,14 +478,6 @@ def init_dashboard(flask_app, route):
                         dbc.Tab(transcribe_tab, label="Metadata"),
                         dbc.Tab(browse_tab, label="Transcripts", tab_id="Transcripts"),
                         dbc.Tab(terms_tab, label="Terms"),
-                        dbc.Tab(
-                            "This tab is under construction",
-                            label="Savegames",
-                        ),
-                        dbc.Tab(
-                            "This tab is under construction",
-                            label="Global stats",
-                        ),
                     ],
                     id="tab-container",
                     className="mt-3",
@@ -475,11 +485,19 @@ def init_dashboard(flask_app, route):
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
                 dcc.Interval(id="job-status-update", interval=1000),
                 dcc.Store(id="ongoing-jobs", data=[]),
+                dcc.Store(id="scroll-sync-init", data=0)
             ]
         )
     )
 
     init_callbacks(app)
+
+    app.clientside_callback(
+        ClientsideFunction(namespace="scrollSync", function_name="syncVideoToScroll"),
+        Output("scroll-sync-init", "data"),  # dummy output, won't actually change
+        Input("scroll-video", "id"),
+        Input("transcript", "id"),
+    )
 
     return app  # .server
 
@@ -722,10 +740,10 @@ def init_callbacks(app):
 
     @app.callback(
         Output("transcript", "children"),
-        Output("wordcloud", "children"),
         Output("transcript-episode-title", "children"),
         Output("transcript-episode-date", "children"),
         Output("transcript-episode-duration", "children"),
+        Output("scroll-video", "src"),
         Input("selected-episode", "data"),
         State("selected-episode", "data"),
         Input("terms-store", "data"),
@@ -756,27 +774,17 @@ def init_callbacks(app):
         dia_script = Transcript(episode=episode)
         dia_script_element = dia_script.to_html(termtuples, diarized=True)
 
-        # Get the word cloud of the selected episode as HTML img element:
-        with open(WORDCLOUD_DIR / f"{eid}.png", "rb") as f:
-            encoded_image = base64.b64encode(f.read()).decode("utf-8")
-            encoded_image = f"data:image/png;base64,{encoded_image}"
-
-        word_cloud_element = html.Img(
-            src=encoded_image,
-            style={
-                "max-height": "300px",
-                "width": "100%",
-                "object-fit": "contain",
-                "margin-top": "1rem",
-            },
-        )
+        # Get the word scroll video for the selected episode:
+        video_src = "/assets/scrollvids/" + episode.eid + ".mp4"
+        # if not video_src or not Path(video_src).exists():
+        #     video_src = ""
 
         return (
             dia_script_element,
-            word_cloud_element,
             episode.title,
             episode.pub_date,
             episode.duration,
+            video_src,
         )
 
     # Update search terms in the comparison list:
