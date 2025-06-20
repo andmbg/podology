@@ -2,6 +2,7 @@
 
 import os
 import pickle
+import shutil
 from typing import List
 import multiprocessing
 import subprocess
@@ -16,7 +17,7 @@ from loguru import logger
 
 from kfsearch.data.Episode import Episode
 from kfsearch.data.Transcript import Transcript
-from config import ADDITIONAL_STOPWORDS
+from config import ADDITIONAL_STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
 from kfsearch.frontend.wordticker import ticker_from_eid
 
 stop_words = set(stopwords.words("english"))
@@ -199,10 +200,14 @@ def run_blender_render_for_episode(
     eid, blender_path="/usr/bin/blender", render_script="kfsearch/frontend/render.py"
 ):
     """Call Blender to run render.py for a given episode.
+
+    Also, store a copy of the video in the assets folder.
     """
     logger.debug(f"Running Blender render for episode {eid}...")
 
     ticker = ticker_from_eid(eid)
+    end_frame = int(ticker.end * ticker.fps)
+
     with open("tempfile.pickle", "wb") as tmpfile:
         pickle.dump(ticker, tmpfile)
 
@@ -215,8 +220,25 @@ def run_blender_render_for_episode(
         "tempfile.pickle", 
         eid,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    os.remove("tempfile.pickle")
 
-    if result.returncode != 0:
-        logger.error(f"Blender render failed for {eid}: {result.stderr}")
+    # result = subprocess.run(cmd, capture_output=True, text=True)
+    # if result.returncode != 0:
+    #     logger.error(f"Blender render failed for {eid}: {result.stderr}")
+
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
+        for line in proc.stdout:
+            if "Append" in line:
+                expr = line.split(" ")[2].strip()
+                expr += f"/{end_frame}"
+                logger.debug(expr)
+    
+    # Copy the rendered video to the assets folder:
+    src_path = SCROLLVID_DIR / f"{eid}.mp4"
+    dest_path = ASSETS_DIR / f"{eid}.mp4"
+    if src_path.exists():
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src_path, dest_path)
+        logger.debug(f"Copied rendered video to {dest_path}")
+    else:
+        logger.error(f"Rendered video {src_path} does not exist.")
+    os.remove("tempfile.pickle")

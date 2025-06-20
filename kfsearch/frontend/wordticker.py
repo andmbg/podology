@@ -131,6 +131,7 @@ class Ticker:
 
     def __init__(self):
         self.lanes = []
+        self.fps = 24
 
     def add_lane(self):
         """Add a new lane for a term."""
@@ -230,6 +231,12 @@ class Ticker:
             ]
         }
 
+    def update_last_frame(self):
+        """Update the last frame of each appearance in the ticker."""
+        self.end = max(
+            appearance.end for lane in self.lanes for appearance in lane
+        )
+
 
 def ticker_from_eid(eid, envelope_width=120):
     """Create a Ticker from a list of Appearances."""
@@ -284,5 +291,7 @@ def ticker_from_eid(eid, envelope_width=120):
     ticker = Ticker()
     for appearance in appearances:
         ticker.add_appearance(appearance)
+    
+    ticker.update_last_frame()
 
     return ticker

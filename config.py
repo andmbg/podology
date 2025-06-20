@@ -74,6 +74,7 @@ AUDIO_DIR = DATA_DIR / PROJECT_NAME / "audio"
 TRANSCRIPT_DIR = DATA_DIR / PROJECT_NAME / "transcripts"
 WORDCLOUD_DIR = DATA_DIR / PROJECT_NAME / "wordclouds"
 SCROLLVID_DIR = DATA_DIR / PROJECT_NAME / "scrollvids"
+ASSETS_DIR = Path("kfsearch") / "assets" / "scrollvids"
 
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)

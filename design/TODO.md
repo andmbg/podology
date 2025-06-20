@@ -5,9 +5,14 @@
   - correct mistakes
   - ideally, after correction, aggregate a dataset to fine-tune the Whisper model
 
-## Meta/Download tab:
+## Backend:
 
-- add wordcloud to tooltip, click on tooltip takes to transcript, click on row heightens row, you see description and wordcloud or so
+- make an abstract renderer class, ticker as implementing it
+- dummy video renderer
+- make video rendering remote
+- second worker queue for video rendering; when transcription is done, place order on video queue
+
+## Meta/Download tab:
 
 ## Transcript/Episode tab:
 
@@ -16,7 +21,7 @@
 
 ### Animated Word Ticker
 
-- Discussed in notebook 2.02
+- Tighter coupling
 
 ## Terms tab:
 

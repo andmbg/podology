@@ -16,3 +16,4 @@ __pycache__/
 *.ipynb
 design/dashboard_layout.drawio.svg
 kfsearch/assets/wordclouds/*
+kfsearch/assets/scrollvids/*

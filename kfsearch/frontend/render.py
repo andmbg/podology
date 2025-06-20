@@ -28,6 +28,7 @@ print(f"{eid}")
 with open(ticker_path, "rb") as file:
     ticker = pickle.load(file)
 
+
 #
 # Render preparations
 #
@@ -39,9 +40,10 @@ bpy.ops.wm.open_mainfile(filepath=canvas_path)
 bpy.context.scene.render.filepath = f"{SCROLLVID_DIR}/{eid}.mp4"
 bpy.context.scene.render.image_settings.file_format = 'FFMPEG'
 bpy.context.scene.render.ffmpeg.format = 'MPEG4'  # H.264 MP4
+bpy.data.scenes["Scene"].render.fps = ticker.fps
 
 lane_spacing = 1.5
-fps = bpy.data.scenes["Scene"].render.fps
+bpy.context.scene.frame_end = int(ticker.end * ticker.fps)
 
 #
 # Create text objects
@@ -80,7 +82,7 @@ def update_values(scene):
     current_frame = scene.frame_current
     for obj in bpy.data.objects:
         if "value" in obj:
-            t = current_frame / fps
+            t = current_frame / ticker.fps
             val = ticker.get_value(obj.name, t)  # You implement this
             obj["value"] = val
             obj.location.x = obj["value"] * (-22)
