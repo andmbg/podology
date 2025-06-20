@@ -4,7 +4,7 @@ from datetime import datetime
 import dash_bootstrap_components as dbc
 from dash import html
 
-from kfsearch.search.utils import format_time
+from podology.search.utils import format_time
 
 
 HLTAG = "bling"

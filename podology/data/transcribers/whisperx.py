@@ -10,7 +10,7 @@ from dotenv import find_dotenv, load_dotenv
 from loguru import logger
 import requests
 
-from kfsearch.data.transcribers.base import Transcriber
+from podology.data.transcribers.base import Transcriber
 
 load_dotenv(find_dotenv())
 API_TOKEN = os.getenv("API_TOKEN") or ""

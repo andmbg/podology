@@ -7,7 +7,7 @@ import random
 
 import lorem
 
-from kfsearch.data.transcribers.base import Transcriber
+from podology.data.transcribers.base import Transcriber
 
 @dataclass
 class DummyTranscriber(Transcriber):

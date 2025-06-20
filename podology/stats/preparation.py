@@ -15,10 +15,10 @@ import pandas as pd
 from loguru import logger
 
 from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, SCROLLVID_DIR
-from kfsearch.data.EpisodeStore import EpisodeStore
-from kfsearch.data.Episode import Episode, Status
-from kfsearch.data.Transcript import Transcript
-from kfsearch.stats.nlp import (
+from podology.data.EpisodeStore import EpisodeStore
+from podology.data.Episode import Episode, Status
+from podology.data.Transcript import Transcript
+from podology.stats.nlp import (
     type_proximity,
     get_wordcloud,
     timed_named_entity_tokens,
@@ -122,7 +122,7 @@ def store_wordclouds(episodes: List[Episode]):
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(wordcloud_worker, ep_to_do)
 
-    wc_assets_dir = Path.cwd() / "kfsearch" / "assets" / "wordclouds"
+    wc_assets_dir = Path.cwd() / "podology" / "assets" / "wordclouds"
     wc_assets_dir.mkdir(parents=True, exist_ok=True)
 
     for episode in ep_to_do:

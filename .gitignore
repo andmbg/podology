@@ -15,5 +15,5 @@ __pycache__/
 *.blend1
 *.ipynb
 design/dashboard_layout.drawio.svg
-kfsearch/assets/wordclouds/*
-kfsearch/assets/scrollvids/*
+podology/assets/wordclouds/*
+podology/assets/scrollvids/*

@@ -8,9 +8,9 @@ import dash_bootstrap_components as dbc
 from dash import html
 from loguru import logger
 
-from kfsearch.data.Episode import Episode
-from kfsearch.search.search_classes import highlight_to_html_elements
-from kfsearch.search.utils import format_time
+from podology.data.Episode import Episode
+from podology.search.search_classes import highlight_to_html_elements
+from podology.search.utils import format_time
 from config import TRANSCRIPT_DIR
 
 

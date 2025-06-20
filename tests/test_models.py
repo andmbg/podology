@@ -1,5 +1,6 @@
 import pytest
-from kfsearch.data.models import Episode, EpisodeStore
+from podology.data.EpisodeStore import EpisodeStore
+from podology.data.Episode import Episode
 
 
 @pytest.fixture

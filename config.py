@@ -15,18 +15,23 @@ PROJECT_NAME = "Decoding"
 LANGUAGE = "english"  # see the documentation of your chosen API for language codes
 HFAPIKEY = os.getenv("HUGGINGFACE_API_KEY")
 
-# Specify class paths as strings
+#
+# Specify class paths as strings:
+# We set here (1) the connector class and its arguments, and (2) the transcriber class
+# and its arguments. Since this means making the class dynamic instead of hard-coding it,
+# your IDE may not be able to resolve the class names. On the other hand, this allows
+# you to switch and also add your own classes without changing the code.
 CONNECTOR_CLASS = "kfsearch.data.connectors.rss.RSSConnector"
 CONNECTOR_ARGS = {
     "remote_resource": "https://decoding-the-gurus.captivate.fm/rssfeed"
 }
 
-# WhisperX transcription: /transcribe; Dummy: /dummytranscribe
+# WhisperX transcription: "transcribe"; Dummy: "dummytranscribe"
 TRANSCRIBER_CLASS = "kfsearch.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
-    # "server_url": "http://127.0.0.1:8001",  # locally running
-    "server_url": "http://192.168.178.27:8001",  # Gaius Pupus
-    "endpoint": "transcribe",  # or "dummytranscribe"
+    "server_url": "http://127.0.0.1:8001",  # locally running
+    # "server_url": "http://192.168.178.27:8001",  # Gaius Pupus
+    "endpoint": "dummytranscribe",  # or "dummytranscribe"
 }
 
 def get_class(class_path):

@@ -12,15 +12,15 @@ from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 from loguru import logger
 
-from kfsearch.data.Episode import Status
-from kfsearch.data.EpisodeStore import EpisodeStore
-from kfsearch.data.Transcript import Transcript
-from kfsearch.data.transcribers.base import Transcriber
-from kfsearch.search.search_classes import ResultSet, create_cards
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from kfsearch.stats.preparation import post_process
-from kfsearch.stats.plotting import plot_word_freq
-from kfsearch.frontend.utils import clickable_tag, colorway, get_sort_button
+from podology.data.Episode import Status
+from podology.data.EpisodeStore import EpisodeStore
+from podology.data.Transcript import Transcript
+from podology.data.transcribers.base import Transcriber
+from podology.search.search_classes import ResultSet, create_cards
+from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
+from podology.stats.preparation import post_process
+from podology.stats.plotting import plot_word_freq
+from podology.frontend.utils import clickable_tag, colorway, get_sort_button
 from config import WORDCLOUD_DIR, get_connector, get_transcriber
 
 
@@ -52,7 +52,7 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
                 else Status.NOT_DONE.value
             ),
         }
-        wc_path = Path("kfsearch/assets/wordclouds") / f"{ep.eid}.png"
+        wc_path = Path("podology/assets/wordclouds") / f"{ep.eid}.png"
         wc_url = f"/assets/wordclouds/{ep.eid}.png"
 
         if wc_path.exists():

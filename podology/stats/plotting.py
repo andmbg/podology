@@ -10,11 +10,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
 
-from kfsearch.search.setup_es import TRANSCRIPT_INDEX_NAME
-from kfsearch.data.EpisodeStore import EpisodeStore
-from kfsearch.search.search_classes import ResultSet
-from kfsearch.stats.preparation import DB_PATH
-from kfsearch.frontend.utils import colorway
+from podology.search.setup_es import TRANSCRIPT_INDEX_NAME
+from podology.data.EpisodeStore import EpisodeStore
+from podology.search.search_classes import ResultSet
+from podology.stats.preparation import DB_PATH
+from podology.frontend.utils import colorway
 
 
 episode_store = EpisodeStore()

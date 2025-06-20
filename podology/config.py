@@ -1,5 +1,5 @@
 """
-Some frontend configuration settings for the KFSearch application.
+Some frontend configuration settings for the podology application.
 """
 
 # Styles for speakers in transcript display:

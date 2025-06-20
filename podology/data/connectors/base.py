@@ -4,7 +4,7 @@ Base class for connectors.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from kfsearch.data.Episode import Episode
+from podology.data.Episode import Episode
 
 
 @dataclass

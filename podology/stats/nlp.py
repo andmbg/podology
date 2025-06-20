@@ -15,10 +15,10 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from kfsearch.data.Episode import Episode
-from kfsearch.data.Transcript import Transcript
+from podology.data.Episode import Episode
+from podology.data.Transcript import Transcript
+from podology.frontend.wordticker import ticker_from_eid
 from config import ADDITIONAL_STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
-from kfsearch.frontend.wordticker import ticker_from_eid
 
 stop_words = set(stopwords.words("english"))
 stop_words.update(ADDITIONAL_STOPWORDS)
@@ -197,7 +197,7 @@ def process_segment_with_word_index(segment: str, timestamp: float) -> List[tupl
 
 
 def run_blender_render_for_episode(
-    eid, blender_path="/usr/bin/blender", render_script="kfsearch/frontend/render.py"
+    eid, blender_path="/usr/bin/blender", render_script="podology/frontend/render.py"
 ):
     """Call Blender to run render.py for a given episode.
 

@@ -11,9 +11,9 @@ import requests
 from loguru import logger
 
 from config import AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
-from kfsearch.data.connectors.base import Connector
-from kfsearch.data.Episode import Episode, AudioInfo, Status, TranscriptInfo
-from kfsearch.data.utils import episode_hash
+from podology.data.connectors.base import Connector
+from podology.data.Episode import Episode, AudioInfo, Status, TranscriptInfo
+from podology.data.utils import episode_hash
 from config import DATA_DIR, PROJECT_NAME
 
 

@@ -1,6 +1,6 @@
 import sys
 from flask import Flask
-from kfsearch.dashboard import init_dashboard
+from podology.dashboard import init_dashboard
 from dotenv import find_dotenv, load_dotenv
 
 

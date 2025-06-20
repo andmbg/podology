@@ -7,7 +7,7 @@ from config import SCROLLVID_DIR
 #
 # File loading
 #
-canvas_path = "kfsearch/frontend/canvas.blend"
+canvas_path = "podology/frontend/canvas.blend"
 
 # Process command line arguments (the pickle file path):
 args = sys.argv

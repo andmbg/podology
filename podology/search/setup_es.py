@@ -11,9 +11,9 @@ from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME, TRANSCRIPT_DIR
-from kfsearch.data.EpisodeStore import EpisodeStore
-from kfsearch.data.Episode import Episode
-from kfsearch.search.utils import make_index_name
+from podology.data.EpisodeStore import EpisodeStore
+from podology.data.Episode import Episode
+from podology.search.utils import make_index_name
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)

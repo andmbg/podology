@@ -233,13 +233,11 @@ class Ticker:
 
     def update_last_frame(self):
         """Update the last frame of each appearance in the ticker."""
-        self.end = max(
-            appearance.end for lane in self.lanes for appearance in lane
-        )
+        self.end = max(appearance.end for lane in self.lanes for appearance in lane)
 
 
 def ticker_from_eid(eid, envelope_width=120):
-    """Create a Ticker from a list of Appearances."""
+    """Create a Ticker object with its lanes and timing from a list of Appearances."""
 
     with sqlite3.connect(DB_PATH) as conn:
         raw = pd.read_sql_query(
@@ -291,7 +289,7 @@ def ticker_from_eid(eid, envelope_width=120):
     ticker = Ticker()
     for appearance in appearances:
         ticker.add_appearance(appearance)
-    
+
     ticker.update_last_frame()
 
     return ticker

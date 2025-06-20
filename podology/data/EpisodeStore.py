@@ -13,7 +13,7 @@ from rq import Queue
 from rq.job import Job
 from redis import Redis
 
-from kfsearch.data.Episode import AudioInfo, Episode, Status, TranscriptInfo
+from podology.data.Episode import AudioInfo, Episode, Status, TranscriptInfo
 from config import (
     DB_PATH,
     DUMMY_AUDIO,
@@ -261,9 +261,9 @@ def episode_worker(eid):
     This is the function that actually talks to the transcription API. It is instantiated
     for each job in the queue and runs in a separate worker process.
     """
-    from kfsearch.data.Episode import Status
-    from kfsearch.search.setup_es import index_episode_worker
-    from kfsearch.stats.preparation import post_process
+    from podology.data.Episode import Status
+    from podology.search.setup_es import index_episode_worker
+    from podology.stats.preparation import post_process
     from config import get_transcriber
 
     episode_store = EpisodeStore()

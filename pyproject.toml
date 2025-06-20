@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "kfsearch"
+name = "podology"
 version = "0.1.0"
 description = ""
 authors = ["Andy in Berlin"]
