@@ -2,13 +2,16 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 
-# @dataclass
 class Transcriber(ABC):
     """
     Base class for all STT transcribers. Transcribers are responsible for taking the
-    specific type of audio source (chiefly URL, file) and offering a transcribe method
-    that returns a transcript to store in the Episode.
+    specific type of audio source (normally file, but Lemonfox also offers URL for direct
+    transcription from an online source) and offering a transcribe method that returns a
+    transcript to store in the Episode.
     """
+
+    def __init__(self):
+        pass
 
     def __repr__(self) -> str:
         out = f"{self.__class__.__name__}\n"
@@ -22,9 +25,13 @@ class Transcriber(ABC):
         """
 
     @abstractmethod
-    def poll_job(self, job_id: str, poll_interval: int, timeout: int) -> dict:
+    def get_status(self, job_id: str) -> dict:
         """
         Blocking method to poll the transcription job with the external service
         until it is completed. Returns the transcription payload as a dictionary
         once completed.
         """
+
+    @abstractmethod
+    def download_transcript(self, download_url: str, dest_path: Path):
+        pass

@@ -6,7 +6,9 @@ from typing import Optional
 class Status(Enum):
     NOT_DONE = "➖️"
     QUEUED = "⏳️"
+    QUEUED_VID = "⏳️🎥"
     PROCESSING = "🚀"
+    PROCESSING_VID = "🎥"
     DONE = "✅️"
     ERROR = "💥"
     UNKNOWN = "❓️"
@@ -22,6 +24,7 @@ class TranscriptInfo:
     scrollvid_status: Status
     job_id: Optional[str|None] = None
     queue_id: Optional[str|None] = None
+    scrollvid_queue_id: Optional[str|None] = None
 
 
 @dataclass

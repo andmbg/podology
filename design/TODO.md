@@ -7,12 +7,30 @@
 
 ## Backend:
 
-- make an abstract renderer class, ticker as implementing it
-- dummy video renderer
-- make video rendering remote
-- second worker queue for video rendering; when transcription is done, place order on video queue
+- move transcript post-processing into the abstract base transcriber object
+- turn the transcription API to a download link output type
+
+### data structures
+
+- Episode
+  - ProcessStatus
+    - audio
+    - transcript
+    - wordcloud
+    - scrollvid
+    - job-id (do we need queue id?)
+
+### Episode & postprocess
+
+post_process(store, [episodes])
+
+vs
+
+episode.post_process()
 
 ## Meta/Download tab:
+
+- separate cols for each status
 
 ## Transcript/Episode tab:
 
@@ -38,6 +56,8 @@
   
 # IMMINENT
 
+- Das Ticker-Objekt, das in Blender reingeht sollte eine einfache (JSON-)Datenstruktur sein, die keine Abhängigkeiten mitbringt. Derzeit wird zB numpy benötigt und das wollen wir nicht noch im Blender-python installieren.
+
 - Timing:
   - Episodenende:  Video=center, Text=bottom
   - Episodenstart: Video=center, Text=top
@@ -49,4 +69,6 @@
 # Dysfunction
 
 # Bugs
+
+- HF api key needs to go to the transcriber, not the main project
 

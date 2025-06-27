@@ -1,16 +1,10 @@
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
 import secrets
-import time
-from typing import Iterator, List, Optional
-from types import NoneType
+from typing import Iterator
 import sqlite3
 
 from loguru import logger
 import requests
 from rq import Queue
-from rq.job import Job
 from redis import Redis
 
 from podology.data.Episode import AudioInfo, Episode, Status, TranscriptInfo
@@ -20,11 +14,15 @@ from config import (
     AUDIO_DIR,
     TRANSCRIPT_DIR,
     WORDCLOUD_DIR,
+    SCROLLVID_DIR,
 )
+from podology.data.transcribers.transcription_worker import transcription_worker
+from podology.frontend.scrollvid_worker import scrollvid_worker
 
 
 redis_conn = Redis()
-q = Queue(connection=redis_conn)
+transcription_q = Queue(connection=redis_conn, name="transcription")
+scrollvid_q = Queue(connection=redis_conn, name="scrollvid")
 
 
 class EpisodeStore:
@@ -39,6 +37,7 @@ class EpisodeStore:
         self.transcript_dir = TRANSCRIPT_DIR
         self.wordcloud_dir = WORDCLOUD_DIR
         self.dummy_audio = DUMMY_AUDIO
+        self.scrollvid_dir = SCROLLVID_DIR
         self._ensure_table()
 
     def _connect(self):
@@ -88,7 +87,11 @@ class EpisodeStore:
                     episode.transcript.job_id if episode.transcript else None,
                     episode.transcript.queue_id if episode.transcript else None,
                     episode.transcript.wcstatus.name if episode.transcript else None,
-                    episode.transcript.scrollvid_status.name if episode.transcript else None,
+                    (
+                        episode.transcript.scrollvid_status.name
+                        if episode.transcript
+                        else None
+                    ),
                     episode.audio.status.name if episode.audio else None,
                 ),
             )
@@ -118,9 +121,11 @@ class EpisodeStore:
             wcstatus=(
                 Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE
             ),
-            scrollvid_status=Status[transcript_scrollvid_status]
-            if transcript_scrollvid_status
-            else Status.NOT_DONE,
+            scrollvid_status=(
+                Status[transcript_scrollvid_status]
+                if transcript_scrollvid_status
+                else Status.NOT_DONE
+            ),
         )
 
         audio = AudioInfo(
@@ -227,8 +232,8 @@ class EpisodeStore:
         """
         Enqueue a transcription job for the episode and update DB with queue job ID.
         """
-        job = q.enqueue(
-            episode_worker,
+        job = transcription_q.enqueue(
+            transcription_worker,
             episode.eid,
             job_timeout=28800,
             job_id=generate_queue_id(),
@@ -237,6 +242,26 @@ class EpisodeStore:
         qid = job.id  # for clarity, cause "job-id" is taken in our app
         episode.transcript.status = Status.QUEUED
         episode.transcript.queue_id = qid  # This is the queue ID or qid
+        self.add_or_update(episode)
+
+        return qid
+
+    def enqueue_scrollvid_job(self, episode: Episode) -> str:
+        """
+        Enqueue a scrollvid job for the episode and update DB with queue job ID.
+        """
+        job = scrollvid_q.enqueue(
+            scrollvid_worker,
+            episode.eid,
+            job_timeout=28800,
+            job_id=generate_queue_id(),
+            result_ttl=1,
+        )
+        qid = job.id
+        episode.transcript.scrollvid_status = Status.QUEUED_VID
+        episode.transcript.queue_id = (
+            qid if hasattr(episode.transcript, "scrollvid_queue_id") else None
+        )
         self.add_or_update(episode)
 
         return qid
@@ -254,66 +279,6 @@ class EpisodeStore:
         with self._connect() as conn:
             cur = conn.execute("SELECT * FROM episodes")
             return iter([self._row_to_episode(row) for row in cur.fetchall()])
-
-
-def episode_worker(eid):
-    """
-    This is the function that actually talks to the transcription API. It is instantiated
-    for each job in the queue and runs in a separate worker process.
-    """
-    from podology.data.Episode import Status
-    from podology.search.setup_es import index_episode_worker
-    from podology.stats.preparation import post_process
-    from config import get_transcriber
-
-    episode_store = EpisodeStore()
-    episode = episode_store[eid]
-    transcriber = get_transcriber()
-    audio_path = episode_store.audio_dir / f"{episode.eid}.mp3"
-
-    # 1. Download audio if not already done
-    episode_store.ensure_audio(episode)
-    if episode.audio.status != Status.DONE:
-        logger.error(f"{eid}: Failed to download audio.")
-        return
-
-    # 2. Submit job to API
-    if episode.transcript.status == Status.DONE:
-        logger.info(f"{eid}: Transcript already exists, skipping transcription.")
-        return
-
-    logger.debug(f"{eid}: Submitting transcription job for episode")
-    try:
-        job_id = transcriber.submit_job(audio_path)
-        episode.transcript.status = Status.PROCESSING
-        episode.transcript.job_id = job_id
-    except Exception as e:
-        episode.transcript.status = Status.ERROR
-        raise
-    finally:
-        episode_store.add_or_update(episode)
-
-    # 3. Poll for completion, store result, and update status
-    try:
-        # poll_job runs in a loop until the job is done or fails:
-        payload = transcriber.poll_job(job_id)
-
-        transcript_path = episode_store.transcript_dir / f"{episode.eid}.json"
-        with open(transcript_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=4)
-        episode.transcript.queue_id = None
-        episode.transcript.job_id = None
-        episode.transcript.status = Status.DONE
-        index_episode_worker(episode)
-        post_process(episode_store, [episode])
-        episode_store.add_or_update(episode)
-        logger.debug(f"{eid}: Transcription job completed successfully.")
-
-    except Exception as e:
-        episode.transcript.status = Status.ERROR
-        episode_store.add_or_update(episode)
-        logger.error(f"Polling failed for {eid}: {e}")
-        return
 
 
 def generate_queue_id(length=8):

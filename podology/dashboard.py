@@ -278,7 +278,7 @@ def init_dashboard(flask_app, route):
                             children=[
                                 html.Video(
                                     id="scroll-video",
-                                    src="/assets/scrollvids/mx9fS.mp4",
+                                    src="",
                                     autoPlay=False,
                                     loop=False,
                                     controls=False,

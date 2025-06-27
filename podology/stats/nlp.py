@@ -17,7 +17,7 @@ from loguru import logger
 
 from podology.data.Episode import Episode
 from podology.data.Transcript import Transcript
-from podology.frontend.wordticker import ticker_from_eid
+# from podology.frontend.scrollvid.wordticker import ticker_from_eid
 from config import ADDITIONAL_STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
 
 stop_words = set(stopwords.words("english"))
@@ -194,51 +194,3 @@ def process_segment_with_word_index(segment: str, timestamp: float) -> List[tupl
                 named_entities.append((entity_name, timestamp))
 
     return named_entities
-
-
-def run_blender_render_for_episode(
-    eid, blender_path="/usr/bin/blender", render_script="podology/frontend/render.py"
-):
-    """Call Blender to run render.py for a given episode.
-
-    Also, store a copy of the video in the assets folder.
-    """
-    logger.debug(f"Running Blender render for episode {eid}...")
-
-    ticker = ticker_from_eid(eid)
-    end_frame = int(ticker.end * ticker.fps)
-
-    with open("tempfile.pickle", "wb") as tmpfile:
-        pickle.dump(ticker, tmpfile)
-
-    cmd = [
-        blender_path,
-        "--background",
-        "--python",
-        render_script,
-        "--",
-        "tempfile.pickle", 
-        eid,
-    ]
-
-    # result = subprocess.run(cmd, capture_output=True, text=True)
-    # if result.returncode != 0:
-    #     logger.error(f"Blender render failed for {eid}: {result.stderr}")
-
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
-        for line in proc.stdout:
-            if "Append" in line:
-                expr = line.split(" ")[2].strip()
-                expr += f"/{end_frame}"
-                logger.debug(expr)
-    
-    # Copy the rendered video to the assets folder:
-    src_path = SCROLLVID_DIR / f"{eid}.mp4"
-    dest_path = ASSETS_DIR / f"{eid}.mp4"
-    if src_path.exists():
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(src_path, dest_path)
-        logger.debug(f"Copied rendered video to {dest_path}")
-    else:
-        logger.error(f"Rendered video {src_path} does not exist.")
-    os.remove("tempfile.pickle")

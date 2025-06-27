@@ -17,21 +17,28 @@ HFAPIKEY = os.getenv("HUGGINGFACE_API_KEY")
 
 #
 # Specify class paths as strings:
-# We set here (1) the connector class and its arguments, and (2) the transcriber class
-# and its arguments. Since this means making the class dynamic instead of hard-coding it,
-# your IDE may not be able to resolve the class names. On the other hand, this allows
-# you to switch and also add your own classes without changing the code.
-CONNECTOR_CLASS = "kfsearch.data.connectors.rss.RSSConnector"
+# We set here (1) the connector class and its arguments, (2) the transcriber class
+# and its arguments, (3) the renderer class and its arguments. Since this means
+# making the class dynamic instead of hard-coding it, your IDE may not be able to
+# resolve the class names. On the other hand, this allows you to switch and also
+# add your own classes without changing the existing code.
+#
+CONNECTOR_CLASS = "podology.data.connectors.rss.RSSConnector"
 CONNECTOR_ARGS = {
     "remote_resource": "https://decoding-the-gurus.captivate.fm/rssfeed"
 }
-
-# WhisperX transcription: "transcribe"; Dummy: "dummytranscribe"
-TRANSCRIBER_CLASS = "kfsearch.data.transcribers.whisperx.WhisperXTranscriber"
+TRANSCRIBER_CLASS = "podology.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
     "server_url": "http://127.0.0.1:8001",  # locally running
     # "server_url": "http://192.168.178.27:8001",  # Gaius Pupus
     "endpoint": "dummytranscribe",  # or "dummytranscribe"
+}
+RENDERER_CLASS = "podology.frontend.renderers.blender_ticker.BlenderTickerRenderer"
+RENDERER_ARGS = {
+    "server_url": "http://127.0.0.1:8002",  # locally running
+    # "server_url": "http://192.168.178.27:8002",  # Gaius Pupus
+    "endpoint": "render",
+    "frame_step": 10000,
 }
 
 def get_class(class_path):
@@ -46,6 +53,10 @@ def get_connector():
 def get_transcriber():
     cls = get_class(TRANSCRIBER_CLASS)
     return cls(**TRANSCRIBER_ARGS)
+
+def get_renderer():
+    cls = get_class(RENDERER_CLASS)
+    return cls(**RENDERER_ARGS)
 
 # Stopwords concern only the identification of named entities. Transcription
 # will still include all "uhs" and "ums" and other filler words.

@@ -11,8 +11,6 @@ from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME, TRANSCRIPT_DIR
-from podology.data.EpisodeStore import EpisodeStore
-from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
 
 
@@ -50,7 +48,7 @@ META_INDEX_SETTINGS = {
 }
 
 
-def index_episode_worker(episode: Episode):
+def index_episode_worker(episode: "Episode"):
     """
     Worker function to index a single episode in Elasticsearch.
     """
@@ -103,7 +101,7 @@ def index_episode_worker(episode: Episode):
         logger.debug(f"{episode.eid}: Transcript indexed.")
 
 
-def parallel_index_episodes(episodes: List[Episode]):
+def parallel_index_episodes(episodes):
     """
     Parallelize the indexing of episodes into Elasticsearch.
     """
@@ -111,7 +109,7 @@ def parallel_index_episodes(episodes: List[Episode]):
         pool.map(index_episode_worker, episodes)
 
 
-def index_all_transcripts(episode_store: EpisodeStore):
+def index_all_transcripts(episode_store):
     """
     Index transcripts for all transcribed episodes in parallel.
     """

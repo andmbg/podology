@@ -10,23 +10,28 @@ from pathlib import Path
 from typing import List, Optional
 import multiprocessing
 import sqlite3
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from podology.data.EpisodeStore import EpisodeStore
 
 import pandas as pd
 from loguru import logger
+from redis import Redis
 
 from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, SCROLLVID_DIR
-from podology.data.EpisodeStore import EpisodeStore
 from podology.data.Episode import Episode, Status
 from podology.data.Transcript import Transcript
 from podology.stats.nlp import (
     type_proximity,
     get_wordcloud,
     timed_named_entity_tokens,
-    run_blender_render_for_episode,
 )
 
+redis_conn = Redis()
 
-def post_process(episode_store: EpisodeStore, episodes: Optional[List[Episode]] = None):
+
+
+def post_process(episode_store: "EpisodeStore", episodes: Optional[List[Episode]] = None):
     """
     Run stats on all transcribed episodes. It is upon the individual component functions
     to filter out episodes for already having stats artifacts in place.
@@ -41,13 +46,12 @@ def post_process(episode_store: EpisodeStore, episodes: Optional[List[Episode]] 
         initialize_stats_db()
         episodes = [ep for ep in episode_store if ep.transcript.status]
 
-    store_timed_named_entities(episodes)
     get_word_counts(episodes)
     store_wordclouds(episodes)
-    # store_named_entity_tokens(episodes)
     store_named_entity_types(episodes)
     store_type_proximity(episodes)
-    store_scroll_video(episodes)
+    store_timed_named_entities(episodes)
+    enqueue_scroll_video(episodes)
 
     for episode in episodes:
         episode.transcript.wcstatus = Status.DONE
@@ -75,8 +79,13 @@ def get_word_counts(episodes: List[Episode]):
 
 
 def word_count_worker(episode: Episode):
-    """
-    Individual function used in multiprocessing function get_wordcounts.
+    """Individual function used in multiprocessing function get_wordcounts.
+
+    Reads the transcript of `episode`, counts words, and inserts the count
+    into the `word_count` table in the stats database.
+
+    :param episode: The episode to process.
+    :return: None (side effect only)
     """
     if episode.transcript.status:
         script_path = TRANSCRIPT_DIR / f"{episode.eid}.json"
@@ -148,21 +157,6 @@ def wordcloud_worker(episode: Episode):
     episode.transcript.wcstatus = Status.DONE
 
 
-def store_scroll_video(episodes: List[Episode]):
-    """Render a scroll video for each given episode."""
-    transcribed_episodes = [ep for ep in episodes if ep.transcript.status]
-
-    ep_to_do = [
-        episode
-        for episode in transcribed_episodes
-        if not (SCROLLVID_DIR / f"{episode.eid}.mp4").exists()
-    ]
-
-    for episode in ep_to_do:
-        run_blender_render_for_episode(episode.eid)
-        episode.transcript.scrollvid_status = Status.DONE
-
-
 def store_named_entity_types(episodes: List[Episode]):
     """
     For each given episode, store in the stats database the counts per type
@@ -212,6 +206,30 @@ def nament_types_worker(episode: Episode):
         )
 
 
+def store_type_proximity(episodes: List[Episode]):
+    """
+    Ensure that the type proximity data is computed and stored.
+    Like all ensure-functions, this is to be run at init time.
+
+    :param episode_store: The episode store containing all episodes.
+    :return: None
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+
+        # Get all indexed episode IDs
+        indexed_eids = {
+            row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
+        }
+
+    ep_to_do = [
+        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
+    ]
+
+    # Iterate over all episodes and index missing ones
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(type_proximity_worker, ep_to_do)
+
+
 def type_proximity_worker(episode: Episode):
     """
     For a given episode, store in the stats database the pairwise proximity
@@ -250,30 +268,6 @@ def type_proximity_worker(episode: Episode):
         )
 
 
-def store_type_proximity(episodes: List[Episode]):
-    """
-    Ensure that the type proximity data is computed and stored.
-    Like all ensure-functions, this is to be run at init time.
-
-    :param episode_store: The episode store containing all episodes.
-    :return: None
-    """
-    with sqlite3.connect(DB_PATH) as conn:
-
-        # Get all indexed episode IDs
-        indexed_eids = {
-            row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
-        }
-
-    ep_to_do = [
-        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
-    ]
-
-    # Iterate over all episodes and index missing ones
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(type_proximity_worker, ep_to_do)
-
-
 def store_timed_named_entities(episodes: List[Episode]):
     """
     Store named entities for each given episode along with their word index.
@@ -294,10 +288,10 @@ def store_timed_named_entities(episodes: List[Episode]):
     for ep in ep_to_do:
         logger.debug(f"{ep.eid}: Storing timestamped named entity tokens")
 
-        ine = timed_named_entity_tokens(Transcript(ep))
+        tne = timed_named_entity_tokens(Transcript(ep))
 
         with sqlite3.connect(DB_PATH) as conn:
-            for token in ine:
+            for token in tne:
                 entity_name, ts = token
                 conn.execute(
                     """
@@ -308,11 +302,23 @@ def store_timed_named_entities(episodes: List[Episode]):
                 )
 
 
-def get_pub_dates(episode_store: EpisodeStore) -> list:
-    """
-    Batch return publication dates of all episodes in the episode store.
-    """
-    return [pd.Timestamp(ep.pub_date) for ep in episode_store]
+def enqueue_scroll_video(episodes: List[Episode]):
+    """Enqueue a given episode for rendering of the scroll video."""
+    from podology.data.EpisodeStore import EpisodeStore
+
+    transcribed_episodes = [ep for ep in episodes if ep.transcript.status]
+
+    ep_to_do = [
+        episode
+        for episode in transcribed_episodes
+        if not (SCROLLVID_DIR / f"{episode.eid}.mp4").exists()
+    ]
+
+    episode_store = EpisodeStore()
+
+    for episode in ep_to_do:
+        qid = episode_store.enqueue_scrollvid_job(episode)
+        logger.debug(f"{episode.eid}: Enqueued scrollvid job with queue ID {qid}")
 
 
 def initialize_stats_db():
