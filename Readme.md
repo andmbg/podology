@@ -43,7 +43,7 @@ poetry install
 
 Assuming you want to do transcription and scroll video rendering, and have the respective APIs running, rename `.env.example` to `.env` and edit:
 
-- set an `API_TOKEN`. This is to protect your APIs from access by others than yourself. For a secure token, you can use
+- set an `API_TOKEN`. This is to protect your APIs from access by others than yourself. For a secure token, you can use something like
 
   ```bash
   openssl rand -base64 24
