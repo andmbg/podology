@@ -4,7 +4,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.2
     environment:
       - discovery.type=single-node
-      - ELASTIC_PASSWORD=aoeidrns
+      - ELASTIC_PASSWORD=06h1yvYGw6mtZ9Ex3K+FfBuksHGdp1UC
       - xpack.security.enabled=false
       - xpack.security.http.ssl.enabled=false
 

@@ -21,7 +21,7 @@ from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcript
 from podology.stats.preparation import post_process
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
-from config import WORDCLOUD_DIR, get_connector, get_transcriber
+from config import get_connector, get_transcriber, ASSETS_DIR
 
 
 episode_store = EpisodeStore()
@@ -52,8 +52,8 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
                 else Status.NOT_DONE.value
             ),
         }
-        wc_path = Path("podology/assets/wordclouds") / f"{ep.eid}.png"
-        wc_url = f"/assets/wordclouds/{ep.eid}.png"
+        wc_path = ASSETS_DIR / "wordclouds" / f"{ep.eid}.png"
+        wc_url = str(wc_path).replace(str(ASSETS_DIR), "/assets")
 
         if wc_path.exists():
             row["wordcloud_url"] = wc_url

@@ -11,6 +11,7 @@ from typing import List, Optional
 import multiprocessing
 import sqlite3
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from podology.data.EpisodeStore import EpisodeStore
 
@@ -30,8 +31,9 @@ from podology.stats.nlp import (
 redis_conn = Redis()
 
 
-
-def post_process(episode_store: "EpisodeStore", episodes: Optional[List[Episode]] = None):
+def post_process(
+    episode_store: "EpisodeStore", episodes: Optional[List[Episode]] = None
+):
     """
     Run stats on all transcribed episodes. It is upon the individual component functions
     to filter out episodes for already having stats artifacts in place.
@@ -131,28 +133,30 @@ def store_wordclouds(episodes: List[Episode]):
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         pool.map(wordcloud_worker, ep_to_do)
 
-    wc_assets_dir = Path.cwd() / "podology" / "assets" / "wordclouds"
-    wc_assets_dir.mkdir(parents=True, exist_ok=True)
-
     for episode in ep_to_do:
-        # Copy word clouds to the assets dir for the AG grid tooltips:
-        src_path = WORDCLOUD_DIR / f"{episode.eid}.png"
-        dest_path = wc_assets_dir / f"{episode.eid}.png"
-        dest_path.write_bytes(src_path.read_bytes())
-
-        # Update the episode's transcript status in db:
+        # Update the episode's wordcloud status in db:
         episode.transcript.wcstatus = Status.DONE
         logger.debug(f"{episode.eid}: Word cloud stored")
 
 
 def wordcloud_worker(episode: Episode):
-    """
-    Individual function used in multiprocessing function store_wordclouds.
+    """Get wordcloud from nlp module, store it...
+
+    ...both in the data directory of the current podcast and in the assets directory
+    of the podology package. The latter is for use in the web app.
+
+    Args:
+        episode (Episode): The episode for which to create the word cloud.
     """
     path = WORDCLOUD_DIR / f"{episode.eid}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     fig = get_wordcloud(episode)
     fig.savefig(path, bbox_inches="tight", dpi=300)
+
+    wc_assets_dir = Path.cwd() / "podology" / "assets" / "wordclouds"
+    wc_assets_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = wc_assets_dir / f"{episode.eid}.png"
+    dest_path.write_bytes(path.read_bytes())
 
     episode.transcript.wcstatus = Status.DONE
 

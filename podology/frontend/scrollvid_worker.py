@@ -4,7 +4,7 @@ import sqlite3
 from loguru import logger
 
 from podology.data.Episode import Status
-from config import get_renderer
+from config import RENDERER_CONFIG as RC
 from podology.frontend.renderers.base import Renderer
 
 
@@ -14,7 +14,11 @@ def scrollvid_worker(eid: str, timeout: int = 28800, interval: int = 5):
     from podology.data.EpisodeStore import EpisodeStore
     episode_store = EpisodeStore()
     episode = episode_store[eid]
-    renderer: Renderer = get_renderer()
+    renderer = Renderer(
+        server_url=RC["server_url"],
+        submit_endpoint=RC["submit_endpoint"],
+        frame_step=RC.get("frame_step", 1000)
+    )
     scrollvid_path = episode_store.scrollvid_dir / f"{episode.eid}.mp4"
 
     # 1. Submit job to API
@@ -40,11 +44,9 @@ def scrollvid_worker(eid: str, timeout: int = 28800, interval: int = 5):
 
     # 2. Poll for completion, get download URL
     elapsed = 0
-    download_url = ""
-    while elapsed < timeout and download_url == "":
+    while elapsed < timeout:
         status_dict = renderer.get_status(job_id)
         if status_dict["status"] == "done":
-            download_url = status_dict["download_url"]
             break
 
         elif status_dict["status"] == "failed":
@@ -61,6 +63,4 @@ def scrollvid_worker(eid: str, timeout: int = 28800, interval: int = 5):
         time.sleep(interval)
     
     # 3. Download & save the scroll video, update the episode
-    renderer.download_video(
-        download_url=download_url, dest_path=scrollvid_path
-    )
+    renderer.download_video(job_id=job_id, dest_path=scrollvid_path)

@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
+import json
+import os
 from pathlib import Path
 from typing import List
+
+from loguru import logger
+import requests
 
 
 # @dataclass
@@ -11,25 +16,98 @@ class Renderer(ABC):
     transcript, and what comes out is a .mp4 file stored at the correct location.
     """
 
-    def __repr__(self) -> str:
-        out = f"{self.__class__.__name__}\n"
-        return out
+    def __init__(self, server_url: str, submit_endpoint: str, frame_step: int = 100):
+        self.server_url = server_url
+        self.submit_endpoint = submit_endpoint
+        self.frame_step = frame_step
+        self.status_endpoint = f"{self.server_url}/status"
+        self.result_endpoint = f"{self.server_url}/result"
+        self.api_key = os.getenv("API_TOKEN") or ""
+        self.headers = (
+            {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        )
+        logger.debug(f"Initialized BlenderTickerRenderer")
 
-    @abstractmethod
     def submit_job(self, naments: List[tuple]) -> str:
-        """
-        Submit the timed named entities to the rendering endpoint.
-        Return a job ID for polling the job status.
-        """
+        """Submit a scroll video rendering job for the given episode ID."""
+        logger.debug(f"Submitting scroll video job")
 
-    @abstractmethod
+        try:
+            response = requests.post(
+                f"{self.server_url}/{self.submit_endpoint}",
+                json={"naments": json.dumps(naments), "frame_step": self.frame_step},
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError(f"Connection to API failed: {e}")
+
+        if response.status_code != 200:
+            raise RuntimeError(f"Non-200 status upon job submission: {response.text}")
+
+        job_id = response.json().get("job_id")
+        logger.debug(f"Job submitted. Job-ID: {job_id}")
+
+        return job_id
+
     def get_status(self, job_id: str) -> dict:
-        """
-        Blocking method to poll the rendering job with the external service
-        until it is completed. Stores the resulting video file at the correct location
-        upon completion. So only side effects, no return value folks.
-        """
+        """Get status of the scrollvid rendering job by polling the external API.
 
-    @abstractmethod
-    def download_video(self, download_url: str, dest_path: Path):
-        pass
+        Args:
+            job_id (str): The job ID of the rendering job.
+
+        Returns:
+            dict: Contains the status of the rendering job.
+        """
+        try:
+            response = requests.get(
+                f"{self.status_endpoint}/{job_id}",
+                headers=self.headers,
+            )
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError(f"Connection to API failed: {e}")
+
+        if response.status_code == 200:
+            status_dict = response.json()
+            logger.debug(f"Job status for {job_id}: {status_dict['status']}")
+            return status_dict
+
+        elif response.status_code == 404:
+            raise RuntimeError(f"Job {job_id} not found: {response.text}")
+
+        else:
+            raise RuntimeError(f"Non-200 status upon job polling: {response.text}")
+
+    def download_video(self, job_id: str, dest_path: Path) -> None:
+        """Store the resulting video from the rendering job
+
+        ...both in the data directory and in the assets directory.
+        
+        Args:
+            job_id (str): The job ID of the rendering job.
+            dest_path (Path): The path where the video should be saved.
+        
+        Returns:
+            None: The video is saved to the specified path.
+        """
+        response = requests.get(
+            f"{self.result_endpoint}/{job_id}", headers=self.headers
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(f"Failed to download video: {response.text}")
+
+        with open(dest_path, "wb") as file:
+            file.write(response.content)
+        
+        assets_path = Path.cwd() / "podology" / "assets" / "scrollvids"
+        with open(assets_path / dest_path.name, "wb") as file:
+            file.write(response.content)
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__} "
+            f"(url={self.server_url}, "
+            f"endpoint={self.submit_endpoint}, "
+            f"frame_step={self.frame_step})"
+        )

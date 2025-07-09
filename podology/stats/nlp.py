@@ -18,10 +18,10 @@ from loguru import logger
 from podology.data.Episode import Episode
 from podology.data.Transcript import Transcript
 # from podology.frontend.scrollvid.wordticker import ticker_from_eid
-from config import ADDITIONAL_STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
+from config import STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
 
 stop_words = set(stopwords.words("english"))
-stop_words.update(ADDITIONAL_STOPWORDS)
+stop_words.update(STOPWORDS)
 
 
 def named_entities_whole_text(text) -> list[tuple[str, str]]:
