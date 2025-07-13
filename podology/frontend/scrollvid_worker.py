@@ -20,6 +20,8 @@ def scrollvid_worker(eid: str, timeout: int = 28800, interval: int = 5):
         frame_step=RC.get("frame_step", 1000)
     )
     scrollvid_path = episode_store.scrollvid_dir / f"{episode.eid}.mp4"
+    if not scrollvid_path.parent.exists():
+        scrollvid_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Submit job to API
     if episode.transcript.scrollvid_status == Status.DONE:

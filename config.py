@@ -6,7 +6,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 
-PROJECT_NAME = "Knowledge Fight"
+PROJECT_NAME = "Project Name"
 SOURCE = "http://feeds.libsyn.com/92106/rss"
 
 #

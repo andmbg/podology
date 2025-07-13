@@ -3,9 +3,12 @@ import json
 import os
 from pathlib import Path
 from typing import List
+from dotenv import load_dotenv, find_dotenv
 
 from loguru import logger
 import requests
+
+load_dotenv(find_dotenv(), override=True)
 
 
 # @dataclass
@@ -82,11 +85,11 @@ class Renderer(ABC):
         """Store the resulting video from the rendering job
 
         ...both in the data directory and in the assets directory.
-        
+
         Args:
             job_id (str): The job ID of the rendering job.
             dest_path (Path): The path where the video should be saved.
-        
+
         Returns:
             None: The video is saved to the specified path.
         """
@@ -99,7 +102,7 @@ class Renderer(ABC):
 
         with open(dest_path, "wb") as file:
             file.write(response.content)
-        
+
         assets_path = Path.cwd() / "podology" / "assets" / "scrollvids"
         with open(assets_path / dest_path.name, "wb") as file:
             file.write(response.content)

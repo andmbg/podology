@@ -12,7 +12,7 @@ import requests
 
 from podology.data.transcribers.base import Transcriber
 
-load_dotenv(find_dotenv())
+load_dotenv(find_dotenv(), override=True)
 API_TOKEN = os.getenv("API_TOKEN") or ""
 
 
