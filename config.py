@@ -7,7 +7,7 @@ load_dotenv(find_dotenv())
 
 
 PROJECT_NAME = "Project Name"
-SOURCE = "http://feeds.libsyn.com/92106/rss"
+SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs

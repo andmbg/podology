@@ -36,7 +36,7 @@ When faced with a back catalog of hundreds of hour-long episodes of speech, find
 ```bash
 git clone https://github.com/andmbg/podology.git
 cd podology
-poetry install
+make install
 ```
 
 ### Setup
