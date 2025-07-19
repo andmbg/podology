@@ -12,6 +12,7 @@ import nltk
 nltk.download("stopwords", quiet=True)
 nltk.download("punkt", quiet=True)
 nltk.download("punkt_tab", quiet=True)
+nltk.download("averaged_perceptron_tagger", quiet=True)
 
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
