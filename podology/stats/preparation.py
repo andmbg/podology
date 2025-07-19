@@ -7,6 +7,7 @@ by the functions that they apply to the whole corpus.
 # pylint: disable=W1514
 import json
 from pathlib import Path
+import shutil
 from typing import List, Optional
 import multiprocessing
 import sqlite3
