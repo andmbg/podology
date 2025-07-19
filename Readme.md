@@ -1,4 +1,4 @@
-# Podology
+# ![](podology/assets/favicon.ico) Podology
 
 A research tool that provides a web interface to search, analyze, and visualize podcast contents.
 
