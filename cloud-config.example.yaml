@@ -1,0 +1,16 @@
+#cloud-config
+packages:
+  - git
+  - docker.io
+
+runcmd:
+  - systemctl start docker
+  - git clone https://github.com/andmbg/podology_transcriber_whisperx.git /opt/transcriber
+  - echo -e "API_TOKEN=<YOUR_API_TOKEN>\nHF_TOKEN=<YOUR_HUGGINGFACE_DIARIZATION_TOKEN>" > /opt/transcriber/.env
+  - docker build -t transcriber /opt/transcriber
+  - docker run -d --name transcriber -p 8001:8001 transcriber
+  - git clone https://github.com/andmbg/podology_renderer_blender_ticker.git /opt/renderer
+  - echo "API_TOKEN=<YOUR_API_TOKEN>" > /opt/renderer/.env
+  - docker build -t renderer /opt/renderer
+  - docker run -d --name renderer -p 8002:8002 renderer
+

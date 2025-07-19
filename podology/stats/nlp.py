@@ -7,6 +7,10 @@ from typing import List
 import multiprocessing
 import subprocess
 
+import nltk
+
+nltk.download("stopwords", quiet=True)
+
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
@@ -17,6 +21,7 @@ from loguru import logger
 
 from podology.data.Episode import Episode
 from podology.data.Transcript import Transcript
+
 # from podology.frontend.scrollvid.wordticker import ticker_from_eid
 from config import STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
 

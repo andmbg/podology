@@ -58,6 +58,37 @@ Assuming you want to do transcription and scroll video rendering, and have the r
   RENDERER_URL_PORT="https://xxx.xxx.xxx.xxx:8002"
   ```
 
+You likely don't have these APIs running yet, so let's set up the `cloud-config.yaml` that speeds up their setup.
+
+### API Setup
+
+Depending on whether you have the possibility of using cloud-config and how `cloud-config.yaml` scripts can be supplied to your GPU server provider, you can edit this here file, `cloud-config.example.yaml` and paste, or save and upload the adapted content where you need it.
+
+```yaml
+#cloud-config
+packages:
+  - git
+  - docker.io
+
+runcmd:
+  - systemctl start docker
+  - git clone https://github.com/andmbg/podology_transcriber_whisperx.git /opt/transcriber
+  - echo -e "API_TOKEN=<YOUR_API_TOKEN>\nHF_TOKEN=<YOUR_HUGGINGFACE_DIARIZATION_TOKEN>" > /opt/transcriber/.env
+  - docker build -t transcriber /opt/transcriber
+  - docker run -d --name transcriber -p 8001:8001 transcriber
+  - git clone https://github.com/andmbg/podology_renderer_blender_ticker.git /opt/renderer
+  - echo "API_TOKEN=<YOUR_API_TOKEN>" > /opt/renderer/.env
+  - docker build -t renderer /opt/renderer
+  - docker run -d --name renderer -p 8002:8002 renderer
+
+```
+
+Note in line 3 of `runcmd`: paste your own API token there, as well as the Huggingface token acquired as described in the Transcriber documentation.
+
+This represents a one-machine setup where both APIs live side by side. Other setups for more parallelization are possible.
+
+### App Setup
+
 In `config.py`,
 
 - set the project name
