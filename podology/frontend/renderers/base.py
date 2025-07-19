@@ -104,6 +104,7 @@ class Renderer(ABC):
             file.write(response.content)
 
         assets_path = Path.cwd() / "podology" / "assets" / "scrollvids"
+        assets_path.mkdir(parents=True, exist_ok=True)
         with open(assets_path / dest_path.name, "wb") as file:
             file.write(response.content)
 
