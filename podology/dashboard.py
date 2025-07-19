@@ -18,7 +18,7 @@ from podology.data.Transcript import Transcript
 from podology.data.transcribers.base import Transcriber
 from podology.search.search_classes import ResultSet, create_cards
 from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from podology.stats.preparation import post_process
+from podology.stats.preparation import post_process, copy_scrollvids_to_assets
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
 from config import get_connector, get_transcriber, ASSETS_DIR
@@ -85,6 +85,7 @@ def init_dashboard(flask_app, route):
 
     index_all_transcripts(episode_store=episode_store)
     post_process(episode_store=episode_store)
+    copy_scrollvids_to_assets()
 
     app = Dash(
         __name__,
@@ -485,7 +486,7 @@ def init_dashboard(flask_app, route):
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
                 dcc.Interval(id="job-status-update", interval=1000),
                 dcc.Store(id="ongoing-jobs", data=[]),
-                dcc.Store(id="scroll-sync-init", data=0)
+                dcc.Store(id="scroll-sync-init", data=0),
             ]
         )
     )
