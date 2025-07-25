@@ -55,8 +55,6 @@ class EpisodeStore:
                     description TEXT,
                     duration TEXT,
                     transcript_status TEXT,
-                    transcript_job_id TEXT,
-                    transcript_queue_id TEXT,
                     transcript_wcstatus TEXT,
                     transcript_scrollvid_status TEXT,
                     audio_status TEXT
@@ -71,10 +69,9 @@ class EpisodeStore:
                 """
                 INSERT OR REPLACE INTO episodes (
                     eid, url, title, pub_date, description, duration,
-                    transcript_status, transcript_job_id,
-                    transcript_queue_id, transcript_wcstatus,
+                    transcript_status, transcript_wcstatus,
                     transcript_scrollvid_status, audio_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     episode.eid,
@@ -84,8 +81,6 @@ class EpisodeStore:
                     episode.description,
                     episode.duration,
                     episode.transcript.status.name if episode.transcript else None,
-                    episode.transcript.job_id if episode.transcript else None,
-                    episode.transcript.queue_id if episode.transcript else None,
                     episode.transcript.wcstatus.name if episode.transcript else None,
                     (
                         episode.transcript.scrollvid_status.name
@@ -115,8 +110,6 @@ class EpisodeStore:
         ) = row
 
         transcript = TranscriptInfo(
-            job_id=transcript_job_id if transcript_job_id else "",
-            queue_id=transcript_queue_id if transcript_queue_id else "",
             status=Status[transcript_status] if transcript_status else Status.NOT_DONE,
             wcstatus=(
                 Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE
@@ -180,8 +173,6 @@ class EpisodeStore:
             audio_info = AudioInfo(status=audio_exists)
 
             transcript_info = TranscriptInfo(
-                job_id=None,
-                queue_id=None,
                 status=transcript_exists,
                 wcstatus=wordcloud_exists,
                 scrollvid_status=Status.NOT_DONE,  # Placeholder, adjust if needed
@@ -236,7 +227,7 @@ class EpisodeStore:
             transcription_worker,
             episode.eid,
             job_timeout=28800,
-            job_id=generate_queue_id(),
+            job_id=episode.eid,
             result_ttl=1,  # we just care about side effects, not the result
         )
         qid = job.id  # for clarity, cause "job-id" is taken in our app
@@ -254,7 +245,7 @@ class EpisodeStore:
             scrollvid_worker,
             episode.eid,
             job_timeout=28800,
-            job_id=generate_queue_id(),
+            job_id=episode.eid,
             result_ttl=1,
         )
         qid = job.id
@@ -279,7 +270,3 @@ class EpisodeStore:
         with self._connect() as conn:
             cur = conn.execute("SELECT * FROM episodes")
             return iter([self._row_to_episode(row) for row in cur.fetchall()])
-
-
-def generate_queue_id(length=8):
-    return f"qid_{secrets.token_hex(length // 2)}"

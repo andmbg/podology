@@ -31,14 +31,14 @@ class Renderer(ABC):
         )
         logger.debug(f"Initialized BlenderTickerRenderer")
 
-    def submit_job(self, naments: List[tuple]) -> str:
+    def submit_job(self, naments: List[tuple], job_id: str) -> str:
         """Submit a scroll video rendering job for the given episode ID."""
         logger.debug(f"Submitting scroll video job")
 
         try:
             response = requests.post(
                 f"{self.server_url}/{self.submit_endpoint}",
-                json={"naments": json.dumps(naments), "frame_step": self.frame_step},
+                json={"naments": json.dumps(naments), "frame_step": self.frame_step, "job_id": job_id},
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
 

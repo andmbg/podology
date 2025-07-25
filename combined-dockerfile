@@ -1,0 +1,80 @@
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+
+WORKDIR /app
+
+# Install system dependencies including Blender
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    build-essential \
+    wget \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install X11 and graphics libraries for Blender
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libxrandr2 \
+    libxss1 \
+    libxcursor1 \
+    libxcomposite1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libasound2t64 \
+    libxi6 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry using the official installer (cleaner than apt + pip upgrade)
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+    && ln -s /root/.local/bin/poetry /usr/local/bin/poetry
+
+# Install Blender from official binary (more reliable than snap in containers)
+RUN cd /tmp && \
+    wget -q https://download.blender.org/release/Blender4.3/blender-4.3.0-linux-x64.tar.xz && \
+    tar -xf blender-4.3.0-linux-x64.tar.xz && \
+    mv blender-4.3.0-linux-x64 /opt/blender && \
+    ln -s /opt/blender/blender /usr/local/bin/blender && \
+    rm blender-4.3.0-linux-x64.tar.xz
+
+# Ensure python3 is available as python
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Clone both repositories
+RUN git clone https://github.com/andmbg/podology_transcriber_whisperx.git /app/transcriber
+RUN git clone https://github.com/andmbg/podology_renderer_blender_ticker.git /app/renderer
+
+# Install transcriber dependencies (skip dev dependencies for production)
+WORKDIR /app/transcriber
+RUN poetry install --no-root --no-interaction --no-ansi --only=main
+
+# Install renderer dependencies (skip dev dependencies for production)
+WORKDIR /app/renderer
+RUN poetry install --no-root --no-interaction --no-ansi --only=main
+
+# Set environment variables (will be overridden at runtime)
+ENV API_TOKEN="set_me_in_vast_ai"
+ENV HF_TOKEN="set_me_in_vast_ai"
+
+# Expose ports
+EXPOSE 8001 8002
+
+# Copy startup scripts
+COPY start-services.sh /start-services.sh
+RUN chmod +x /start-services.sh
+
+# Default CMD (use the enhanced version with cleanup)
+CMD ["/bin/bash", "-c", "/start-services.sh"]

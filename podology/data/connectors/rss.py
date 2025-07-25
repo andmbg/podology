@@ -116,8 +116,6 @@ class RSSConnector(Connector):
                 duration=duration,
                 audio=AudioInfo(status=Status.NOT_DONE),
                 transcript=TranscriptInfo(
-                    job_id=None,
-                    queue_id=None,
                     status=Status.NOT_DONE,
                     wcstatus=Status.NOT_DONE,
                     scrollvid_status=Status.NOT_DONE,
