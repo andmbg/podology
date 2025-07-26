@@ -80,6 +80,10 @@ def get_wordcloud(episode: Episode) -> plt.Figure:
     for i in names:
         namedict[i] = namedict.get(i, 0) + 1
 
+    # Catch empty dict case:
+    if len(namedict) == 0:
+        namedict = {"No named entities found": 1}
+
     # Make the cloud:
     wordcloud = WordCloud(
         width=800, height=400, background_color="white"
