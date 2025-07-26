@@ -13,14 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     curl \
     xz-utils \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install X11 and graphics libraries for Blender
+# Install X11 and graphics libraries for Blender (Ubuntu 24.04 compatible packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
     libxrender1 \
     libgl1 \
+    libgl1-mesa-dri \
     libglib2.0-0 \
     libxrandr2 \
     libxss1 \
@@ -29,7 +31,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2t64 \
     libxi6 \
     libxtst6 \
+    libegl1 \
+    libgles2 \
+    mesa-utils \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
+
+# Debug: Check if EGL libraries are properly installed
+RUN echo "=== Checking EGL library installation ===" && \
+    find /usr -name "*libEGL*" 2>/dev/null || true && \
+    ldconfig -p | grep -i egl || true && \
+    ls -la /usr/lib/x86_64-linux-gnu/ | grep -i egl || true
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 - \
@@ -43,11 +55,16 @@ RUN cd /tmp && \
     ln -s /opt/blender/blender /usr/local/bin/blender && \
     rm blender-4.3.0-linux-x64.tar.xz
 
+# Test Blender's ability to find EGL
+RUN echo "=== Testing Blender EGL access ===" && \
+    blender --version || echo "Blender version check failed" && \
+    blender --background --python-expr "import bpy; print('Blender Python works')" || echo "Blender Python test failed"
+
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Copy your local projects instead of cloning
-COPY podology_transcriber /app/transcriber
-COPY podology_renderer /app/renderer
+RUN git clone --single-branch https://github.com/andmbg/podology_transcriber_whisperx.git /app/transcriber
+RUN git clone --single-branch https://github.com/andmbg/podology_renderer_blender_ticker.git /app/renderer
 
 # Install transcriber dependencies (skip dev dependencies for production)
 WORKDIR /app/transcriber
@@ -57,16 +74,12 @@ RUN poetry lock && poetry install --no-root --no-interaction --no-ansi --only=ma
 WORKDIR /app/renderer
 RUN poetry lock && poetry install --no-root --no-interaction --no-ansi --only=main
 
-# Set environment variables (will be overridden at runtime)
-ENV API_TOKEN="set_me_in_vast_ai"
-ENV HF_TOKEN="set_me_in_vast_ai"
+# Copy startup script
+COPY start-services.sh /start-services.sh
+RUN chmod +x /start-services.sh
 
 # Expose ports
 EXPOSE 8001 8002
-
-# Copy startup scripts
-COPY podology/start-services.sh /start-services.sh
-RUN chmod +x /start-services.sh
 
 # Default CMD (use the enhanced version with cleanup)
 CMD ["/bin/bash", "-c", "/start-services.sh"]
