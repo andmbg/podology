@@ -18,7 +18,7 @@ class Transcriber(ABC):
         return out
 
     @abstractmethod
-    def submit_job(self, audio_path: Path) -> str:
+    def submit_job(self, audio_path: Path, job_id: str):
         """
         Submit the audio file for transcription and return a job ID.
         This is useful for asynchronous processing.
@@ -33,5 +33,5 @@ class Transcriber(ABC):
         """
 
     @abstractmethod
-    def download_transcript(self, download_url: str, dest_path: Path):
+    def download_transcript(self, eid: str, dest_path: Path):
         pass

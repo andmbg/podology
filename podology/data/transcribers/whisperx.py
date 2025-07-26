@@ -26,15 +26,16 @@ class WhisperXTranscriber(Transcriber):
         self.endpoint = endpoint
         self.status_endpoint = f"{self.server_url}/status"
         self.result_endpoint = f"{self.server_url}/result"
+        self.download_endpoint = f"{self.server_url}/download"
         self.api_key = API_TOKEN
         self.headers = (
             {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         )
         logger.debug(
-            f"Initialized WhisperXTranscriber with API key: ...-{self.api_key[-4:]}"
+            f"Initialized WhisperXTranscriber ({self.server_url}/{self.endpoint})"
         )
 
-    def submit_job(self, audio_path: Path) -> str:
+    def submit_job(self, audio_path: Path, job_id: str):
         """
         Submit the audio file for transcription at our external API, and return the job ID.
         """
@@ -46,12 +47,13 @@ class WhisperXTranscriber(Transcriber):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         with open(audio_path, "rb") as audio_file:
-            logger.debug(f"Using headers: {self.headers}")
+            logger.debug(f"file: {audio_file.name}; job_id: {job_id}")
 
             try:
                 response = requests.post(
                     f"{self.server_url}/{self.endpoint}",
                     files={"audiofile": audio_file},
+                    data={"job_id": job_id},
                     headers=self.headers,
                 )
             except requests.exceptions.ConnectionError as e:
@@ -60,11 +62,8 @@ class WhisperXTranscriber(Transcriber):
         if response.status_code != 200:
             raise RuntimeError(f"Non-200 status upon job submission: {response.text}")
 
-        job_id = response.json().get("job_id")
-        time.sleep(3)
-        logger.debug(f"Job submitted. Job-ID: {job_id}")
-
-        return job_id
+        time.sleep(1)
+        logger.debug(f"Job submitted.")
 
     def get_status(self, job_id: str) -> dict:
         """Get status of the transcription job by polling the external API.
@@ -95,10 +94,9 @@ class WhisperXTranscriber(Transcriber):
         else:
             raise RuntimeError(f"Non-200 status upon job polling: {response.text}")
 
-    def download_transcript(self, download_url: str, dest_path: Path) -> None:
-        """Store the transcription result.
-        """
-        response = requests.get(download_url, headers=self.headers)
+    def download_transcript(self, eid: str, dest_path: Path) -> None:
+        """Store the transcription result."""
+        response = requests.get(f"{self.download_endpoint}/{eid}", headers=self.headers)
 
         if response.status_code != 200:
             raise RuntimeError(f"Failed to fetch transcript: {response.text}")

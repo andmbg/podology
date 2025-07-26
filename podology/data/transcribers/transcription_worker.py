@@ -41,20 +41,17 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
         return
 
     logger.debug(f"{eid}: Submitting transcription job for episode")
-    job_id = transcriber.submit_job(audio_path)
+    transcriber.submit_job(audio_path=audio_path, job_id=eid)
     episode.transcript.status = Status.PROCESSING
-    episode.transcript.job_id = job_id
 
     episode_store.add_or_update(episode)
 
     # 3. Poll for completion, get download URL
     elapsed = 0
-    download_url = ""
     
-    while elapsed < timeout and download_url == "":
-        status_dict = transcriber.get_status(job_id)
+    while elapsed < timeout:
+        status_dict = transcriber.get_status(eid)
         if status_dict["status"] == "done":
-            download_url = status_dict["download_url"]
             break
 
         elif status_dict["status"] == "failed":
@@ -74,12 +71,8 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
         time.sleep(interval)
 
     # 4. Save the transcript to disk and update the episode
-    transcriber.download_transcript(
-        download_url=download_url, dest_path=transcript_path
-    )
+    transcriber.download_transcript(eid=eid, dest_path=transcript_path)
 
-    episode.transcript.queue_id = None
-    episode.transcript.job_id = None
     episode.transcript.status = Status.DONE
     index_episode_worker(episode)
     post_process(episode_store, [episode])
