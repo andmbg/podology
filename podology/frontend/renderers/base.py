@@ -31,14 +31,23 @@ class Renderer(ABC):
         )
         logger.debug(f"Initialized BlenderTickerRenderer")
 
-    def submit_job(self, naments: List[tuple], job_id: str) -> str:
-        """Submit a scroll video rendering job for the given episode ID."""
+    def submit_job(self, naments: List[tuple], job_id: str) -> None:
+        """Submit a scroll video rendering job.
+
+        Send the list of named-entity--timestamp tuples to the renderer API,
+        add job ID (we use the episode ID).
+
+        """
         logger.debug(f"Submitting scroll video job")
 
         try:
             response = requests.post(
                 f"{self.server_url}/{self.submit_endpoint}",
-                json={"naments": json.dumps(naments), "frame_step": self.frame_step, "job_id": job_id},
+                json={
+                    "naments": json.dumps(naments),
+                    "frame_step": self.frame_step,
+                    "job_id": job_id,
+                },
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
 
@@ -48,10 +57,7 @@ class Renderer(ABC):
         if response.status_code != 200:
             raise RuntimeError(f"Non-200 status upon job submission: {response.text}")
 
-        job_id = response.json().get("job_id")
-        logger.debug(f"Job submitted. Job-ID: {job_id}")
-
-        return job_id
+        logger.debug(f"Render job for {job_id} submitted successfully.")
 
     def get_status(self, job_id: str) -> dict:
         """Get status of the scrollvid rendering job by polling the external API.

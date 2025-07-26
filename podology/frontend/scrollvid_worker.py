@@ -37,11 +37,10 @@ def scrollvid_worker(eid: str, timeout: int = 28800, interval: int = 5):
         )
         naments = cursor.fetchall()
 
-    logger.debug(f"{eid}: Submitting scroll video job for episode")
     job_id = eid
+    logger.debug(f"{eid}: Submitting scroll video job for episode, job ID: {job_id}")
     renderer.submit_job(naments, job_id)
     episode.transcript.scrollvid_status = Status.PROCESSING
-    episode.transcript.job_id = job_id
     
     episode_store.add_or_update(episode)
 
