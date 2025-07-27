@@ -39,15 +39,11 @@ class WhisperXTranscriber(Transcriber):
         """
         Submit the audio file for transcription at our external API, and return the job ID.
         """
-        logger.debug(
-            f"Submitting transcription job to {self.server_url} for file {audio_path}"
-        )
-
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         with open(audio_path, "rb") as audio_file:
-            logger.debug(f"file: {audio_file.name}; job_id: {job_id}")
+            logger.debug(f"Uploading file: {audio_file.name}; job_id: {job_id}")
 
             try:
                 response = requests.post(
@@ -85,7 +81,6 @@ class WhisperXTranscriber(Transcriber):
 
         if response.status_code == 200:
             status_dict = response.json()
-            logger.debug(f"Job {job_id} status: {status_dict['status']}")
             return status_dict
 
         elif response.status_code == 404:

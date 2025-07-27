@@ -55,7 +55,9 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
             break
 
         elif status_dict["status"] == "failed":
-            logger.error(f"{eid}: Transcription job failed.")
+            logger.error(f"{eid}: Transcription job failed. Logs:")
+            logger.error(status_dict.get("error_message", "No error details provided."))
+
             episode.transcript.status = Status.ERROR
             episode_store.add_or_update(episode)
             return
