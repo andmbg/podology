@@ -6,8 +6,8 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 
-PROJECT_NAME = "Project Name"
-SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
+PROJECT_NAME = "Decoding"
+SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs
@@ -20,7 +20,7 @@ RENDERER_CONFIG = {
     # frame step - temporal resolution of the scroll video:
     #    25 - one frame per second (reasonably smooth effect)
     # 10000 - 9 frames per hour (for testing)
-    "frame_step": 100,
+    "frame_step": 100000,
 }
 
 # Connector:
@@ -43,8 +43,11 @@ TRANSCRIBER_ARGS = {
 PROJECT_STOPWORDS = [
     i.lower()
     for i in [
-        # "Dan",  # e.g., presenter names
-        # "Jordan",
+        "Matt",
+        "Matthew",
+        "Matthew Brown",
+        "Chris",
+        "Chris Kavanagh",
         # ...
     ]
 ]
