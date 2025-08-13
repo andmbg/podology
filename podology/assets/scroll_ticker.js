@@ -143,14 +143,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                             // 0 to 0.5 relative distance: interpolate between cornflower blue and black
                             // Use square function for smooth transition
                             const color_factor = Math.pow(normalized_distance / 0.5, 2); // 0 to 1 (squared)
-                            
+
                             // Cornflower blue RGB: (100, 149, 237)
                             // Black RGB: (0, 0, 0)
                             // Interpolate between them
                             const r = Math.round(100 * (1 - color_factor));
                             const g = Math.round(149 * (1 - color_factor));
                             const b = Math.round(237 * (1 - color_factor));
-                            
+
                             color = `rgb(${r}, ${g}, ${b})`;
                         }
 

@@ -1,4 +1,3 @@
-import secrets
 from typing import Iterator
 import sqlite3
 
@@ -14,15 +13,12 @@ from config import (
     AUDIO_DIR,
     TRANSCRIPT_DIR,
     WORDCLOUD_DIR,
-    SCROLLVID_DIR,
 )
 from podology.data.transcribers.transcription_worker import transcription_worker
-# from podology.frontend.scrollvid_worker import scrollvid_worker
 
 
 redis_conn = Redis()
 transcription_q = Queue(connection=redis_conn, name="transcription")
-scrollvid_q = Queue(connection=redis_conn, name="scrollvid")
 
 
 class EpisodeStore:
@@ -37,7 +33,6 @@ class EpisodeStore:
         self.transcript_dir = TRANSCRIPT_DIR
         self.wordcloud_dir = WORDCLOUD_DIR
         self.dummy_audio = DUMMY_AUDIO
-        self.scrollvid_dir = SCROLLVID_DIR
         self._ensure_table()
 
     def _connect(self):
@@ -56,7 +51,6 @@ class EpisodeStore:
                     duration TEXT,
                     transcript_status TEXT,
                     transcript_wcstatus TEXT,
-                    transcript_scrollvid_status TEXT,
                     audio_status TEXT
                 )
             """
@@ -69,9 +63,8 @@ class EpisodeStore:
                 """
                 INSERT OR REPLACE INTO episodes (
                     eid, url, title, pub_date, description, duration,
-                    transcript_status, transcript_wcstatus,
-                    transcript_scrollvid_status, audio_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    transcript_status, transcript_wcstatus, audio_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     episode.eid,
@@ -82,11 +75,6 @@ class EpisodeStore:
                     episode.duration,
                     episode.transcript.status.name if episode.transcript else None,
                     episode.transcript.wcstatus.name if episode.transcript else None,
-                    (
-                        episode.transcript.scrollvid_status.name
-                        if episode.transcript
-                        else None
-                    ),
                     episode.audio.status.name if episode.audio else None,
                 ),
             )
@@ -102,8 +90,6 @@ class EpisodeStore:
             description,
             duration,
             transcript_status,
-            transcript_job_id,
-            transcript_queue_id,
             transcript_wcstatus,
             transcript_scrollvid_status,
             audio_status,
@@ -232,27 +218,6 @@ class EpisodeStore:
         )
         qid = job.id  # for clarity, cause "job-id" is taken in our app
         episode.transcript.status = Status.QUEUED
-        episode.transcript.queue_id = qid  # This is the queue ID or qid
-        self.add_or_update(episode)
-
-        return qid
-
-    def enqueue_scrollvid_job(self, episode: Episode) -> str:
-        """
-        Enqueue a scrollvid job for the episode and update DB with queue job ID.
-        """
-        job = scrollvid_q.enqueue(
-            scrollvid_worker,
-            episode.eid,
-            job_timeout=28800,
-            job_id=episode.eid,
-            result_ttl=1,
-        )
-        qid = job.id
-        episode.transcript.scrollvid_status = Status.QUEUED_VID
-        episode.transcript.queue_id = (
-            qid if hasattr(episode.transcript, "scrollvid_queue_id") else None
-        )
         self.add_or_update(episode)
 
         return qid

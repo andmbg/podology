@@ -1,6 +1,5 @@
 import os
 import json
-import base64
 from typing import List
 from pathlib import Path
 
@@ -18,10 +17,10 @@ from podology.data.Transcript import Transcript
 from podology.data.transcribers.base import Transcriber
 from podology.search.search_classes import ResultSet, create_cards
 from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from podology.stats.preparation import post_process  # , copy_scrollvids_to_assets
+from podology.stats.preparation import post_process
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
-from podology.frontend.renderers.wordticker import get_ticker_dict, plot_ticker_at_time
+from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, get_transcriber, ASSETS_DIR
 
 
@@ -143,11 +142,6 @@ def init_dashboard(flask_app, route):
             "tooltipField": "description",
             "tooltipComponent": "CustomTooltip",
         },
-        # {
-        #     "headerName": "Description",
-        #     "field": "description_text",
-        #     "cellStyle": conditional_style,
-        # },
         {
             "headerName": "Duration",
             "field": "duration",
@@ -483,9 +477,6 @@ def init_dashboard(flask_app, route):
     app.layout = html.Div(
         dbc.Container(
             [
-                html.Script(
-                    "console.log('Assets folder:', window.location.origin + '/assets/'); console.log('Dash clientside:', window.dash_clientside);"
-                ),
                 dcc.Store(id="frequency-dict", data={"": 0}),
                 dcc.Store(id="scroll-position-store", data=0),
                 # Add a hidden div to trigger the scroll listener setup:
@@ -711,19 +702,6 @@ def init_callbacks(app):
         )
 
         return out
-
-    # @app.callback(
-    #     Output("episode-list", "children"),
-    #     Input({"type": "sort-button", "index": ALL}, "n_clicks"),
-    #     State({"type": "sort-button", "index": ALL}, "id"),
-    #     State("episode-list", "children"),
-    # )
-    # def sort_episode_list(
-    #     sortbtn_nclicks,
-    #     sortbtn_id,
-    #     episode_list,
-    # ):
-    #     pass
 
     @app.callback(
         Output("selected-episode", "data"),
