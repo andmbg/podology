@@ -17,7 +17,7 @@ from config import (
     SCROLLVID_DIR,
 )
 from podology.data.transcribers.transcription_worker import transcription_worker
-from podology.frontend.scrollvid_worker import scrollvid_worker
+# from podology.frontend.scrollvid_worker import scrollvid_worker
 
 
 redis_conn = Redis()

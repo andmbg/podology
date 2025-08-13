@@ -18,9 +18,10 @@ from podology.data.Transcript import Transcript
 from podology.data.transcribers.base import Transcriber
 from podology.search.search_classes import ResultSet, create_cards
 from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from podology.stats.preparation import post_process, copy_scrollvids_to_assets
+from podology.stats.preparation import post_process  # , copy_scrollvids_to_assets
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
+from podology.frontend.renderers.wordticker import get_ticker_dict, plot_ticker_at_time
 from config import get_connector, get_transcriber, ASSETS_DIR
 
 
@@ -85,7 +86,7 @@ def init_dashboard(flask_app, route):
 
     index_all_transcripts(episode_store=episode_store)
     post_process(episode_store=episode_store)
-    copy_scrollvids_to_assets()
+    # copy_scrollvids_to_assets()
 
     app = Dash(
         __name__,
@@ -94,6 +95,7 @@ def init_dashboard(flask_app, route):
         # relevant for standalone launch, not used by main flask app:
         # FIXME this overrides our custom CSS!
         external_stylesheets=[dbc.themes.CERULEAN],
+        assets_folder=str(Path(__file__).parent / "assets"),
     )
 
     app.es_client = es_client
@@ -274,17 +276,25 @@ def init_dashboard(flask_app, route):
                     children=[
                         #
                         # Animated word cloud (Ticker)
-                        #
+                        # ----------------------------
                         dbc.Col(
                             children=[
-                                html.Video(
-                                    id="scroll-video",
-                                    src="",
-                                    autoPlay=False,
-                                    loop=False,
-                                    controls=False,
-                                    className="w-100",
-                                )
+                                dcc.Graph(
+                                    id="scroll-animation",
+                                    figure={
+                                        # "data": [],
+                                        # "layout": {
+                                        #     "title": "Word Ticker (select an episode)",
+                                        #     "xaxis": {"title": "Time"},
+                                        #     "yaxis": {"title": "Lanes"},
+                                        #     "height": 400
+                                        # }
+                                    },
+                                ),
+                                dcc.Store(
+                                    id="ticker-dict",
+                                    data="",
+                                ),
                             ],
                             md=6,
                             xs=12,
@@ -473,7 +483,13 @@ def init_dashboard(flask_app, route):
     app.layout = html.Div(
         dbc.Container(
             [
+                html.Script(
+                    "console.log('Assets folder:', window.location.origin + '/assets/'); console.log('Dash clientside:', window.dash_clientside);"
+                ),
                 dcc.Store(id="frequency-dict", data={"": 0}),
+                dcc.Store(id="scroll-position-store", data=0),
+                # Add a hidden div to trigger the scroll listener setup:
+                html.Div(id="scroll-listener-trigger", style={"display": "none"}),
                 dbc.Tabs(
                     [
                         dbc.Tab(transcribe_tab, label="Metadata"),
@@ -493,13 +509,6 @@ def init_dashboard(flask_app, route):
 
     init_callbacks(app)
 
-    app.clientside_callback(
-        ClientsideFunction(namespace="scrollSync", function_name="syncVideoToScroll"),
-        Output("scroll-sync-init", "data"),  # dummy output, won't actually change
-        Input("scroll-video", "id"),
-        Input("transcript", "id"),
-    )
-
     return app  # .server
 
 
@@ -507,6 +516,24 @@ def init_callbacks(app):
     """
     Initialize the callbacks for the Dash app.
     """
+
+    # Add the scroll listener setup callback
+    app.clientside_callback(
+        ClientsideFunction(namespace="ticker", function_name="setup_scroll_listener"),
+        Output("scroll-listener-trigger", "children"),
+        Input("pageload-trigger", "n_intervals"),
+    )
+
+    # Add the ticker animation callback
+    app.clientside_callback(
+        ClientsideFunction(
+            namespace="ticker", function_name="update_ticker_from_scroll"
+        ),
+        Output("scroll-animation", "figure"),
+        Input("scroll-position-store", "data"),
+        State("transcript-episode-duration", "children"),
+        State("ticker-dict", "data"),
+    )
 
     @app.callback(
         Output("transcribe-episode-list", "rowData"),
@@ -744,7 +771,7 @@ def init_callbacks(app):
         Output("transcript-episode-title", "children"),
         Output("transcript-episode-date", "children"),
         Output("transcript-episode-duration", "children"),
-        Output("scroll-video", "src"),
+        Output("ticker-dict", "data"),
         Input("selected-episode", "data"),
         State("selected-episode", "data"),
         Input("terms-store", "data"),
@@ -772,20 +799,21 @@ def init_callbacks(app):
         termtuples = terms_store["termtuples"]
 
         # Get the transcript of the selected episode as HTML:
-        dia_script = Transcript(episode=episode)
-        dia_script_element = dia_script.to_html(termtuples, diarized=True)
+        diarized_script = Transcript(episode=episode)
+        diarized_script_element = diarized_script.to_html(termtuples, diarized=True)
 
-        # Get the word scroll video for the selected episode:
-        video_src = "/assets/scrollvids/" + episode.eid + ".mp4"
-        # if not video_src or not Path(video_src).exists():
-        #     video_src = ""
+        # Set the scroll animation word dict to the episode's words:
+        ticker_dict = get_ticker_dict(
+            eid=episode.eid,
+            window_width=120,
+        )
 
         return (
-            dia_script_element,
+            diarized_script_element,
             episode.title,
             episode.pub_date,
             episode.duration,
-            video_src,
+            ticker_dict,
         )
 
     # Update search terms in the comparison list:
