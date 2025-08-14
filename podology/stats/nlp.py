@@ -1,11 +1,7 @@
 """NLP-related computations"""
 
-import os
-import pickle
-import shutil
 from typing import List
 import multiprocessing
-import subprocess
 
 import nltk
 
@@ -23,13 +19,12 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
-from loguru import logger
 
 from podology.data.Episode import Episode
 from podology.data.Transcript import Transcript
 
 # from podology.frontend.scrollvid.wordticker import ticker_from_eid
-from config import STOPWORDS, ASSETS_DIR, SCROLLVID_DIR
+from config import STOPWORDS
 
 stop_words = set(stopwords.words("english"))
 stop_words.update(STOPWORDS)

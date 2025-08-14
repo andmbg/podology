@@ -7,7 +7,6 @@ by the functions that they apply to the whole corpus.
 # pylint: disable=W1514
 import json
 from pathlib import Path
-import shutil
 from typing import List, Optional
 import multiprocessing
 import sqlite3
@@ -20,7 +19,7 @@ import pandas as pd
 from loguru import logger
 from redis import Redis
 
-from config import ASSETS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, SCROLLVID_DIR
+from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
 from podology.data.Episode import Episode, Status
 from podology.data.Transcript import Transcript
 from podology.stats.nlp import (
@@ -307,25 +306,6 @@ def store_timed_named_entities(episodes: List[Episode]):
                 )
 
 
-# def enqueue_scroll_video(episodes: List[Episode]):
-#     """Enqueue a given episode for rendering of the scroll video."""
-#     from podology.data.EpisodeStore import EpisodeStore
-
-#     transcribed_episodes = [ep for ep in episodes if ep.transcript.status]
-
-#     ep_to_do = [
-#         episode
-#         for episode in transcribed_episodes
-#         if not (SCROLLVID_DIR / f"{episode.eid}.mp4").exists()
-#     ]
-
-#     episode_store = EpisodeStore()
-
-#     for episode in ep_to_do:
-#         qid = episode_store.enqueue_scrollvid_job(episode)
-#         logger.debug(f"{episode.eid}: Enqueued scrollvid job with queue ID {qid}")
-
-
 def initialize_stats_db():
     """
     Initialize the SQLite database for storing statistics.
@@ -377,40 +357,3 @@ def initialize_stats_db():
             );
             """
         )
-
-
-# def copy_scrollvids_to_assets():
-#     """
-#     Copy all scroll video files from data/<name>/scrollvids/ to podology/assets/scrollvids/
-#     """
-#     source_dir = SCROLLVID_DIR
-#     target_dir = ASSETS_DIR / "scrollvids"
-
-#     # Create target directory if it doesn't exist
-#     target_dir.mkdir(parents=True, exist_ok=True)
-
-#     if not source_dir.exists():
-#         logger.warning(f"Source directory {source_dir} does not exist")
-#         return
-
-#     # Copy all files from source to target, skip if already exists
-#     copied_files = 0
-#     skipped_files = 0
-#     for file_path in source_dir.glob("*"):
-#         if file_path.is_file():
-#             target_path = target_dir / file_path.name
-
-#             # Skip if file already exists at target
-#             if target_path.exists():
-#                 skipped_files += 1
-#                 logger.debug(f"Skipped {file_path.name} (already exists)")
-#                 continue
-
-#             try:
-#                 shutil.copy2(file_path, target_path)
-#                 copied_files += 1
-#                 logger.debug(f"Copied {file_path.name} to assets/scrollvids/")
-#             except Exception as e:
-#                 logger.error(f"Failed to copy {file_path.name}: {e}")
-
-#     logger.info(f"Copied {copied_files} scroll video files to assets directory, skipped {skipped_files} existing files")

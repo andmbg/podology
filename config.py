@@ -13,16 +13,6 @@ SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
 # Settings about the transcription and rendering APIs
 #
 
-# Renderer:
-RENDERER_CONFIG = {
-    "server_url": os.getenv("RENDERER_URL_PORT"),
-    "submit_endpoint": "render",
-    # frame step - temporal resolution of the scroll video:
-    #    25 - one frame per second (reasonably smooth effect)
-    # 10000 - 9 frames per hour (for testing)
-    "frame_step": 100000,
-}
-
 # Connector:
 CONNECTOR_CLASS = "podology.data.connectors.rss.RSSConnector"
 CONNECTOR_ARGS = {"remote_resource": SOURCE}
@@ -83,7 +73,6 @@ DB_PATH = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.db"
 AUDIO_DIR = DATA_DIR / PROJECT_NAME / "audio"
 TRANSCRIPT_DIR = DATA_DIR / PROJECT_NAME / "transcripts"
 WORDCLOUD_DIR = DATA_DIR / PROJECT_NAME / "wordclouds"
-SCROLLVID_DIR = DATA_DIR / PROJECT_NAME / "scrollvids"
 ASSETS_DIR = Path("podology") / "assets"
 
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
