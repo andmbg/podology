@@ -6,7 +6,8 @@ from podology.data.Episode import Status
 from podology.data.transcribers.base import Transcriber
 from podology.search.setup_es import index_episode_worker
 from podology.stats.preparation import post_process
-from config import get_transcriber
+from podology.data.transcribers.whisperx import WhisperXTranscriber
+from config import TRANSCRIBER_ARGS
 
 
 def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
@@ -23,7 +24,7 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
     
     episode_store = EpisodeStore()
     episode = episode_store[eid]
-    transcriber: Transcriber = get_transcriber()
+    transcriber: Transcriber = WhisperXTranscriber(**TRANSCRIBER_ARGS)
     audio_path = episode_store.audio_dir / f"{episode.eid}.mp3"
     transcript_path = episode_store.transcript_dir / f"{episode.eid}.json"
 
@@ -71,9 +72,6 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
                 f"{eid}: Transcription job timed out after {timeout} seconds."
             )
         time.sleep(interval)
-
-    # 4. Save the transcript to disk and update the episode
-    transcriber.download_transcript(eid=eid, dest_path=transcript_path)
 
     episode.transcript.status = Status.DONE
     index_episode_worker(episode)

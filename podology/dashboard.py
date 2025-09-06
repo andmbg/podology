@@ -21,11 +21,11 @@ from podology.stats.preparation import post_process
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
 from podology.frontend.renderers.wordticker import get_ticker_dict
-from config import get_connector, get_transcriber, ASSETS_DIR
+from config import get_connector, ASSETS_DIR
 
 
 episode_store = EpisodeStore()
-transcriber: Transcriber = get_transcriber()
+# transcriber: Transcriber = get_transcriber()
 
 for pub_ep in get_connector().fetch_episodes():
     episode_store.add_or_update(pub_ep)

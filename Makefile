@@ -14,13 +14,11 @@ elastic-down:
 	docker compose down -v
 
 workers:
-	@echo "Starting RQ workers..."
+	@echo "Starting RQ worker..."
 	@poetry run rq worker transcription & echo $$! > .worker1.pid
-	@poetry run rq worker scrollvid & echo $$! > .worker2.pid
 
 stop-workers:
 	@if [ -f .worker1.pid ]; then kill `cat .worker1.pid` 2>/dev/null || true; rm .worker1.pid; fi
-	@if [ -f .worker2.pid ]; then kill `cat .worker2.pid` 2>/dev/null || true; rm .worker2.pid; fi
 
 app:
 	poetry run python main.py

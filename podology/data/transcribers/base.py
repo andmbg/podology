@@ -25,11 +25,10 @@ class Transcriber(ABC):
         """
 
     @abstractmethod
-    def get_status(self, job_id: str) -> dict:
+    def get_status(self, eid: str) -> dict:
         """
-        Blocking method to poll the transcription job with the external service
-        until it is completed. Returns the transcription payload as a dictionary
-        once completed.
+        Poll the expected result file's presence. If it exists, return the status
+        of the transcription job. If it does not exist, return "ongoing".
         """
 
     @abstractmethod

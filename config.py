@@ -23,9 +23,12 @@ CONNECTOR_ARGS = {"remote_resource": SOURCE}
 DUMMY_AUDIO = False
 TRANSCRIBER_CLASS = "podology.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
-    "server_url": os.getenv("TRANSCRIBER_URL_PORT"),
-    # alternatively "dummytranscribe" for testing with our whisperX server:
-    "endpoint": "transcribe",
+    "whisperx_url": os.getenv("TRANSCRIBER_URL_PORT"),
+    "use_gpu": True,
+    "language": "en",
+    "model": "distil-large-v3",
+    "min_speakers": 2,
+    "max_speakers": 5,
 }
 
 # Stopwords concern the identification of named entities in scroll video rendering
