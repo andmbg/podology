@@ -160,7 +160,7 @@ def timed_named_entity_tokens(transcript: Transcript) -> List:
     :return: A list of tuples (entity_name, entity_type, word_index).
     """
     argslist = []
-    for segment in transcript.segments(transcript_metadata=["text", "start", "end"]):
+    for segment in transcript.segments(segment_attrs=["text", "start", "end"]):
         timestamp = round((segment["start"] + segment["end"]) / 2, 2)
         argslist.append((segment["text"], timestamp))
 

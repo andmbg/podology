@@ -17,3 +17,5 @@ __pycache__/
 design/dashboard_layout.drawio.svg
 podology/assets/wordclouds/*
 podology/assets/scrollvids/*
+**/*/*.db
+**/*/*.rss

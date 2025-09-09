@@ -25,15 +25,38 @@ class Transcript:
     """
 
     def __init__(self, episode: Episode):
-        self.eid = episode.eid
+        """Initialize the Transcript object.
+
+        Copy all episode attributes to the Transcript object. Catalog available
+        episode and segment attributes.
+
+        - episode_attrs: list of episode attributes available to self.segment()
+        - segment_attrs: list of segment attributes available to self.segment()
+
+        Args:
+            episode (Episode): The episode object containing metadata and transcript
+            information.
+
+        Raises:
+            ValueError: If the transcript file is not available.
+        """
+        episode_attrs = list(episode.__dataclass_fields__.keys())
+        self.episode_attrs = episode_attrs
+        for attr in episode_attrs:
+            self.__setattr__(attr, getattr(episode, attr))
+
         if episode.transcript.status:
-            self.path: Path = TRANSCRIPT_DIR / f"{self.eid}.json"
-        self.status = episode.transcript.status
-
+            self.path: Path = TRANSCRIPT_DIR / f"{self.__getattribute__('eid')}.json"
         if self.path is None or not self.path.exists():
-            raise ValueError(f"Transcript not available for episode {self.eid}.")
-
+            raise ValueError(
+                f"Transcript not available for episode {self.__getattribute__('eid')}."
+            )
         self.raw_dict = json.load(open(self.path, "r"))
+        self.segment_attrs = set()
+        for seg in self.raw_dict["segments"]:
+            this_attrs = set(seg.keys())
+            self.segment_attrs = self.segment_attrs.union(this_attrs)
+        self.segment_attrs = list(self.segment_attrs)
 
     def _diarized(self) -> list:
         """
@@ -66,43 +89,36 @@ class Transcript:
 
     def segments(
         self,
-        episode_metadata: list = [],
-        transcript_metadata: list = [],
+        episode_attrs: list | str = [],
+        segment_attrs: list | str = [],
         diarized: bool = False,
     ) -> list[dict]:
-        """
-        Return the transcript in JSON format, with the selected level of metadata.
+        """Return the transcript in JSON format, with the selected level of metadata
+
+
 
         :param episode_metadata: List of metadata fields about the episode to include.
         :param transcript_metadata: List of metadata fields about each turn to include.
         """
-        episode_metadata = (
-            [episode_metadata]
-            if isinstance(episode_metadata, str)
-            else episode_metadata
+        episode_attrs = (
+            [episode_attrs] if isinstance(episode_attrs, str) else episode_attrs
         )
-        transcript_metadata = (
-            [transcript_metadata]
-            if isinstance(transcript_metadata, str)
-            else transcript_metadata
+        segment_attrs = (
+            [segment_attrs] if isinstance(segment_attrs, str) else segment_attrs
         )
 
-        if "text" not in transcript_metadata:
-            transcript_metadata.append("text")
+        if "text" not in segment_attrs:
+            segment_attrs.append("text")
 
         out = []
-        segments = (
-            self._diarized() if diarized else self.raw_dict["segments"].copy()
-        )
+        segments = self._diarized() if diarized else self.raw_dict["segments"].copy()
 
         for source_turn in segments:
             # Copy episode metadata from the object to each turn:
-            turn = {i: getattr(self, i) for i in episode_metadata}
+            turn = {i: getattr(self, i) for i in episode_attrs}
 
             # Copy transcript metadata from the source turn to each turn:
-            turn.update({k: source_turn.get(k) for k in transcript_metadata})
-
-            # Finally: the text
+            turn.update({k: source_turn.get(k) for k in segment_attrs})
 
             out.append(turn)
 
