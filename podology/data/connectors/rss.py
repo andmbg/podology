@@ -118,7 +118,6 @@ class RSSConnector(Connector):
                 transcript=TranscriptInfo(
                     status=Status.NOT_DONE,
                     wcstatus=Status.NOT_DONE,
-                    scrollvid_status=Status.NOT_DONE,
                 ),
             )
 

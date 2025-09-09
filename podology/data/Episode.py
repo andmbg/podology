@@ -21,7 +21,6 @@ class Status(Enum):
 class TranscriptInfo:
     status: Status
     wcstatus: Status
-    scrollvid_status: Status
 
 
 @dataclass

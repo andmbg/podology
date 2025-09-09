@@ -51,7 +51,7 @@ def post_process(
     get_word_counts(episodes)
     store_wordclouds(episodes)
     store_named_entity_types(episodes)
-    store_type_proximity(episodes)
+    store_type_proximity(episodes)  # DEBUG solve sql concurrency issue
     store_timed_named_entities(episodes)
     # enqueue_scroll_video(episodes)
 
@@ -230,7 +230,10 @@ def store_type_proximity(episodes: List[Episode]):
     ]
 
     # Iterate over all episodes and index missing ones
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+    with multiprocessing.Pool(
+        # TODO allowing more processes leads to sqlite lock errors.
+        processes=2  # multiprocessing.cpu_count()
+    ) as pool:
         pool.map(type_proximity_worker, ep_to_do)
 
 

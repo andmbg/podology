@@ -91,7 +91,6 @@ class EpisodeStore:
             duration,
             transcript_status,
             transcript_wcstatus,
-            transcript_scrollvid_status,
             audio_status,
         ) = row
 
@@ -99,11 +98,6 @@ class EpisodeStore:
             status=Status[transcript_status] if transcript_status else Status.NOT_DONE,
             wcstatus=(
                 Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE
-            ),
-            scrollvid_status=(
-                Status[transcript_scrollvid_status]
-                if transcript_scrollvid_status
-                else Status.NOT_DONE
             ),
         )
 
@@ -161,7 +155,6 @@ class EpisodeStore:
             transcript_info = TranscriptInfo(
                 status=transcript_exists,
                 wcstatus=wordcloud_exists,
-                scrollvid_status=Status.NOT_DONE,  # Placeholder, adjust if needed
             )
 
             try:

@@ -71,7 +71,7 @@ class WhisperXTranscriber(Transcriber):
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        logger.info(f"Starting transcription for {audio_path.name} (job_id: {job_id})")
+        logger.info(f"{job_id}: Submitting transcription job")
 
         try:
             result = self._transcribe_audio(audio_path)
