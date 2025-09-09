@@ -209,11 +209,10 @@ class EpisodeStore:
             job_id=episode.eid,
             result_ttl=1,  # we just care about side effects, not the result
         )
-        qid = job.id  # for clarity, cause "job-id" is taken in our app
         episode.transcript.status = Status.QUEUED
         self.add_or_update(episode)
 
-        return qid
+        return job.id
 
     def __getitem__(self, eid: str) -> Episode:
         with self._connect() as conn:

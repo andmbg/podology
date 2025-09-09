@@ -4,7 +4,7 @@ from loguru import logger
 
 from podology.data.Episode import Status
 from podology.data.transcribers.base import Transcriber
-from podology.search.setup_es import index_episode_worker
+from podology.search.setup_es import index_episode
 from podology.stats.preparation import post_process
 from podology.data.transcribers.whisperx import WhisperXTranscriber
 from config import TRANSCRIBER_ARGS
@@ -45,40 +45,12 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
     try:
         transcriber.submit_job(audio_path=audio_path, job_id=eid)
         episode.transcript.status = Status.DONE
-        index_episode_worker(episode)
-        post_process(episode_store, [episode])
-        episode_store.add_or_update(episode)
-        logger.debug(f"{eid}: Transcription job completed successfully.")
     except Exception as e:
         episode.transcript.status = Status.ERROR
         logger.error(f"{eid}: Transcription job failed: {e}")
 
+    index_episode(episode)
+    post_process(episode_store, [episode])
     episode_store.add_or_update(episode)
-
-    # 3. Poll for completion, get download URL
-    # elapsed = 0
-    
-    # while elapsed < timeout:
-    #     status_dict = transcriber.get_status(eid)
-    #     if status_dict["status"] == "done":
-    #         break
-
-    #     elif status_dict["status"] == "failed":
-    #         logger.error(f"{eid}: Transcription job failed. Logs:")
-    #         logger.error(status_dict.get("error_message", "No error details provided."))
-
-    #         episode.transcript.status = Status.ERROR
-    #         episode_store.add_or_update(episode)
-    #         return
-
-    #     else:
-    #         logger.debug(f"{eid}: Transcription job still processing")
-
-    #     elapsed += interval
-    #     if elapsed >= timeout:
-    #         raise TimeoutError(
-    #             f"{eid}: Transcription job timed out after {timeout} seconds."
-    #         )
-    #     time.sleep(interval)
-
-    # episode.transcript.status = Status.DONE
+    logger.debug(f"{eid}: Transcription job completed successfully.")
+    episode_store.add_or_update(episode)

@@ -6,9 +6,7 @@ from typing import Optional
 class Status(Enum):
     NOT_DONE = "➖️"
     QUEUED = "⏳️"
-    QUEUED_VID = "⏳️🎥"
     PROCESSING = "🚀"
-    PROCESSING_VID = "🎥"
     DONE = "✅️"
     ERROR = "💥"
     UNKNOWN = "❓️"

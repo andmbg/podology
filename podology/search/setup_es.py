@@ -1,4 +1,5 @@
 """setup_es.py"""
+
 # pylint: disable=W1514
 import os
 import json
@@ -48,10 +49,8 @@ META_INDEX_SETTINGS = {
 }
 
 
-def index_episode_worker(episode: "Episode"):
-    """
-    Worker function to index a single episode in Elasticsearch.
-    """
+def index_episode(episode: "Episode") -> None:
+    """Index episode in Elasticsearch."""
     es_client = Elasticsearch(
         "http://localhost:9200",
         basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
@@ -61,44 +60,49 @@ def index_episode_worker(episode: "Episode"):
 
     logger.debug(f"{episode.eid}: Indexing in Elasticsearch")
 
-    # Indexing is not using the Transcript class, but implements the route
-    # from JSON path to segments directly here. Might wanna change that later.
-    if episode.transcript.status:
+    try:
+        assert episode.transcript.status
         with open(TRANSCRIPT_DIR / f"{episode.eid}.json", "r") as f:
             transcript_data = json.load(f)
+    except Exception as e:
+        logger.error(f"{episode.eid}: Failed to read transcript file: {e}")
+        return
 
-        # Check if the episode is already indexed
-        s0 = transcript_data["segments"][0]
-        first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
-        if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
-            logger.debug(f"{episode.eid} is already indexed.")
-            return
+    # Abort if the episode is already indexed
+    s0 = transcript_data["segments"][0]
+    first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
+    if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
+        logger.debug(f"{episode.eid} is already indexed.")
+        return
 
-        # Index segments
-        actions = []
-        try:
-            for entry in transcript_data["segments"]:
-                doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
-                doc = {
-                    "_index": TRANSCRIPT_INDEX_NAME,
-                    "_id": doc_id,
-                    "_source": {
-                        "eid": episode.eid,
-                        "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
-                        "episode_title": episode.title,
-                        "text": entry["text"],
-                        "start_time": entry["start"],
-                        "end_time": entry["end"],
-                    },
-                }
-                actions.append(doc)
-        except TypeError:
-            logger.error(f"Error processing segments for episode {episode.eid}. Segment seems not to be a dict.")
-            return
+    # Index segments
+    # Here, we rely not on the Episode's Transcript class, but directly on the JSON:
+    actions = []
+    try:
+        for entry in transcript_data["segments"]:
+            doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
+            doc = {
+                "_index": TRANSCRIPT_INDEX_NAME,
+                "_id": doc_id,
+                "_source": {
+                    "eid": episode.eid,
+                    "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
+                    "episode_title": episode.title,
+                    "text": entry["text"],
+                    "start_time": entry["start"],
+                    "end_time": entry["end"],
+                },
+            }
+            actions.append(doc)
+    except TypeError:
+        logger.error(
+            f"Error processing segments for episode {episode.eid}. Segment seems not to be a dict."
+        )
+        return
 
-        # Use the bulk API for efficient indexing
-        helpers.bulk(es_client, actions)
-        logger.debug(f"{episode.eid}: Transcript indexed.")
+    # Use the bulk API for efficient indexing
+    helpers.bulk(es_client, actions)
+    logger.debug(f"{episode.eid}: Transcript indexed.")
 
 
 def parallel_index_episodes(episodes):
@@ -106,7 +110,7 @@ def parallel_index_episodes(episodes):
     Parallelize the indexing of episodes into Elasticsearch.
     """
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        pool.map(index_episode_worker, episodes)
+        pool.map(index_episode, episodes)
 
 
 def index_all_transcripts(episode_store):

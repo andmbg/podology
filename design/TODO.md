@@ -1,5 +1,7 @@
 # Features to do
 
+- RAG
+- Audio Playback on clicking on transcript
 - Writeback: When looking at a transcript, I want to be able to
   - re-label speakers
   - correct mistakes
@@ -8,17 +10,6 @@
 ## Backend:
 
 - move transcript post-processing into the abstract base transcriber object
-- turn the transcription API to a download link output type; not answering by just sending json text in response => consistency
-
-### data structures
-
-- Episode
-  - ProcessStatus
-    - audio
-    - transcript
-    - wordcloud
-    - scrollvid
-    - job-id (do we need queue id?)
 
 ## Meta/Download tab:
 
@@ -44,14 +35,7 @@
   
 # IMMINENT
 
-- episode status is DONE already after transcription/stats
-
-- Timing:
-  - Episodenende:  Video=center, Text=bottom
-  - Episodenstart: Video=center, Text=top
-- lane order: center to margin
-- weißer Hintergrund, sichtbare Schatten, sichtbares Glühen
-
 # Bugs
 
+- When database-writing operations (like transcript post-processing) are done wholesale with concurrent processing, we get sqlite3 lock errors due to the db being locked on file-level. Writes may have to be queued.
 

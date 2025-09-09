@@ -6,8 +6,10 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 
-PROJECT_NAME = "Decoding"
-SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
+# PROJECT_NAME = "Decoding"
+# SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
+PROJECT_NAME = "Knowledge Fight"
+SOURCE = "https://feeds.libsyn.com/92106/rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs
@@ -36,11 +38,9 @@ TRANSCRIBER_ARGS = {
 PROJECT_STOPWORDS = [
     i.lower()
     for i in [
-        "Matt",
-        "Matthew",
-        "Matthew Brown",
-        "Chris",
-        "Chris Kavanagh",
+        "Dan",
+        "Jordan",
+        "Alex",
         # ...
     ]
 ]

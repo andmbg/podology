@@ -50,13 +50,11 @@ def post_process(
 
     get_word_counts(episodes)
     store_wordclouds(episodes)
-    store_named_entity_types(episodes)
-    store_type_proximity(episodes)  # DEBUG solve sql concurrency issue
     store_timed_named_entities(episodes)
-    # enqueue_scroll_video(episodes)
+    store_named_entity_types(episodes)
+    store_type_proximity(episodes)  # depends on store_timed_named_entities()
 
     for episode in episodes:
-        episode.transcript.wcstatus = Status.DONE
         episode_store.add_or_update(episode)
 
 
@@ -220,14 +218,13 @@ def store_type_proximity(episodes: List[Episode]):
     """
     with sqlite3.connect(DB_PATH) as conn:
 
-        # Get all indexed episode IDs
-        indexed_eids = {
-            row[0] for row in conn.execute("SELECT eid FROM type_proximity_episode")
-        }
-
-    ep_to_do = [
-        ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
-    ]
+        # eids where [v] NEs indexed & [ ] proximities indexed:
+        ep_to_do = [
+            row[0] for row in conn.execute(
+                "SELECT DISTINCT eid FROM named_entity_tokens "
+                "WHERE eid NOT IN (SELECT eid FROM type_proximity_episode)"
+            )
+        ]
 
     # Iterate over all episodes and index missing ones
     with multiprocessing.Pool(
@@ -237,7 +234,7 @@ def store_type_proximity(episodes: List[Episode]):
         pool.map(type_proximity_worker, ep_to_do)
 
 
-def type_proximity_worker(episode: Episode):
+def type_proximity_worker(eid: str):
     """
     For a given episode, store in the stats database the pairwise proximity
     scores of its named entities.
@@ -249,24 +246,24 @@ def type_proximity_worker(episode: Episode):
             """
             SELECT 1 FROM type_proximity_episode WHERE eid = ? LIMIT 1
             """,
-            (episode.eid,),
+            (eid,),
         )
         if cursor.fetchone():
             return
 
     # Get the named entities:
-    logger.debug(f"{episode.eid}: Updating type proximity table")
+    logger.debug(f"{eid}: Updating type proximity table")
     query = f"""
         SELECT token, timestamp
         FROM named_entity_tokens
-        WHERE eid = '{episode.eid}'
+        WHERE eid = '{eid}'
     """
     named_entities = pd.read_sql(sql=query, con=sqlite3.connect(DB_PATH))
     ne_dict = named_entities.groupby("token")["timestamp"].apply(list).to_dict()
 
     # Get the proximity:
     proximity_df = type_proximity(ne_dict)
-    proximity_df["eid"] = episode.eid
+    proximity_df["eid"] = eid
 
     # Store the proximity in the database:
     with sqlite3.connect(DB_PATH) as conn:
@@ -282,12 +279,11 @@ def store_timed_named_entities(episodes: List[Episode]):
 
     :param episodes: List of episodes to process.
     """
+    # Get ID of all episodes with named entity tokens:
     with sqlite3.connect(DB_PATH) as conn:
-        # Get all indexed episode IDs
         indexed_eids = {
             row[0] for row in conn.execute("SELECT eid FROM named_entity_tokens")
         }
-
     ep_to_do = [
         ep for ep in episodes if ep.transcript.status and ep.eid not in indexed_eids
     ]
