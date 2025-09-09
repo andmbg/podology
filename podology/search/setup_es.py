@@ -5,7 +5,6 @@ import os
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import List
 import multiprocessing
 
 from loguru import logger
@@ -13,6 +12,7 @@ from elasticsearch import Elasticsearch, helpers
 
 from config import PROJECT_NAME, TRANSCRIPT_DIR
 from podology.search.utils import make_index_name
+from podology.data.Transcript import Transcript
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
@@ -27,23 +27,10 @@ TRANSCRIPT_INDEX_SETTINGS = {
         "properties": {
             "eid": {"type": "keyword"},
             "pub_date": {"type": "date"},
-            "episode_title": {"type": "text"},
+            "title": {"type": "text"},
             "text": {"type": "text"},
             "start_time": {"type": "keyword"},
             "end_time": {"type": "keyword"},
-        }
-    },
-}
-
-# the shape of the episode metadata index:
-META_INDEX_SETTINGS = {
-    "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-    "mappings": {
-        "properties": {
-            "eid": {"type": "keyword"},
-            "pub_date": {"type": "date"},
-            "episode_title": {"type": "text"},
-            "description": {"type": "text"},
         }
     },
 }
@@ -62,36 +49,34 @@ def index_episode(episode: "Episode") -> None:
 
     try:
         assert episode.transcript.status
-        with open(TRANSCRIPT_DIR / f"{episode.eid}.json", "r") as f:
-            transcript_data = json.load(f)
+        transcript = Transcript(episode)
     except Exception as e:
         logger.error(f"{episode.eid}: Failed to read transcript file: {e}")
         return
 
+    segments = transcript.segments(
+        episode_attrs=["eid", "pub_date", "title"],
+        segment_attrs=["start", "end", "text"],
+        diarized=False,
+    )
+
     # Abort if the episode is already indexed
-    s0 = transcript_data["segments"][0]
+    s0 = segments[0]
     first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
     if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
         logger.debug(f"{episode.eid} is already indexed.")
         return
 
     # Index segments
-    # Here, we rely not on the Episode's Transcript class, but directly on the JSON:
     actions = []
     try:
-        for entry in transcript_data["segments"]:
-            doc_id = f"{episode.eid}_{entry['start']}_{entry['end']}"
+        for seg in segments:
+            seg["pub_date"] = datetime.strptime(seg["pub_date"], "%Y-%m-%d")
+            doc_id = f"{episode.eid}_{seg['start']}_{seg['end']}"
             doc = {
                 "_index": TRANSCRIPT_INDEX_NAME,
                 "_id": doc_id,
-                "_source": {
-                    "eid": episode.eid,
-                    "pub_date": datetime.strptime(episode.pub_date, "%Y-%m-%d"),
-                    "episode_title": episode.title,
-                    "text": entry["text"],
-                    "start_time": entry["start"],
-                    "end_time": entry["end"],
-                },
+                "_source": seg,
             }
             actions.append(doc)
     except TypeError:

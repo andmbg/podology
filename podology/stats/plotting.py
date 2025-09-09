@@ -82,8 +82,14 @@ def plot_word_freq(
                 x=grp["pub_date"],
                 y=grp["freq1k"],
                 mode="lines+markers",
-                line=dict(color=colordict[term_colid_dict[term]]),
-                marker=dict(color=colordict[term_colid_dict[term]]),
+                line=dict(
+                    color=colordict[term_colid_dict[term]],
+                    width=.5,
+                ),
+                marker=dict(
+                    color=colordict[term_colid_dict[term]],
+                    size=4,
+                ),
                 name=term,
                 showlegend=True,
                 customdata=grp[["title", "term", "count", "total"]],

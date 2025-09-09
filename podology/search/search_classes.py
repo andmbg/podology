@@ -84,7 +84,7 @@ class ResultSet:
 
                 if eid not in episodes:
                     episodes[eid] = {
-                        "_title": hit["_source"]["episode_title"],
+                        "_title": hit["_source"]["title"],
                         "_pub_date": hit["_source"]["pub_date"],
                     }
 
