@@ -5,11 +5,14 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
 
+PROJECT_NAME = "Knowledge Fight"
+SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
-PROJECT_NAME = "Test"
-SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
+
+# PROJECT_NAME = "Test"
+# SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs
@@ -85,11 +88,13 @@ DATA_DIR = Path("data")
 DB_PATH = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.db"
 AUDIO_DIR = DATA_DIR / PROJECT_NAME / "audio"
 TRANSCRIPT_DIR = DATA_DIR / PROJECT_NAME / "transcripts"
+CHUNKS_DIR = DATA_DIR / PROJECT_NAME / "chunks"
 WORDCLOUD_DIR = DATA_DIR / PROJECT_NAME / "wordclouds"
 ASSETS_DIR = Path("podology") / "assets"
 
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 WORDCLOUD_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 

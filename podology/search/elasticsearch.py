@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import multiprocessing
+import sqlite3
 from typing import List
 
 from loguru import logger
@@ -13,7 +14,7 @@ from elasticsearch import Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 import requests
 
-from config import PROJECT_NAME, TRANSCRIPT_DIR
+from config import DB_PATH, PROJECT_NAME, CHUNKS_DIR
 from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
 from podology.data.Transcript import Transcript
@@ -22,6 +23,7 @@ from podology.data.Transcript import Transcript
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
 STATS_PATH = Path(__file__).parent.parent / "data" / PROJECT_NAME / "stats"
 EMBEDDER_URL_PORT = os.getenv("TRANSCRIBER_URL_PORT")
+MAX_PARALLEL_INDEXING_PROCESSES = 4  # max: multiprocessing.cpu_count()
 
 # the shape of the transcript index:
 TRANSCRIPT_INDEX_SETTINGS = {
@@ -43,7 +45,7 @@ def index_segments(episodes: List[Episode]) -> None:
     """
     Parallelize the indexing of episodes into Elasticsearch.
     """
-    with multiprocessing.Pool(processes=4) as pool:  # multiprocessing.cpu_count()
+    with multiprocessing.Pool(processes=MAX_PARALLEL_INDEXING_PROCESSES) as pool:
         pool.map(index_segment, episodes)
 
 
@@ -106,7 +108,11 @@ def index_segment(episode: Episode) -> None:
 
 def get_chunk_embeddings(episodes: List[Episode]):
 
-    for episode in episodes:
+    ep_transcribed = [ep for ep in episodes if ep.transcript.status]
+    ep_chunked = [ep for ep in ep_transcribed if Path(CHUNKS_DIR / f"{ep.eid}_chunks.json").exists()]
+    ep_to_do = [ep for ep in ep_transcribed if ep not in ep_chunked]
+
+    for episode in ep_to_do:
 
         logger.debug(f"{episode.eid}: Getting chunk embeddings from WhisperX service")
 
@@ -126,7 +132,6 @@ def get_chunk_embeddings(episodes: List[Episode]):
             overlap=0.2,
         )
 
-        logger.debug(f"Calling Embedding service: POST {EMBEDDER_URL_PORT}/embed")
         headers = {
             "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
             "Content-Type": "application/json",
@@ -151,12 +156,9 @@ def get_chunk_embeddings(episodes: List[Episode]):
 
         result = response.json()
 
-        chunk_path = TRANSCRIPT_DIR.parent / "chunks" / f"{episode.eid}_chunks.json"
-        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        chunk_path = CHUNKS_DIR / f"{episode.eid}_chunks.json"
 
         with open(chunk_path, "w") as f:
             json.dump(result, f, indent=2)
 
-        logger.debug(f"WhisperX service completed successfully")
-    
     return

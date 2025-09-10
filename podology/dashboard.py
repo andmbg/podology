@@ -19,6 +19,7 @@ from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
 from podology.stats.preparation import post_process_pipeline
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
+from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, ASSETS_DIR
 
 
