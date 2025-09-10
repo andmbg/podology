@@ -1,6 +1,9 @@
 # Features to do
 
 - RAG
+  - send chunked episode to API
+  - API returns same content with added chunk embeddings
+  - cache chunks as files
 - Audio Playback on clicking on transcript
 - Writeback: When looking at a transcript, I want to be able to
   - re-label speakers
@@ -35,7 +38,10 @@
   
 # IMMINENT
 
+- Offload embedding to remote API; upgrade API to do SentenceTransformer embeddings and return them.
+
 # Bugs
 
+- failed transcriptions create transcript json files that trip up startup scanning.
 - When database-writing operations (like transcript post-processing) are done wholesale with concurrent processing, we get sqlite3 lock errors due to the db being locked on file-level. Writes may have to be queued.
-
+- API has alignment model hardcoded even though some code suggests parameterization.

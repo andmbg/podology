@@ -14,18 +14,15 @@ from loguru import logger
 from podology.data.Episode import Status
 from podology.data.EpisodeStore import EpisodeStore
 from podology.data.Transcript import Transcript
-from podology.data.transcribers.base import Transcriber
 from podology.search.search_classes import ResultSet, create_cards
-from podology.search.setup_es import TRANSCRIPT_INDEX_NAME, index_all_transcripts
-from podology.stats.preparation import post_process
+from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
+from podology.stats.preparation import post_process_pipeline
 from podology.stats.plotting import plot_word_freq
 from podology.frontend.utils import clickable_tag, colorway, get_sort_button
-from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, ASSETS_DIR
 
 
 episode_store = EpisodeStore()
-# transcriber: Transcriber = get_transcriber()
 
 for pub_ep in get_connector().fetch_episodes():
     episode_store.add_or_update(pub_ep)
@@ -83,9 +80,7 @@ def init_dashboard(flask_app, route):
         print("Elasticsearch client not initialized. Check environment variables.")
         raise
 
-    index_all_transcripts(episode_store=episode_store)
-    post_process(episode_store=episode_store)
-    # copy_scrollvids_to_assets()
+    post_process_pipeline(episode_store=episode_store)
 
     app = Dash(
         __name__,

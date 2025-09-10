@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
 
-from podology.search.setup_es import TRANSCRIPT_INDEX_NAME
+from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
 from podology.data.EpisodeStore import EpisodeStore
 from podology.search.search_classes import ResultSet
 from podology.stats.preparation import DB_PATH

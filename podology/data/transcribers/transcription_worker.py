@@ -4,8 +4,7 @@ from loguru import logger
 
 from podology.data.Episode import Status
 from podology.data.transcribers.base import Transcriber
-from podology.search.setup_es import index_episode
-from podology.stats.preparation import post_process
+from podology.stats.preparation import post_process_pipeline
 from podology.data.transcribers.whisperx import WhisperXTranscriber
 from config import TRANSCRIBER_ARGS
 
@@ -26,7 +25,6 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
     episode = episode_store[eid]
     transcriber: Transcriber = WhisperXTranscriber(**TRANSCRIBER_ARGS)
     audio_path = episode_store.audio_dir / f"{episode.eid}.mp3"
-    transcript_path = episode_store.transcript_dir / f"{episode.eid}.json"
 
     # 1. Download audio if not already done
     episode_store.ensure_audio(episode)
@@ -49,8 +47,7 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
         episode.transcript.status = Status.ERROR
         logger.error(f"{eid}: Transcription job failed: {e}")
 
-    index_episode(episode)
-    post_process(episode_store, [episode])
+    post_process_pipeline(episode_store, [episode])
     episode_store.add_or_update(episode)
     logger.debug(f"{eid}: Transcription job completed successfully.")
     episode_store.add_or_update(episode)

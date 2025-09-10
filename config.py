@@ -8,8 +8,8 @@ load_dotenv(find_dotenv())
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
-PROJECT_NAME = "Knowledge Fight"
-SOURCE = "https://feeds.libsyn.com/92106/rss"  # your RSS feed
+PROJECT_NAME = "Test"
+SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs
@@ -26,11 +26,21 @@ DUMMY_AUDIO = False
 TRANSCRIBER_CLASS = "podology.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
     "whisperx_url": os.getenv("TRANSCRIBER_URL_PORT"),
+    "api_token": os.getenv("API_TOKEN"),
     "use_gpu": True,
     "language": "en",
     "model": "distil-large-v3",
     "min_speakers": 2,
     "max_speakers": 5,
+}
+
+#
+# Settings about sentence embeddings and vector search
+#
+EMBEDDER_ARGS = {
+    "url": os.getenv("TRANSCRIBER_URL_PORT"),
+    "model": "all-MiniLM-L6-v2",
+    "dims": 384,
 }
 
 # Stopwords concern the identification of named entities in scroll video rendering

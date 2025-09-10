@@ -2,9 +2,12 @@
 Base class for connectors.
 """
 
+from pathlib import Path
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
 from podology.data.Episode import Episode
+from config import DATA_DIR, PROJECT_NAME
 
 
 @dataclass
@@ -20,6 +23,7 @@ class Connector(ABC):
     """
 
     remote_resource: str
+    local_rss_file: Path = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.rss"
 
     def __repr__(self):
         out = f"{self.__class__.__name__}\n  resource={self.remote_resource}\n"

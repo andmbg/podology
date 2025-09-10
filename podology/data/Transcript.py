@@ -87,15 +87,84 @@ class Transcript:
 
         return turns
 
+    def _chunked(
+        self, min_words: int = 40, max_words: int = 100, overlap: float = 0.0
+    ) -> list:
+        """
+        Return a list of chunks, each containing between min_words and max_words words.
+        Overlap is a float (0.0–0.9) indicating the fraction of each chunk to overlap with the next.
+        """
+        segments = self.raw_dict["segments"]
+        n_segments = len(segments)
+        chunks = []
+        idx = 0
+
+        def count_words(text):
+            return len(text.strip().split())
+
+        while idx < n_segments:
+            current_chunk = []
+            current_word_count = 0
+            chunk_start_idx = idx
+
+            # Aggregate segments until min_words is reached, but do not exceed max_words
+            while idx < n_segments and (
+                current_word_count < min_words
+                or (
+                    current_word_count + count_words(segments[idx]["text"]) <= max_words
+                )
+            ):
+                current_chunk.append(segments[idx])
+                current_word_count += count_words(segments[idx]["text"])
+                idx += 1
+
+            chunk_start = current_chunk[0]["start"]
+            chunk_end = current_chunk[-1]["end"]
+            chunk_text = " ".join([s["text"] for s in current_chunk])
+            chunks.append(
+                {
+                    "text": chunk_text,
+                    "start": chunk_start,
+                    "end": chunk_end,
+                }
+            )
+
+            # Calculate overlap in words
+            if overlap > 0.0 and len(current_chunk) > 1:
+                overlap_words = int(current_word_count * overlap)
+                if overlap_words > 0:
+                    # Walk backwards from the end of the chunk to find where to restart
+                    words_seen = 0
+                    rewind_idx = len(current_chunk) - 1
+                    while rewind_idx > 0 and words_seen < overlap_words:
+                        words_seen += count_words(current_chunk[rewind_idx]["text"])
+                        rewind_idx -= 1
+                    next_start_idx = chunk_start_idx + rewind_idx + 1
+                    # Only continue if enough segments remain for a new chunk
+                    if (
+                        next_start_idx >= n_segments
+                        or next_start_idx == chunk_start_idx
+                    ):
+                        break
+                    idx = next_start_idx
+                else:
+                    break  # No overlap, so we're done
+
+            while len(chunks) > 1 and chunks[-2]["end"] == chunks[-1]["end"]:
+                chunks.pop(-1)
+
+        return chunks
+
     def segments(
         self,
         episode_attrs: list | str = [],
         segment_attrs: list | str = [],
         diarized: bool = False,
     ) -> list[dict]:
-        """Return the transcript in JSON format, with the selected level of metadata
+        """Return the transcript as a dict.
 
-
+        Use the desired level of partitioning (segments, chunks, diarization) and
+        metadata (segment/chunk and episode-level) to return a list of dicts.
 
         :param episode_metadata: List of metadata fields about the episode to include.
         :param transcript_metadata: List of metadata fields about each turn to include.
@@ -106,12 +175,14 @@ class Transcript:
         segment_attrs = (
             [segment_attrs] if isinstance(segment_attrs, str) else segment_attrs
         )
-
         if "text" not in segment_attrs:
             segment_attrs.append("text")
 
         out = []
-        segments = self._diarized() if diarized else self.raw_dict["segments"].copy()
+        if diarized:
+            segments = self._diarized()
+        else:
+            segments = self.raw_dict["segments"].copy()
 
         for source_turn in segments:
             # Copy episode metadata from the object to each turn:
@@ -121,6 +192,52 @@ class Transcript:
             turn.update({k: source_turn.get(k) for k in segment_attrs})
 
             out.append(turn)
+
+        return out
+
+    def chunks(
+        self,
+        episode_attrs: list | str = [],
+        chunk_attrs: list | str = [],
+        min_words: int = 40,
+        max_words: int = 100,
+        overlap: float = 0.0,
+    ) -> list[dict]:
+        """Return the transcript as a list of chunks.
+
+        This form sets a min and max chunk size in words. Chunks are grown by segments
+        until they reach max_words. Each chunk can contain chunk-level and/or episode-level
+        metadata.
+
+        Args:
+            episode_attrs (list | str, optional): List of metadata fields about the episode
+                to include. Defaults to [].
+            chunk_attrs (list | str, optional): List of metadata fields about each chunk to
+                include. Defaults to [].
+
+        Returns:
+            list[dict]: List of chunks with the specified metadata.
+        """
+        episode_attrs = (
+            [episode_attrs] if isinstance(episode_attrs, str) else episode_attrs
+        )
+        chunk_attrs = [chunk_attrs] if isinstance(chunk_attrs, str) else chunk_attrs
+        if "text" not in chunk_attrs:
+            chunk_attrs.append("text")
+
+        out = []
+        chunks = self._chunked(
+            min_words=min_words, max_words=max_words, overlap=overlap
+        )
+
+        for source_chunk in chunks:
+            # Copy episode metadata from the object to each chunk:
+            chunk = {i: getattr(self, i) for i in episode_attrs}
+
+            # Copy transcript metadata from the source chunk to each chunk:
+            chunk.update({k: source_chunk.get(k) for k in chunk_attrs})
+
+            out.append(chunk)
 
         return out
 

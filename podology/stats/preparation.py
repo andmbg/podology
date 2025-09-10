@@ -27,16 +27,16 @@ from podology.stats.nlp import (
     get_wordcloud,
     timed_named_entity_tokens,
 )
+from podology.search.elasticsearch import index_segments, get_chunk_embeddings
 
 redis_conn = Redis()
 
 
-def post_process(
+def post_process_pipeline(
     episode_store: "EpisodeStore", episodes: Optional[List[Episode]] = None
 ):
     """
-    Run stats on all transcribed episodes. It is upon the individual component functions
-    to filter out episodes for already having stats artifacts in place.
+    Run analysis pipeline on one, some or all transcribed episodes.
 
     :param episode_store: The episode store containing all episodes.
     :param eid: The episode ID or list of episode IDs to process. Default is "all", which
@@ -48,6 +48,8 @@ def post_process(
         initialize_stats_db()
         episodes = [ep for ep in episode_store if ep.transcript.status]
 
+    index_segments(episodes)
+    get_chunk_embeddings(episodes)
     get_word_counts(episodes)
     store_wordclouds(episodes)
     store_timed_named_entities(episodes)
@@ -356,3 +358,4 @@ def initialize_stats_db():
             );
             """
         )
+

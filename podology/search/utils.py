@@ -63,14 +63,11 @@ def make_index_name(project_name):
     # Convert to lowercase
     project_name = project_name.lower()
 
-    # Replace spaces with underscores
-    project_name = project_name.replace(" ", "_")
+    # Replace invalid chars and spaces with underscores
+    project_name = re.sub(r"[^\w]", "_", project_name)
 
     # Remove leading underscores
     project_name = re.sub(r"^_+", "", project_name)
-
-    # Remove invalid characters
-    project_name = re.sub(r"[,*\\]", "", project_name)
 
     # Truncate to 255 bytes
     project_name = project_name.encode("utf-8")[:255].decode("utf-8", "ignore")

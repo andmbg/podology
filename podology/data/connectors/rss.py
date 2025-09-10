@@ -27,38 +27,78 @@ class RSSConnector(Connector):
 
     def __init__(self, remote_resource: str):
         self.remote_resource: str = remote_resource
-        self.local_rss_file: Path = DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.rss"
+        self.local_rss_file: Path = super().local_rss_file
 
     def fetch_episodes(self) -> list[Episode]:
         """
         Build a list of Episode data objects from the RSS feed to update the EpisodeStore.
         """
-        rss_content = None
-        try:
-            response = requests.get(self.remote_resource, timeout=3)
-            response.raise_for_status()
-            rss_content = response.text
-            # Save a local copy
-            with open(self.local_rss_file, "w") as f:
-                f.write(rss_content)
-
-        except Exception as e:
-            # If download fails, try to load the local file
-            logger.info("RSS download failed, using local copy.")
-            try:
-                with open(self.local_rss_file, "r") as f:
-                    rss_content = f.read()
-            except Exception as local_e:
-                raise RuntimeError(
-                    f"Failed to fetch RSS from {self.remote_resource} ({e}) "
-                    f"and failed to load local file {self.local_rss_file} ({local_e})"
-                )
+        logger.debug(f"Fetching episodes from RSS feed: {self.remote_resource}")
+        if self._is_url(self.remote_resource):
+            rss_content = self._download_rss(self.remote_resource)
+        else:
+            rss_content = self._read_rss_from_file(self.remote_resource)
 
         return self._parse_rss(rss_content)
 
-    def _parse_rss(self, rss_content: str) -> list[Episode]:
+    def _download_rss(self, url: str) -> str:
+        """Download the RSS feed from the given URL
+
+        ...and return its content as a string.
         """
-        The arduous part of extracting XML data and dealing with varieties of form:
+        try:
+            response = requests.get(url, timeout=3)
+            response.raise_for_status()
+            logger.debug(f"RSS feed downloaded from {url}")
+            rss_content = response.text
+
+        except Exception as e:
+            logger.info(f"RSS download failed, falling back to local copy. {e}")
+            rss_content = self._read_rss_from_local()
+
+        return rss_content
+
+    def _read_rss_from_file(self, path: str) -> str:
+        """
+        If the RSS resource is not a URL, assume it's a local file path:
+        """
+        # Stated the project rss file as source: do nothing
+        try:
+            with open(Path(self.remote_resource), "r") as file:
+                rss_content = file.read()
+        except FileNotFoundError as e:
+            logger.error(f"RSS File not found, falling back to local copy. {e}")
+            rss_content = self._read_rss_from_local()
+
+        return rss_content
+
+    def _read_rss_from_local(self) -> str:
+        """
+        Read the RSS feed from the local file.
+        """
+        try:
+            with open(self.local_rss_file, "r") as file:
+                rss_content = file.read()
+        except FileNotFoundError:
+            logger.error(f"Local RSS copy not found: {self.local_rss_file}")
+            raise
+
+        return rss_content
+
+    def _is_url(self, resource: str) -> bool:
+        return resource.startswith("http://") or resource.startswith("https://")
+
+    def __repr__(self):
+        out = super().__repr__()
+
+        return out
+
+    def _parse_rss(self, rss_content: str) -> list[Episode]:
+        """Turn RSS data into an Episode object.
+
+        The arduous part of extracting XML data and dealing with varieties of form.
+        This code may see a bunch of amendments and case distinctions if it is used
+        against different RSS feed formats.
         """
         root = ElementTree.fromstring(rss_content)
 
@@ -124,45 +164,3 @@ class RSSConnector(Connector):
             episodes.append(episode)
 
         return episodes
-
-    def _download_rss(self):
-        """
-        Download the RSS feed from the given URL or file path and save it to a temp file.
-        """
-        if self._is_url(self.remote_resource):
-            response = requests.get(self.remote_resource, timeout=3)
-            response.raise_for_status()
-            logger.debug(f"RSS feed downloaded from {self.remote_resource}")
-
-            with open(self.local_rss_file, "wb") as file:
-                file.write(response.content)
-
-            return
-
-    def _rss_from_file(self):
-        """
-        If the RSS resource is not a URL, assume it's a local file path:
-        """
-        # Stated the project rss file as source: do nothing
-        if self.remote_resource == DATA_DIR / PROJECT_NAME / f"{PROJECT_NAME}.rss":
-            return
-
-            logger.debug(f"Using local RSS file: {self.remote_resource}")
-            return
-        try:
-            with open(Path(self.remote_resource), "r") as file:
-                with open(self.local_rss_file, "wb") as out_file:
-                    out_file.write(file.read().encode("utf-8"))
-
-        except FileNotFoundError:
-            logger.error(f"File not found: {self.remote_resource}")
-
-            return
-
-    def _is_url(self, resource: str) -> bool:
-        return resource.startswith("http://") or resource.startswith("https://")
-
-    def __repr__(self):
-        out = super().__repr__()
-
-        return out
