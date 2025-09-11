@@ -306,12 +306,17 @@ def init_dashboard(flask_app, route):
                                                             id="playback-time-store",
                                                             data=0,
                                                         ),
-                                                        dbc.Button(
-                                                            "⏸",
-                                                            id="play",
-                                                            color="secondary",
-                                                            size="sm",
-                                                            className="me-1",
+                                                        # dbc.Button(
+                                                        #     "⏸",
+                                                        #     id="play",
+                                                        #     color="secondary",
+                                                        #     size="sm",
+                                                        #     className="me-1",
+                                                        # ),
+                                                        html.Audio(
+                                                            id="audio-player",
+                                                            controls=True,
+                                                            src="/audio/LxvbG"
                                                         ),
                                                         html.H5(
                                                             html.B(
@@ -742,6 +747,7 @@ def init_callbacks(app):
         Output("transcript-episode-date", "children"),
         Output("transcript-episode-duration", "children"),
         Output("ticker-dict", "data"),
+        Output("audio-player", "src"),
         Output("scroll-position-store", "data"),
         Input("selected-episode", "data"),
         State("selected-episode", "data"),
@@ -785,6 +791,7 @@ def init_callbacks(app):
             episode.pub_date,
             episode.duration,
             ticker_dict,
+            f"/audio/{eid}",
             0,
         )
 

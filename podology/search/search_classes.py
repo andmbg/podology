@@ -1,13 +1,7 @@
-import re
 from datetime import datetime
 
 import dash_bootstrap_components as dbc
 from dash import html
-
-from podology.search.utils import format_time
-
-
-HLTAG = "bling"
 
 
 class ResultSet:
@@ -117,6 +111,7 @@ class ResultCard:
     """
     A class to represent a single search result card.
     """
+
     def __init__(self, eid, term_hits_dict, term_colorid_dict: dict):
         self.title = term_hits_dict["_title"]
         self.pub_date = term_hits_dict["_pub_date"]
@@ -186,90 +181,3 @@ class ResultCard:
             id={"type": "result-card", "index": self.id},
             class_name="card-button mb-1 w-100",
         )
-
-
-def highlight_to_html_elements(text):
-    """
-    Turn a string with 1 or more <span [...]>highlighted</span> parts into a list of
-    Dash HTML elements, where the highlighted parts are wrapped in a Span element.
-    """
-    parts = re.split(r"(<span .*?>.*?</span>)", text)
-    result = []
-
-    for part in parts:
-        if part.startswith("<span ") and part.endswith("</span>"):
-            match = re.match(r"(<span .*?>)(.*)(</span>)", part)
-            if match:
-                opening_tag = match.group(1)
-                opening_match = re.match(r'.*?="(.*?)"', opening_tag)
-                classname = opening_match.group(1) if opening_match else ""
-                text = match.group(2)
-                result.append(
-                    html.Span(
-                        children=[text],
-                        className=classname,
-                    )
-                )
-        else:
-            result.append(html.Span(part))
-
-    return html.Div(result)
-
-
-def diarize_transcript(eid, episode_store, search_term) -> list:
-    """
-    Create a diarized transcript with highlighted search terms.
-    """
-
-    def speaker_class(speaker):
-        return f"speaker-{speaker[-2:]}"
-
-    # Pick episode based on eid, then its segment-wise transcript:
-    episode = [i for i in episode_store.episodes() if i.eid == eid][0]
-    segments = episode.get_transcript()["segments"]
-
-    # Compile search term_colorid pattern for case-insensitive matching
-    search_term = rf"\b{search_term}\b"
-    pattern = re.compile(search_term, re.IGNORECASE)
-
-    turns = []
-    while segments:
-        turn_segments = []
-        this_speaker = segments[0]["speaker"]
-        this_start = segments[0]["start"]
-
-        while segments and segments[0]["speaker"] == this_speaker:
-            # Highlight search terms in segment text
-            text = segments.pop(0)["text"]
-            highlighted_text = pattern.sub(
-                lambda m: f"<bling>{m.group()}</bling>", text
-            )
-            turn_segments.append(highlighted_text)
-
-        # Convert highlighted text to HTML elements
-        highlighted_turn = highlight_to_html_elements(" ".join(turn_segments))
-        turn_header = dbc.Row(
-            children=[
-                dbc.Col(
-                    [html.B([this_speaker + ":"])],
-                    className="text-start text-bf",
-                    width=6,
-                ),
-                dbc.Col(
-                    [format_time(this_start)],
-                    className="text-end text-secondary",
-                    width=6,
-                ),
-            ],
-            className="mt-2",
-        )
-        turn_body = dbc.Row(
-            children=[
-                html.Div([highlighted_turn], className=speaker_class(this_speaker))
-            ]
-        )
-
-        turns.append(turn_header)
-        turns.append(turn_body)
-
-    return turns

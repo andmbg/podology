@@ -9,9 +9,38 @@ from dash import html
 from loguru import logger
 
 from podology.data.Episode import Episode
-from podology.search.search_classes import highlight_to_html_elements
 from podology.search.utils import format_time
 from config import TRANSCRIPT_DIR
+
+
+def highlight_to_html_elements(text):
+    """
+    Turn a string with 1 or more <span [...]>highlighted</span> parts into a list of
+    Dash HTML elements, where the highlighted parts are wrapped in a Span element.
+    """
+    parts = re.split(r"(<span .*?>.*?</span>)", text)
+    span_content = []
+
+    for part in parts:
+        if part.startswith("<span ") and part.endswith("</span>"):
+            match = re.match(r"(<span .*?>)(.*)(</span>)", part)
+            if match:
+                opening_tag = match.group(1)
+                opening_match = re.match(r'.*?="(.*?)"', opening_tag)
+                classname = opening_match.group(1) if opening_match else ""
+                text = match.group(2)
+                span_content.append(
+                    html.Span(
+                        children=[text],
+                        className=classname,
+                    )
+                )
+        else:
+            span_content.append(part)
+        
+    span_content.append(" ")
+
+    return span_content
 
 
 class Transcript:
@@ -241,79 +270,101 @@ class Transcript:
 
         return out
 
+    def _highlight_text(self, text, re_pattern_colorid):
+        """Apply highlighting to text based on term patterns."""
+        if not re_pattern_colorid:
+            return text
+        for pattern, colorid in re_pattern_colorid.items():
+            fmt_str = f'<span class="half-circle-highlight term-color-{colorid} highlight-color-{colorid}">'
+            text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
+        return text
+
+    def _render_segment(self, seg, re_pattern_colorid=None):
+        """Render a single segment as a span with data attributes."""
+        text = self._highlight_text(seg["text"], re_pattern_colorid)
+        return html.Span(
+            highlight_to_html_elements(text),
+            className="transcript-segment",
+            **{
+                "data-start": seg["start"],
+                "data-end": seg["end"],
+                "data-speaker": seg["speaker"],
+            },
+        )
+
+    def _render_turn(self, speaker, start, segments, speaker_class):
+        """Render a speaker turn with header and body."""
+        turn_header = dbc.Row(
+            children=[
+                dbc.Col(
+                    [html.B([speaker + ":"])],
+                    className="text-start text-bf",
+                    width=6,
+                ),
+                dbc.Col(
+                    [format_time(start)],
+                    className="text-end text-secondary",
+                    width=6,
+                ),
+            ],
+            className="mt-2",
+        )
+        turn_body = html.Div(segments, className=speaker_class)
+        return [turn_header, turn_body]
+
     def to_html(
         self, termtuples: List[tuple] | NoneType = None, diarized: bool = False
     ) -> list:
-        """HTML representation of the transcript.
+        """HTML representation of the transcript, semantically structured."""
 
-        Args:
-            termtuples (List[tuple] | NoneType, optional): List of search terms
-              to highlight and the color ID for each. Defaults to None.
-            diarized (bool, optional): Diarize the transcript before returning.
-              Defaults to False.
-
-        Returns:
-            list: list of HTML elements representing the transcript.
-        """
-
-        # Deprecate at some point, as it's STT API dependent:
         def speaker_class(speaker):
-            """
-            Map speaker to a CSS class for transcript display.
-            """
             return f"speaker-{speaker[-2:]}"
 
         # Compile search term patterns for case-insensitive matching
+        re_pattern_colorid = None
         if termtuples:
-            re_pattern_colorid = {}
-            for term, colorid in termtuples:
-                term_re = rf"\b{term}\b"
-                pattern = re.compile(term_re, re.IGNORECASE)
-                re_pattern_colorid[pattern] = colorid
-        else:
-            re_pattern_colorid = None
+            re_pattern_colorid = {
+                re.compile(rf"\b{term}\b", re.IGNORECASE): colorid
+                for term, colorid in termtuples
+            }
 
-        # Start iteration through transcript segments:
-        segments = self._diarized() if diarized else self.raw_dict["segments"].copy()
         turns = []
-        while segments:
-            seg = segments.pop(0)
-            text = seg["text"]
-
-            # TODO: First replacing strings and then replacing those with elements
-            # is cumbersome. We have noticeable lag here.
-            # Highlighting to do?
-            if re_pattern_colorid:
-                for pattern, colorid in re_pattern_colorid.items():
-                    fmt_str = f'<span class="half-circle-highlight term-color-{colorid} highlight-color-{colorid}">'
-                    text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
-
-            highlighted_turn = highlight_to_html_elements(text)
-
-            turn_header = dbc.Row(
-                children=[
-                    dbc.Col(
-                        [html.B([seg["speaker"] + ":"])],
-                        className="text-start text-bf",
-                        width=6,
-                    ),
-                    dbc.Col(
-                        [format_time(seg["start"])],
-                        className="text-end text-secondary",
-                        width=6,
-                    ),
-                ],
-                className="mt-2",
-            )
-            turn_body = dbc.Row(
-                children=[
-                    html.Div(
-                        [highlighted_turn], className=speaker_class(seg["speaker"])
-                    ),
+        if diarized:
+            # Group by speaker turns, but render each segment as a span
+            diarized_turns = self._diarized()
+            # Map each diarized turn to its original segments
+            all_segments = self.raw_dict["segments"]
+            for turn in diarized_turns:
+                # Find all segments in this turn
+                segs_in_turn = [
+                    seg
+                    for seg in all_segments
+                    if seg["speaker"] == turn["speaker"]
+                    and seg["start"] >= turn["start"]
+                    and seg["end"] <= turn["end"]
                 ]
-            )
-
-            turns.append(turn_header)
-            turns.append(turn_body)
-
+                segment_spans = [
+                    self._render_segment(seg, re_pattern_colorid)
+                    for seg in segs_in_turn
+                ]
+                turns.extend(
+                    self._render_turn(
+                        turn["speaker"],
+                        turn["start"],
+                        segment_spans,
+                        speaker_class(turn["speaker"]),
+                    )
+                )
+        else:
+            # Not diarized: render each segment as its own turn
+            for seg in self.raw_dict["segments"]:
+                segment_span = self._render_segment(seg, re_pattern_colorid)
+                turns.extend(
+                    self._render_turn(
+                        seg["speaker"],
+                        seg["start"],
+                        [segment_span],
+                        speaker_class(seg["speaker"]),
+                    )
+                )
         return turns

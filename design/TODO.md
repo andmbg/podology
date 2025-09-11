@@ -4,7 +4,6 @@
   - implement search
   - implement LLM usage
 - Audio Playback on clicking on transcript
-- term finds as plot next to transcript scrollbar
 - click on dot in term plot opens episode
 
 - Writeback: When looking at a transcript, I want to be able to
@@ -23,7 +22,10 @@
 ## Transcript/Episode tab:
 
 - Show hits in scrollbar
-- Transcript display: Playback on click on turn, highlight current turn
+- cleaner speaker display classes
+- Audio:
+  - Playback on click on segment
+  - highlight current turn
 
 ## Terms tab:
 
