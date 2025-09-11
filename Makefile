@@ -26,10 +26,4 @@ app:
 # Combined targets
 run: elastic-up workers app stop-workers
 
-dev: elastic-up
-	@echo "Starting development environment..."
-	@echo "Starting workers..."
-	@poetry run rq worker transcription & W1=$$!; \
-	poetry run rq worker scrollvid & W2=$$!; \
-	poetry run python main.py; \
-	kill $$W1 $$W2
+dev: workers app stop-workers

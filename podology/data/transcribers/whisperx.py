@@ -84,7 +84,6 @@ class WhisperXTranscriber(Transcriber):
         except Exception as e:
             logger.error(f"Transcription failed for job {job_id}: {e}")
             # Store error status
-            self._store_error(job_id, str(e))
             raise
 
     def _transcribe_audio(self, audio_path: Path) -> Dict:
@@ -168,20 +167,6 @@ class WhisperXTranscriber(Transcriber):
             json.dump(result, f, indent=2)
 
         logger.debug(f"Stored result for job {job_id} at {result_file}")
-
-    def _store_error(self, job_id: str, error_message: str) -> None:
-        """Store error status for a job"""
-        result_file = TRANSCRIPT_DIR / f"{job_id}.json"
-
-        error_result = {
-            "job_id": job_id,
-            "status": "failed",
-            "timestamp": time.time(),
-            "error": error_message,
-        }
-
-        with open(result_file, "w") as f:
-            json.dump(error_result, f, indent=2)
 
     def get_status(self, eid: str) -> Dict:
         """Get status of the transcription job by checking local storage.

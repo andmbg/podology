@@ -18,7 +18,13 @@ from podology.search.search_classes import ResultSet, create_cards
 from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
 from podology.stats.preparation import post_process_pipeline
 from podology.stats.plotting import plot_word_freq
-from podology.frontend.utils import clickable_tag, colorway, get_sort_button
+from podology.frontend.utils import (
+    clickable_tag,
+    colorway,
+    get_sort_button,
+    empty_term_fig,
+    empty_scroll_fig,
+)
 from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, ASSETS_DIR
 
@@ -271,15 +277,11 @@ def init_dashboard(flask_app, route):
                             children=[
                                 dcc.Graph(
                                     id="scroll-animation",
-                                    figure={
-                                        # "data": [],
-                                        # "layout": {
-                                        #     "title": "Word Ticker (select an episode)",
-                                        #     "xaxis": {"title": "Time"},
-                                        #     "yaxis": {"title": "Lanes"},
-                                        #     "height": 400
-                                        # }
-                                    },
+                                    figure=empty_scroll_fig,
+                                    config={
+                                        "displayModeBar": False,
+                                        "staticPlot": True,
+                                    }
                                 ),
                                 dcc.Store(
                                     id="ticker-dict",
@@ -427,11 +429,7 @@ def init_dashboard(flask_app, route):
                 dbc.Row(
                     [
                         dbc.Col(
-                            [
-                                dcc.Graph(
-                                    id="word-count-plot",
-                                )
-                            ],
+                            [dcc.Graph(id="word-count-plot", figure=empty_term_fig)],
                             width=12,
                         )
                     ]
@@ -544,35 +542,33 @@ def init_callbacks(app):
         """
         User clicks on the status column of an episode in the table.
         """
-        if not ctx.triggered:
-            return no_update
-
+        # Triggered by click, not by clock:
         episode_store = EpisodeStore()
-
-        #
-        # User clicked on the status column of an episode:
-        #
         if ctx.triggered_id == "transcribe-episode-list":
-            column_clicked = cell_clicked.get("colId", "")
 
-            if column_clicked != "status":
+            if cell_clicked.get("colId", "") != "status":
                 return no_update
 
-            # So you clicked on the Data column of a missing episode:
-            selected_eid = cell_clicked.get("rowId")
-            episode = episode_store[selected_eid]
-            qid = episode_store.enqueue_transcription_job(episode=episode)
-            logger.info(f"qid {qid} for episode {selected_eid} enqueued")
+            # User clicked on the status column of an episode. Which one:
+            eid = cell_clicked.get("rowId")
+            episode = episode_store[eid]
 
-            row = [row for row in row_data if row["eid"] == selected_eid]
+            if episode.transcript.status:
+                return no_update
+            
+            # So you clicked on the Status column of a missing episode:
+            qid = episode_store.enqueue_transcription_job(episode=episode)
+            logger.info(f"qid {qid} for episode {eid} enqueued")
+
+            row = [row for row in row_data if row["eid"] == eid]
             row[0]["status"] = Status.QUEUED.value
 
             return {"update": row}
 
-        elif n_update:
+        elif ctx.triggered_id == "job-status-update":
             update_rows = []
-            # row_dict = {row["eid"]: row for row in row_data}
             for ep in episode_store:
+
                 # Find the corresponding row in the frontend data
                 row = next((r for r in row_data if r["eid"] == ep.eid), None)
                 if row and row["status"] != ep.transcript.status.value:
@@ -585,23 +581,21 @@ def init_callbacks(app):
     @app.callback(
         Output("tab-container", "active_tab"),
         Input("transcribe-episode-list", "cellClicked"),
-        State("transcribe-episode-list", "selectedRows"),
     )
-    def tab_to_transcript(cell_clicked, selection):
+    def tab_to_transcript(cellClicked):
         """
         If the user clicks on an episode that has a transcript, switch to the
         Transcripts tab and show the transcript, unless the user clicked on the
         transcript_exists or audio_exists column, in which case the episode is
         being transcribed or its audio downloaded.
         """
-        if selection:
-            eid = selection[0]["eid"]
-            episode = episode_store[eid]
-            column_clicked = cell_clicked.get("colId", "")
+        if cellClicked:
+            columnClicked = cellClicked.get("colId", "")
+            eid = cellClicked.get("rowId", "")
 
-            if column_clicked != "data" and episode.transcript.status:
-                logger.debug(f"Cell clicked: {cell_clicked}")
-                logger.debug(f"Selected row: {eid}")
+            episode = episode_store[eid]
+
+            if episode.transcript.status and columnClicked == "title":
                 return "Transcripts"
 
         return no_update
@@ -701,14 +695,12 @@ def init_callbacks(app):
 
     @app.callback(
         Output("selected-episode", "data"),
-        Input("transcribe-episode-list", "selectedRows"),
         Input("transcribe-episode-list", "cellClicked"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("selected-episode", "data"),
     )
     def update_selected_episode(
-        table_selected_rows,
         table_clicked_cell,
         resultcard_nclicks,
         resultcard_id,
@@ -718,18 +710,22 @@ def init_callbacks(app):
             return no_update
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        all_triggers = [i["prop_id"] for i in ctx.triggered]
+
 
         # Click on episode list in meta tab:
         if trigger_id == "transcribe-episode-list":
             column_clicked = table_clicked_cell.get("colId", "")
+            row_clicked = table_clicked_cell.get("rowId", "")
 
-            if table_selected_rows and column_clicked == "title":
-                eid = table_selected_rows[0]["eid"]
-                if episode_store[eid].transcript.status:
+            eid = row_clicked
+            if column_clicked == "title" and eid:
+                episode = episode_store[eid]
+                if episode.transcript.status:
                     return eid
 
         # Click on result card:
-        if (
+        elif (
             "result-card" in trigger_id
             and resultcard_nclicks
             and any(i is not None for i in resultcard_nclicks)
@@ -746,6 +742,7 @@ def init_callbacks(app):
         Output("transcript-episode-date", "children"),
         Output("transcript-episode-duration", "children"),
         Output("ticker-dict", "data"),
+        Output("scroll-position-store", "data"),
         Input("selected-episode", "data"),
         State("selected-episode", "data"),
         Input("terms-store", "data"),
@@ -788,6 +785,7 @@ def init_callbacks(app):
             episode.pub_date,
             episode.duration,
             ticker_dict,
+            0,
         )
 
     # Update search terms in the comparison list:
@@ -873,38 +871,6 @@ def init_callbacks(app):
         ]
         return tag_elements, tag_elements
 
-    # # Update frequency dict:
-    # @app.callback(
-    #     Output("frequency-dict", "data"),
-    #     Input("terms-store", "data"),
-    #     State("frequency-dict", "data"),
-    # )
-    # def update_frequency_dict(terms_in_store, freq_dict):
-    #     """
-    #     Callback that updates the frequency dict when the selection of terms changes.
-    #     """
-    #     # Initialize frequency dict if it is empty:
-    #     if freq_dict is None:
-    #         freq_dict = {}
-
-    #     # Remove term_colorid from frequency dict if it is not in the store anymore:
-    #     for term in list(freq_dict.keys()):
-    #         if term not in terms_in_store:
-    #             freq_dict.pop(term)
-
-    #     # Add new term_colorid to frequency dict if it is not in the list yet:
-    #     for term in terms_in_store:
-    #         if term not in freq_dict:
-    #             result_set = ResultSet(
-    #                 es_client=app.es_client,
-    #                 index_name=TRANSCRIPT_INDEX_NAME,
-    #                 search_terms=[term],
-    #             )
-    #             new_freq_entry = {term: {k: len(v) for k, v in result_set.hits_by_ep.items()}}
-    #             freq_dict.update(new_freq_entry)
-
-    #     return freq_dict
-
     @app.callback(
         Output("word-count-plot", "figure"),
         Input("terms-store", "data"),
@@ -915,6 +881,6 @@ def init_callbacks(app):
         Callback that updates the frequency table view.
         """
         if not terms_dict or terms_dict["termtuples"] == []:
-            return no_update
+            return empty_term_fig
 
         return plot_word_freq(terms_dict["termtuples"], es_client=app.es_client)

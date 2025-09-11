@@ -23,7 +23,14 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
     
     episode_store = EpisodeStore()
     episode = episode_store[eid]
-    transcriber: Transcriber = WhisperXTranscriber(**TRANSCRIBER_ARGS)
+    
+    try:
+        transcriber: Transcriber = WhisperXTranscriber(**TRANSCRIBER_ARGS)
+    except Exception as e:
+        episode.transcript.status = Status.ERROR
+        episode_store.add_or_update(episode)
+        raise
+
     audio_path = episode_store.audio_dir / f"{episode.eid}.mp3"
 
     # 1. Download audio if not already done
@@ -44,8 +51,10 @@ def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):
         transcriber.submit_job(audio_path=audio_path, job_id=eid)
         episode.transcript.status = Status.DONE
     except Exception as e:
-        episode.transcript.status = Status.ERROR
         logger.error(f"{eid}: Transcription job failed: {e}")
+        episode.transcript.status = Status.ERROR
+        episode_store.add_or_update(episode)
+        return
 
     post_process_pipeline(episode_store, [episode])
     episode_store.add_or_update(episode)

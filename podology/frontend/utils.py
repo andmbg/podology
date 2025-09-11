@@ -3,6 +3,7 @@ from typing import Tuple
 
 from bs4 import BeautifulSoup
 from dash import html
+import plotly.graph_objects as go
 
 idcolor = namedtuple("idcolor", ["id", "color"])
 colorway = [
@@ -46,3 +47,48 @@ def get_sort_button(term_colorid: Tuple[str, int]) -> html.Button:
         ),
         title=term_colorid[0],
     )
+
+
+empty_term_fig = (
+    go.Figure()
+    .add_annotation(
+        text=(
+            "Enter at least one search term<br>"
+            "to see its distribution over episodes."
+        ),
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
+        font=dict(size=20, color="grey"),
+    )
+    .update_layout(
+        plot_bgcolor="rgba(0,0,0, 0)",
+        paper_bgcolor="rgba(0,0,0, 0)",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    )
+)
+
+empty_scroll_fig = (
+    go.Figure()
+    .add_annotation(
+        text=(
+            "Select an episode<br>"
+            "to see its transcript."
+        ),
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
+        font=dict(size=20, color="grey"),
+    )
+    .update_layout(
+        plot_bgcolor="rgba(0,0,0, 0)",
+        paper_bgcolor="rgba(0,0,0, 0)",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    )
+)

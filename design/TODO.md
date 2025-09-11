@@ -1,10 +1,12 @@
 # Features to do
 
-- RAG
-  - send chunked episode to API
-  - API returns same content with added chunk embeddings
-  - cache chunks as files
+- RAG:
+  - implement search
+  - implement LLM usage
 - Audio Playback on clicking on transcript
+- term finds as plot next to transcript scrollbar
+- click on dot in term plot opens episode
+
 - Writeback: When looking at a transcript, I want to be able to
   - re-label speakers
   - correct mistakes

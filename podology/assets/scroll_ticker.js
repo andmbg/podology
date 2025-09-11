@@ -192,7 +192,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                     },
                     height: plotHeight,
                     showlegend: false,
-                    annotations: annotations
+                    annotations: annotations,
+                    dragmode: false,
+                    clickmode: "none"
                 }
             };
         }
