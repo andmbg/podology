@@ -586,14 +586,16 @@ def init_callbacks(app):
     @app.callback(
         Output("tab-container", "active_tab"),
         Input("transcribe-episode-list", "cellClicked"),
+        Input("episode-list", "n_clicks")
     )
-    def tab_to_transcript(cellClicked):
+    def tab_to_transcript(cellClicked, nclicks):
         """
-        If the user clicks on an episode that has a transcript, switch to the
-        Transcripts tab and show the transcript, unless the user clicked on the
-        transcript_exists or audio_exists column, in which case the episode is
-        being transcribed or its audio downloaded.
+        When clicking on a transcribed episode in the Metadata tab or Terms
+        result list, switch to the Transcripts tab and show the transcript.
         """
+        if nclicks:
+            logger.debug(ctx.triggered_id)
+
         if cellClicked:
             columnClicked = cellClicked.get("colId", "")
             eid = cellClicked.get("rowId", "")
