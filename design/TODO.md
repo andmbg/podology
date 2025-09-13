@@ -1,8 +1,13 @@
 # Features to do
 
-- RAG:
-  - implement search
-  - implement LLM usage
+- RAG and layout:
+  - Transcript tab looks within-episode.
+    - left of transcript: Prompt relevance
+    - **right of transcript (close to scrollbar): word finds** <= imminent
+  - Plot tab looks across episodes.
+    - plot 1: terms
+    - per-episode average relevance
+
 - Audio Playback on clicking on transcript
 - click on dot in term plot opens episode
 
@@ -42,7 +47,7 @@
   
 # IMMINENT
 
-- Offload embedding to remote API; upgrade API to do SentenceTransformer embeddings and return them.
+- word finds next to transcript
 
 # Bugs
 

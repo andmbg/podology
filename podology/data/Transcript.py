@@ -37,7 +37,7 @@ def highlight_to_html_elements(text):
                 )
         else:
             span_content.append(part)
-        
+
     span_content.append(" ")
 
     return span_content
@@ -184,11 +184,35 @@ class Transcript:
 
         return chunks
 
+    def words(self, regularize: bool = False) -> list[tuple[str, float]]:
+        """Return a list of all words and their start times.
+
+        Args:
+            regularized (bool): lowercase words and remove punctuation from start
+                and end (not apostrophes like "we're").
+
+        Returns:
+            list[tuple[str,float]]: A list of word--time tuples.
+        """
+        words = []
+
+        segmentlist = [i["words"] for i in self.raw_dict["segments"]]
+        for wordlist in segmentlist:
+            words.extend((i["word"], i["start"]) for i in wordlist)
+
+        if regularize:
+            words = [
+                (re.sub(r"(^\W)|(\W$)|('\w\b)", "", word).lower(), start)
+                for word, start in words
+            ]
+
+        return words
+
     def segments(
         self,
         episode_attrs: list | str = [],
         segment_attrs: list | str = [],
-        diarized: bool = False,
+        diarize: bool = False,
     ) -> list[dict]:
         """Return the transcript as a dict.
 
@@ -208,7 +232,7 @@ class Transcript:
             segment_attrs.append("text")
 
         out = []
-        if diarized:
+        if diarize:
             segments = self._diarized()
         else:
             segments = self.raw_dict["segments"].copy()

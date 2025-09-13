@@ -5,14 +5,14 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
 
-# PROJECT_NAME = "Knowledge Fight"
-# SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
+PROJECT_NAME = "Knowledge Fight"
+SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
 
-PROJECT_NAME = "Test"
-SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
+# PROJECT_NAME = "Test"
+# SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs

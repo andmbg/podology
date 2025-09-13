@@ -66,7 +66,7 @@ def index_segment(episode: Episode) -> None:
     segments = transcript.segments(
         episode_attrs=["eid", "pub_date", "title"],
         segment_attrs=["start", "end", "text"],
-        diarized=False,
+        diarize=False,
     )
 
     # Abort if the episode is already indexed

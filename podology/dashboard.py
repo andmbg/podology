@@ -17,7 +17,7 @@ from podology.data.Transcript import Transcript
 from podology.search.search_classes import ResultSet, create_cards
 from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
 from podology.stats.preparation import post_process_pipeline
-from podology.stats.plotting import plot_word_freq
+from podology.stats.plotting import plot_transcript_hits, plot_word_freq
 from podology.frontend.utils import (
     clickable_tag,
     colorway,
@@ -118,8 +118,8 @@ def init_dashboard(flask_app, route):
             "headerName": "EID",
             "field": "eid",
             "maxWidth": 80,
-            "sort": "asc",
-            "sortIndex": 1,
+            # "sort": "asc",
+            # "sortIndex": 1,
             # "cellStyle": conditional_style,
             # "hide": True,
         },
@@ -149,7 +149,7 @@ def init_dashboard(flask_app, route):
             "field": "duration",
             "sortable": True,
             "filter": True,
-            "maxWidth": 100,
+            "maxWidth": 120,
             # "cellStyle": conditional_style,
         },
         {
@@ -216,55 +216,6 @@ def init_dashboard(flask_app, route):
         className="m-0 no-top-border",
         children=dbc.CardBody(
             [
-                # Input (search field)
-                # --------------------
-                dbc.Row(
-                    [
-                        dbc.Col(width=4),
-                        dbc.Col(
-                            [
-                                dbc.Input(
-                                    id="input",
-                                    type="text",
-                                    placeholder="Enter search term",
-                                    debounce=True,
-                                ),
-                            ],
-                            width=4,
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Button("Add", id="add-button", color="secondary"),
-                            ],
-                            width=2,
-                        ),
-                    ],
-                    className="mt-3",
-                ),
-                # Term Tags
-                # ---------
-                dbc.Row(
-                    dbc.Col(
-                        [
-                            dcc.Store(
-                                id="terms-store",
-                                data={
-                                    "termtuples": [],
-                                    "colorid-stack": [i.id for i in colorway],
-                                },
-                            ),
-                            html.Div(
-                                id="terms-list",
-                                className="d-flex flex-row flex-wrap justify-content-center align-items-center",
-                            ),
-                        ],
-                        xs=12,
-                        md=12,
-                        id="keyword-tags",
-                        className="p-0 d-flex justify-content-center align-items-center",
-                    ),
-                    className="mt-3",
-                ),
                 #
                 # Output
                 # ----------------
@@ -281,7 +232,7 @@ def init_dashboard(flask_app, route):
                                     config={
                                         "displayModeBar": False,
                                         "staticPlot": True,
-                                    }
+                                    },
                                 ),
                                 dcc.Store(
                                     id="ticker-dict",
@@ -316,7 +267,7 @@ def init_dashboard(flask_app, route):
                                                         html.Audio(
                                                             id="audio-player",
                                                             controls=True,
-                                                            src="/audio/LxvbG"
+                                                            src="/audio/LxvbG",
                                                         ),
                                                         html.H5(
                                                             html.B(
@@ -359,12 +310,39 @@ def init_dashboard(flask_app, route):
                                                 ),
                                             ],
                                         ),
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.Div(
+                                                        id="transcript",
+                                                        className="transcript",
+                                                    ),
+                                                    className="mb-0 flex-grow-1",
+                                                    style={
+                                                        "padding-right": "0",
+                                                        "height": "100%",
+                                                    },
+                                                ),
+                                                dbc.Col(
+                                                    [
+                                                        dcc.Graph(
+                                                            id="transcript-episode-graph",
+                                                            config={
+                                                                "displayModeBar": False,
+                                                                "staticPlot": True,
+                                                            },
+                                                            style={"height": "100%"},
+                                                        ),
+                                                    ],
+                                                    className="col-search-hits p-0",
+                                                    style={"height": "100%"},
+                                                ),
+                                            ],
+                                            className="align-items-stretch",
+                                            style={"height": "calc(100vh - 340px)"},
+                                        ),
                                     ],
                                     className="mb-3",
-                                ),
-                                html.Div(
-                                    id="transcript",
-                                    className="transcript",
                                 ),
                             ],
                             xs=12,
@@ -385,50 +363,6 @@ def init_dashboard(flask_app, route):
         className="m-0 no-top-border",
         children=dbc.CardBody(
             [
-                # Input (search field)
-                # --------------------
-                dbc.Row(
-                    [
-                        dbc.Col(width=4),
-                        dbc.Col(
-                            [
-                                dbc.Input(
-                                    id="input-termstab",
-                                    type="text",
-                                    placeholder="Enter search term",
-                                    debounce=True,
-                                ),
-                            ],
-                            width=4,
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Button(
-                                    "Add", id="add-button-termstab", color="secondary"
-                                ),
-                            ],
-                            width=2,
-                        ),
-                    ],
-                    className="mt-3",
-                ),
-                # Term Tags
-                # ---------
-                dbc.Row(
-                    dbc.Col(
-                        [
-                            html.Div(
-                                id="terms-list-termstab",
-                                className="d-flex flex-row flex-wrap justify-content-center align-items-center",
-                            )
-                        ],
-                        xs=12,
-                        md=12,
-                        id="keyword-tags-termstab",
-                        className="p-0 d-flex justify-content-center align-items-center",
-                    ),
-                    className="mt-3",
-                ),
                 # Word frequency plot
                 # ----------------------------
                 dbc.Row(
@@ -480,11 +414,61 @@ def init_dashboard(flask_app, route):
                 dcc.Store(id="scroll-position-store", data=0),
                 # Add a hidden div to trigger the scroll listener setup:
                 html.Div(id="scroll-listener-trigger", style={"display": "none"}),
+                # Input (search field)
+                dbc.Row(
+                    [
+                        dbc.Col(width=2),
+                        dbc.Col(
+                            [
+                                dbc.Input(
+                                    id="input",
+                                    type="text",
+                                    placeholder="Enter search term",
+                                    debounce=True,
+                                ),
+                            ],
+                            width=7,
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Button("Add", id="add-button", color="secondary"),
+                            ],
+                            width=1,
+                        ),
+                    ],
+                    className="mt-3",
+                ),
+                # Term Tags
+                # ---------
+                dbc.Row(
+                    dbc.Col(
+                        [
+                            dcc.Store(
+                                id="terms-store",
+                                data={
+                                    "termtuples": [],
+                                    "colorid-stack": [i.id for i in colorway],
+                                },
+                            ),
+                            html.Div(
+                                id="terms-list",
+                                className="d-flex flex-row flex-wrap justify-content-center align-items-center",
+                            ),
+                        ],
+                        xs=12,
+                        md=12,
+                        id="keyword-tags",
+                        className="p-0 d-flex justify-content-center align-items-center",
+                    ),
+                    className="mt-3",
+                ),
                 dbc.Tabs(
                     [
                         dbc.Tab(transcribe_tab, label="Metadata"),
-                        dbc.Tab(browse_tab, label="Transcripts", tab_id="Transcripts"),
-                        dbc.Tab(terms_tab, label="Terms"),
+                        dbc.Tab(
+                            browse_tab, label="Within Episode", tab_id="Transcripts"
+                        ),
+                        dbc.Tab(terms_tab, label="Across Episodes"),
                     ],
                     id="tab-container",
                     className="mt-3",
@@ -560,7 +544,7 @@ def init_callbacks(app):
 
             if episode.transcript.status:
                 return no_update
-            
+
             # So you clicked on the Status column of a missing episode:
             qid = episode_store.enqueue_transcription_job(episode=episode)
             logger.info(f"qid {qid} for episode {eid} enqueued")
@@ -586,7 +570,7 @@ def init_callbacks(app):
     @app.callback(
         Output("tab-container", "active_tab"),
         Input("transcribe-episode-list", "cellClicked"),
-        Input("episode-list", "n_clicks")
+        Input("episode-list", "n_clicks"),
     )
     def tab_to_transcript(cellClicked, nclicks):
         """
@@ -719,7 +703,6 @@ def init_callbacks(app):
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
         all_triggers = [i["prop_id"] for i in ctx.triggered]
 
-
         # Click on episode list in meta tab:
         if trigger_id == "transcribe-episode-list":
             column_clicked = table_clicked_cell.get("colId", "")
@@ -801,24 +784,17 @@ def init_callbacks(app):
     @app.callback(
         Output("terms-store", "data"),
         Output("input", "value"),
-        Output("input-termstab", "value"),
         Input("input", "n_submit"),
-        Input("input-termstab", "n_submit"),
         Input("add-button", "n_clicks"),
-        Input("add-button-termstab", "n_clicks"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
-        State("input-termstab", "value"),
         State("terms-store", "data"),
     )
     def update_terms_store(
         n_submit,
-        n_submit_termstab,
         add_clicks,
-        add_clicks_termstab,
         remove_clicks,
         input_term_searchtab,
-        input_term_termstab,
         terms_store,
     ):
         """
@@ -828,7 +804,7 @@ def init_callbacks(app):
         At the same time, updates the visual representation of the Store.
         """
         if not ctx.triggered:
-            return terms_store, None, None
+            return terms_store, None
 
         # Analyse the search term dict into a list of tuples and the color stack:
         old_term_tuples = terms_store["termtuples"]
@@ -844,16 +820,6 @@ def init_callbacks(app):
                 new_term_tuple = (input_term_searchtab, colorid_stack.pop())
                 old_term_tuples.append(new_term_tuple)
 
-        # "Add" button on terms tab was clicked:
-        elif (
-            trigger_id in ["add-button-termstab", "input-termstab"]
-            and input_term_termstab
-        ):
-            if len(old_term_tuples) < 10 and input_term_termstab not in old_terms:
-                # assign the first available color to the new term_colorid:
-                new_term_tuple = (input_term_termstab, colorid_stack.pop())
-                old_term_tuples.append(new_term_tuple)
-
         # A tag was clicked for removal:
         elif "remove-term" in trigger_id:
             index = int(json.loads(trigger_id)["index"])
@@ -866,11 +832,10 @@ def init_callbacks(app):
             "colorid-stack": colorid_stack,
         }
 
-        return new_terms_colors_dict, None, None
+        return new_terms_colors_dict, None
 
     @app.callback(
         Output("terms-list", "children"),
-        Output("terms-list-termstab", "children"),
         Input("terms-store", "data"),
     )
     def update_terms_lists(terms_store):
@@ -878,7 +843,7 @@ def init_callbacks(app):
             clickable_tag(i, term_colorid)
             for i, term_colorid in enumerate(terms_store["termtuples"])
         ]
-        return tag_elements, tag_elements
+        return tag_elements
 
     @app.callback(
         Output("word-count-plot", "figure"),
@@ -893,3 +858,23 @@ def init_callbacks(app):
             return empty_term_fig
 
         return plot_word_freq(terms_dict["termtuples"], es_client=app.es_client)
+
+    @app.callback(
+        Output("transcript-episode-graph", "figure"),
+        Input("terms-store", "data"),
+        State("selected-episode", "data"),
+        prevent_initial_call=True,
+    )
+    def update_transcript_hits_plot(
+        terms_dict, eid
+    ):
+        """
+        Callback that updates the transcript hits plot.
+        """
+        if not terms_dict or terms_dict["termtuples"] == []:
+            logger.debug("No terms found for transcript hits plot.")
+            return no_update
+
+        fig = plot_transcript_hits(terms_dict["termtuples"], eid, nbins=500)
+
+        return fig
