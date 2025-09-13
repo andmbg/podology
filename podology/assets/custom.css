@@ -111,7 +111,7 @@ Search term_colorid tags
     vertical-align: middle;
     position: relative;
     cursor: pointer;
-    width: auto;
+    width: auto !important;
 }
 
 .hit-count::before {

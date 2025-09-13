@@ -18,6 +18,7 @@ from podology.data.Transcript import Transcript
 from podology.search.search_classes import ResultSet
 from podology.stats.preparation import DB_PATH
 from podology.frontend.utils import colorway
+from config import HITS_PLOT_BINS
 
 
 episode_store = EpisodeStore()
@@ -106,7 +107,7 @@ def plot_word_freq(
                 ),
                 name=term,
                 showlegend=True,
-                customdata=grp[["title", "term", "count", "total"]],
+                customdata=grp[["title", "term", "count", "total", "eid"]],
                 hovertemplate=(
                     "<b>%{customdata[1]}</b><br>"
                     "%{y:.2f} words/1000<br>"
@@ -144,7 +145,9 @@ def plot_word_freq(
     return fig
 
 
-def plot_transcript_hits(term_colid_tuples: List[tuple], eid: str, nbins: int = 10) -> go.Figure:
+def plot_transcript_hits(
+    term_colid_tuples: List[tuple], eid: str, nbins: int = HITS_PLOT_BINS
+) -> go.Figure:
     """The display next to the transcript scrollbar showing occurrences of
     search terms over time.
 
@@ -159,8 +162,7 @@ def plot_transcript_hits(term_colid_tuples: List[tuple], eid: str, nbins: int = 
     """
     # Normalize search terms:
     term_colid_dict = {
-        re.sub(r"(^\W)|(\W$)|('\w\b)", "", i).lower(): j
-        for i, j in term_colid_tuples
+        re.sub(r"(^\W)|(\W$)|('\w\b)", "", i).lower(): j for i, j in term_colid_tuples
     }
     terms = list(term_colid_dict.keys())
 
@@ -192,7 +194,11 @@ def plot_transcript_hits(term_colid_tuples: List[tuple], eid: str, nbins: int = 
                 orientation="h",
                 marker=dict(
                     line_width=0,
-                    color=colordict[term_colid_dict[col]] if col in term_colid_dict else "grey",
+                    color=(
+                        colordict[term_colid_dict[col]]
+                        if col in term_colid_dict
+                        else "grey"
+                    ),
                 ),
             )
         )

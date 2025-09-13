@@ -92,3 +92,13 @@ empty_scroll_fig = (
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
     )
 )
+
+empty_term_hit_fig = (
+    go.Figure()
+    .update_layout(
+        plot_bgcolor="rgba(0,0,0, 0)",
+        paper_bgcolor="rgba(0,0,0, 0)",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    )
+)

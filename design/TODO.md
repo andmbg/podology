@@ -3,10 +3,11 @@
 - RAG and layout:
   - Transcript tab looks within-episode.
     - left of transcript: Prompt relevance
-    - **right of transcript (close to scrollbar): word finds** <= imminent
+    - [DONE] **right of transcript (close to scrollbar): word finds** <= imminent
   - Plot tab looks across episodes.
     - plot 1: terms
-    - per-episode average relevance
+    - plot 2: prompt => per-episode average relevance
+      - click on episode: add time-series of chunks to transcript, move to transcript tab
 
 - Audio Playback on clicking on transcript
 - click on dot in term plot opens episode
@@ -23,14 +24,14 @@
 ## Meta/Download tab:
 
 - separate cols for each status
+- project time to finish for whole podcast using timestamps from processing
+- BUG: min size of tooltip is too big, short notes leave empty space
+  Ideal: Size of wordcloud + Title + 2-5 lines of notes; click on wordcloud selects episode & transcript tab
 
 ## Transcript/Episode tab:
 
-- Show hits in scrollbar
 - cleaner speaker display classes
-- Audio:
-  - Playback on click on segment
-  - highlight current turn
+- Hide standard scroll thumb, client-callback highlights currently visible time range in transcript hits plot
 
 ## Terms tab:
 
@@ -47,7 +48,6 @@
   
 # IMMINENT
 
-- word finds next to transcript
 
 # Bugs
 

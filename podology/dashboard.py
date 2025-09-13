@@ -24,6 +24,7 @@ from podology.frontend.utils import (
     get_sort_button,
     empty_term_fig,
     empty_scroll_fig,
+    empty_term_hit_fig,
 )
 from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, ASSETS_DIR
@@ -326,11 +327,12 @@ def init_dashboard(flask_app, route):
                                                 dbc.Col(
                                                     [
                                                         dcc.Graph(
-                                                            id="transcript-episode-graph",
+                                                            id="search-hit-column",
                                                             config={
                                                                 "displayModeBar": False,
                                                                 "staticPlot": True,
                                                             },
+                                                            figure=empty_term_hit_fig,
                                                             style={"height": "100%"},
                                                         ),
                                                     ],
@@ -356,8 +358,8 @@ def init_dashboard(flask_app, route):
     )
 
     #
-    #  _______________
-    # | Analyse Terms |
+    #  _________________
+    # | Across Episodes |
     #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
     terms_tab = dbc.Card(
         className="m-0 no-top-border",
@@ -527,9 +529,10 @@ def init_callbacks(app):
         Input("job-status-update", "n_intervals"),
         State("transcribe-episode-list", "rowData"),
     )
-    def click_or_update_table(cell_clicked, n_update, row_data):
+    def download_ep_or_update_table(cell_clicked, n_update, row_data):
         """
-        User clicks on the status column of an episode in the table.
+        Either user clicks on the status column of an episode in the table,
+        or a job status update occurs.
         """
         # Triggered by click, not by clock:
         episode_store = EpisodeStore()
@@ -570,24 +573,45 @@ def init_callbacks(app):
     @app.callback(
         Output("tab-container", "active_tab"),
         Input("transcribe-episode-list", "cellClicked"),
-        Input("episode-list", "n_clicks"),
+        Input("word-count-plot", "clickData"),
+        Input({"type": "result-card", "index": ALL}, "n_clicks"),
+        State({"type": "result-card", "index": ALL}, "id"),
     )
-    def tab_to_transcript(cellClicked, nclicks):
+    def tab_to_transcript(
+        cellClicked, word_count_click_data, episode_list_nclicks, episode_list_id
+    ):
         """
-        When clicking on a transcribed episode in the Metadata tab or Terms
-        result list, switch to the Transcripts tab and show the transcript.
+        If user clicks on the title of a transcribed episode in the Metadata
+        tab, or on a result card in the Across-Episodes tab, change active tab
+        to the Transcripts tab.
         """
-        if nclicks:
-            logger.debug(ctx.triggered_id)
+        if not ctx.triggered:
+            return no_update
 
-        if cellClicked:
-            columnClicked = cellClicked.get("colId", "")
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        logger.debug(episode_list_nclicks)
+
+        if ctx.triggered_id == "word-count-plot":
+            return "Transcripts"
+
+        if ctx.triggered_id == "transcribe-episode-list":
+            columnClicked = cellClicked.get("colId", {})
             eid = cellClicked.get("rowId", "")
+            if eid:
+                episode = episode_store[eid]
+                if episode.transcript.status and columnClicked == "title":
+                    return "Transcripts"
 
-            episode = episode_store[eid]
-
-            if episode.transcript.status and columnClicked == "title":
-                return "Transcripts"
+        # Tricky indirect filtering: switch only if a result card was clicked,
+        # not a sorting button:
+        if (
+            ctx.triggered_id and 
+            "result-card" in str(ctx.triggered_id) and 
+            episode_list_nclicks and 
+            not all(x is None for x in episode_list_nclicks) and
+            episode_list_id
+        ):
+            return "Transcripts"
 
         return no_update
 
@@ -676,6 +700,10 @@ def init_callbacks(app):
         Input("terms-store", "data"),
     )
     def update_sort_buttons(terms_store):
+        """
+        Update the sort buttons based on the current terms. So if a search term
+        is added, add a sort button and so on.
+        """
         termtuples = terms_store["termtuples"]
 
         out = html.Div(
@@ -688,12 +716,14 @@ def init_callbacks(app):
         Output("selected-episode", "data"),
         Input("transcribe-episode-list", "cellClicked"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
+        Input("word-count-plot", "clickData"),
         State({"type": "result-card", "index": ALL}, "id"),
         State("selected-episode", "data"),
     )
     def update_selected_episode(
         table_clicked_cell,
         resultcard_nclicks,
+        word_count_click_data,
         resultcard_id,
         current_eid,
     ):
@@ -723,6 +753,20 @@ def init_callbacks(app):
             selected_eid = json.loads(trigger_id)["index"]
 
             return selected_eid
+
+        elif word_count_click_data:
+            # Extract the episode ID from the clicked point's customdata:
+            points = word_count_click_data.get("points", [])
+            if not points:
+                return no_update
+
+            point = points[0]
+            eid = point.get("customdata", None)[4]
+            logger.debug(f"word count click data points: {eid}")
+            if eid:
+                return eid
+
+            return no_update
 
         return no_update
 
@@ -794,12 +838,12 @@ def init_callbacks(app):
         n_submit,
         add_clicks,
         remove_clicks,
-        input_term_searchtab,
+        input_term,
         terms_store,
     ):
         """
         Update the terms Storage by adding the newly entered search term or removing
-        the one that just got clicked.
+        the one that just got clicked. Empty the input field.
 
         At the same time, updates the visual representation of the Store.
         """
@@ -807,28 +851,28 @@ def init_callbacks(app):
             return terms_store, None
 
         # Analyse the search term dict into a list of tuples and the color stack:
-        old_term_tuples = terms_store["termtuples"]
-        old_terms = [i[0] for i in old_term_tuples]
+        term_tuples = terms_store["termtuples"]
+        terms = [i[0] for i in term_tuples]
         colorid_stack = terms_store["colorid-stack"]
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-        # "Add" button on first tab was clicked:
-        if trigger_id in ["add-button", "input"] and input_term_searchtab:
-            if len(old_term_tuples) < 10 and input_term_searchtab not in old_terms:
+        # User adds new term by clicking "Add" button or pressing Enter:
+        if trigger_id in ["add-button", "input"] and input_term:
+            if len(term_tuples) < 10 and input_term not in terms:
                 # assign the first available color to the new term_colorid:
-                new_term_tuple = (input_term_searchtab, colorid_stack.pop())
-                old_term_tuples.append(new_term_tuple)
+                new_term_tuple = (input_term, colorid_stack.pop())
+                term_tuples.append(new_term_tuple)
 
         # A tag was clicked for removal:
         elif "remove-term" in trigger_id:
             index = int(json.loads(trigger_id)["index"])
-            if 0 <= index < len(old_term_tuples):
-                freed_colorid = old_term_tuples.pop(index)[1]
+            if 0 <= index < len(term_tuples):
+                freed_colorid = term_tuples.pop(index)[1]
                 colorid_stack.append(freed_colorid)
 
         new_terms_colors_dict = {
-            "termtuples": old_term_tuples,
+            "termtuples": term_tuples,
             "colorid-stack": colorid_stack,
         }
 
@@ -860,21 +904,17 @@ def init_callbacks(app):
         return plot_word_freq(terms_dict["termtuples"], es_client=app.es_client)
 
     @app.callback(
-        Output("transcript-episode-graph", "figure"),
+        Output("search-hit-column", "figure"),
         Input("terms-store", "data"),
-        State("selected-episode", "data"),
+        Input("selected-episode", "data"),
         prevent_initial_call=True,
     )
-    def update_transcript_hits_plot(
-        terms_dict, eid
-    ):
+    def update_transcript_hits_plot(terms_dict, eid):
         """
-        Callback that updates the transcript hits plot.
+        Update the transcript hits plot when adding/removing search terms or
+        changing the selected episode.
         """
-        if not terms_dict or terms_dict["termtuples"] == []:
-            logger.debug("No terms found for transcript hits plot.")
-            return no_update
+        if not terms_dict or terms_dict["termtuples"] == [] or not eid:
+            return empty_term_hit_fig
 
-        fig = plot_transcript_hits(terms_dict["termtuples"], eid, nbins=500)
-
-        return fig
+        return plot_transcript_hits(terms_dict["termtuples"], eid)
