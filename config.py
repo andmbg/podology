@@ -3,13 +3,22 @@ import importlib
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
-load_dotenv(find_dotenv())
 
 PROJECT_NAME = "Knowledge Fight"
 SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
+
+# -----------------------------------------------------------------------------
+
+load_dotenv(find_dotenv())
+
+# If developing, use the Test project:
+test = os.getenv("TEST", "False") == "True"
+if test:
+    PROJECT_NAME = "Test"
+    SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
 #
 # Settings about the transcription and rendering APIs
@@ -79,11 +88,6 @@ HITS_PLOT_BINS = 500
 
 
 # -----------------------------------------------------------------------------
-# If developing, use the Test project:
-test = os.getenv("TEST", "False") == "True"
-if test:
-    PROJECT_NAME = "Test"
-    SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
 #
 # Paths and directories - can usually be ignored.

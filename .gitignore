@@ -5,6 +5,7 @@ data/**/*
 !data/*/
 !data/*/*/
 !data/*/*/*/
+!data/Test/*/**
 **/*/__pycache__/
 !**/*/.gitkeep
 !data/raw/mp3/.gitkeep

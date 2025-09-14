@@ -48,9 +48,13 @@
   
 # IMMINENT
 
+- in dev, the download table still shows the real project
+
 
 # Bugs
 
 - failed transcriptions create transcript json files that trip up startup scanning.
 - When database-writing operations (like transcript post-processing) are done wholesale with concurrent processing, we get sqlite3 lock errors due to the db being locked on file-level. Writes may have to be queued.
 - API has alignment model hardcoded even though some code suggests parameterization.
+- if one search term contains another, highlights in the transcript get messed up.
+- if a search term has spaces in it, it is not marked in the vertical search hit column.
