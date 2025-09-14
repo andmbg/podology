@@ -26,4 +26,6 @@ app:
 # Combined targets
 run: elastic-up workers app stop-workers
 
-dev: workers app stop-workers
+dev: workers
+	TEST=True poetry run python main.py
+	$(MAKE) stop-workers

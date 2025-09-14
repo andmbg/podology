@@ -589,7 +589,6 @@ def init_callbacks(app):
             return no_update
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-        logger.debug(episode_list_nclicks)
 
         if ctx.triggered_id == "word-count-plot":
             return "Transcripts"

@@ -10,6 +10,7 @@ from config import PROJECT_NAME
 
 
 load_dotenv(find_dotenv())
+test = os.getenv("TEST", "False") == "True"
 
 app = Flask(__name__, instance_relative_config=False)
 
@@ -29,4 +30,4 @@ if __name__ == "__main__":
     # Check if the script is run directly or by a WSGI server
     # (to avoid running the app multiple times in debug mode)
     # if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-    app.run(host="0.0.0.0", port=8080, debug=True, load_dotenv=False, use_reloader=True)
+    app.run(host="0.0.0.0", port=8080, debug=True, load_dotenv=False, use_reloader=test)

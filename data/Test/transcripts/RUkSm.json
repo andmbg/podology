@@ -1,0 +1,830 @@
+{
+  "alignment_model": "WAV2VEC2_ASR_LARGE_LV60K_960H",
+  "diarization_enabled": true,
+  "language": "en",
+  "model": "distil-large-v3",
+  "segments": [
+    {
+      "end": 7.668,
+      "speaker": "SPEAKER_00",
+      "start": 0.031,
+      "text": "So this is Pastor Lorenzo Suo, who also spoke at the RNC and was one of the people giving a benediction to this inauguration.",
+      "words": [
+        {
+          "end": 0.352,
+          "speaker": "SPEAKER_00",
+          "start": 0.031,
+          "word": "So"
+        },
+        {
+          "end": 0.532,
+          "speaker": "SPEAKER_00",
+          "start": 0.372,
+          "word": "this"
+        },
+        {
+          "end": 0.692,
+          "speaker": "SPEAKER_00",
+          "start": 0.632,
+          "word": "is"
+        },
+        {
+          "end": 1.154,
+          "speaker": "SPEAKER_00",
+          "start": 0.773,
+          "word": "Pastor"
+        },
+        {
+          "end": 1.695,
+          "speaker": "SPEAKER_00",
+          "start": 1.214,
+          "word": "Lorenzo"
+        },
+        {
+          "end": 2.196,
+          "speaker": "SPEAKER_00",
+          "start": 1.775,
+          "word": "Suo,"
+        },
+        {
+          "end": 2.396,
+          "speaker": "SPEAKER_00",
+          "start": 2.276,
+          "word": "who"
+        },
+        {
+          "end": 2.737,
+          "speaker": "SPEAKER_00",
+          "start": 2.497,
+          "word": "also"
+        },
+        {
+          "end": 3.018,
+          "speaker": "SPEAKER_00",
+          "start": 2.777,
+          "word": "spoke"
+        },
+        {
+          "end": 3.118,
+          "speaker": "SPEAKER_00",
+          "start": 3.078,
+          "word": "at"
+        },
+        {
+          "end": 3.238,
+          "speaker": "SPEAKER_00",
+          "start": 3.138,
+          "word": "the"
+        },
+        {
+          "end": 3.88,
+          "speaker": "SPEAKER_00",
+          "start": 3.379,
+          "word": "RNC"
+        },
+        {
+          "end": 4.341,
+          "speaker": "SPEAKER_00",
+          "start": 4.281,
+          "word": "and"
+        },
+        {
+          "end": 4.541,
+          "speaker": "SPEAKER_00",
+          "start": 4.381,
+          "word": "was"
+        },
+        {
+          "end": 4.681,
+          "speaker": "SPEAKER_00",
+          "start": 4.621,
+          "word": "one"
+        },
+        {
+          "end": 4.742,
+          "speaker": "SPEAKER_00",
+          "start": 4.702,
+          "word": "of"
+        },
+        {
+          "end": 4.842,
+          "speaker": "SPEAKER_00",
+          "start": 4.762,
+          "word": "the"
+        },
+        {
+          "end": 5.082,
+          "speaker": "SPEAKER_00",
+          "start": 4.862,
+          "word": "people"
+        },
+        {
+          "end": 5.343,
+          "speaker": "SPEAKER_00",
+          "start": 5.122,
+          "word": "giving"
+        },
+        {
+          "end": 5.403,
+          "speaker": "SPEAKER_00",
+          "start": 5.383,
+          "word": "a"
+        },
+        {
+          "end": 6.045,
+          "speaker": "SPEAKER_00",
+          "start": 5.463,
+          "word": "benediction"
+        },
+        {
+          "end": 6.405,
+          "speaker": "SPEAKER_00",
+          "start": 6.205,
+          "word": "to"
+        },
+        {
+          "end": 6.506,
+          "speaker": "SPEAKER_00",
+          "start": 6.425,
+          "word": "this"
+        },
+        {
+          "end": 7.668,
+          "speaker": "SPEAKER_00",
+          "start": 6.586,
+          "word": "inauguration."
+        }
+      ]
+    },
+    {
+      "end": 19.575,
+      "speaker": "SPEAKER_01",
+      "start": 7.688,
+      "text": "Incidentally, the next day after this Suo launched his own meme coin called Lorenzo, which had an initial $4.5 million market valuation and then immediately crashed 93% upon launch.",
+      "words": [
+        {
+          "end": 8.189,
+          "speaker": "SPEAKER_00",
+          "start": 7.688,
+          "word": "Incidentally,"
+        },
+        {
+          "end": 8.29,
+          "speaker": "SPEAKER_00",
+          "start": 8.209,
+          "word": "the"
+        },
+        {
+          "end": 8.61,
+          "speaker": "SPEAKER_00",
+          "start": 8.37,
+          "word": "next"
+        },
+        {
+          "end": 8.871,
+          "speaker": "SPEAKER_00",
+          "start": 8.67,
+          "word": "day"
+        },
+        {
+          "end": 9.172,
+          "speaker": "SPEAKER_00",
+          "start": 8.971,
+          "word": "after"
+        },
+        {
+          "end": 9.352,
+          "speaker": "SPEAKER_00",
+          "start": 9.212,
+          "word": "this"
+        },
+        {
+          "end": 9.793,
+          "speaker": "SPEAKER_00",
+          "start": 9.432,
+          "word": "Suo"
+        },
+        {
+          "end": 10.194,
+          "speaker": "SPEAKER_01",
+          "start": 9.873,
+          "word": "launched"
+        },
+        {
+          "end": 10.334,
+          "speaker": "SPEAKER_01",
+          "start": 10.234,
+          "word": "his"
+        },
+        {
+          "end": 10.515,
+          "speaker": "SPEAKER_01",
+          "start": 10.414,
+          "word": "own"
+        },
+        {
+          "end": 10.875,
+          "speaker": "SPEAKER_01",
+          "start": 10.595,
+          "word": "meme"
+        },
+        {
+          "end": 11.296,
+          "speaker": "SPEAKER_01",
+          "start": 10.936,
+          "word": "coin"
+        },
+        {
+          "end": 11.597,
+          "speaker": "SPEAKER_01",
+          "start": 11.377,
+          "word": "called"
+        },
+        {
+          "end": 12.299,
+          "speaker": "SPEAKER_01",
+          "start": 11.677,
+          "word": "Lorenzo,"
+        },
+        {
+          "end": 12.559,
+          "speaker": "SPEAKER_01",
+          "start": 12.419,
+          "word": "which"
+        },
+        {
+          "end": 12.74,
+          "speaker": "SPEAKER_01",
+          "start": 12.619,
+          "word": "had"
+        },
+        {
+          "end": 12.84,
+          "speaker": "SPEAKER_01",
+          "start": 12.8,
+          "word": "an"
+        },
+        {
+          "end": 13.321,
+          "speaker": "SPEAKER_01",
+          "start": 12.92,
+          "word": "initial"
+        },
+        {
+          "end": 13.642,
+          "speaker": "SPEAKER_01",
+          "start": 13.461,
+          "word": "$4.5"
+        },
+        {
+          "end": 14.664,
+          "speaker": "SPEAKER_01",
+          "start": 14.283,
+          "word": "million"
+        },
+        {
+          "end": 15.366,
+          "speaker": "SPEAKER_01",
+          "start": 15.065,
+          "word": "market"
+        },
+        {
+          "end": 16.027,
+          "speaker": "SPEAKER_01",
+          "start": 15.406,
+          "word": "valuation"
+        },
+        {
+          "end": 16.548,
+          "speaker": "SPEAKER_01",
+          "start": 16.468,
+          "word": "and"
+        },
+        {
+          "end": 16.729,
+          "speaker": "SPEAKER_01",
+          "start": 16.588,
+          "word": "then"
+        },
+        {
+          "end": 17.23,
+          "speaker": "SPEAKER_01",
+          "start": 16.789,
+          "word": "immediately"
+        },
+        {
+          "end": 17.53,
+          "speaker": "SPEAKER_01",
+          "start": 17.27,
+          "word": "crashed"
+        },
+        {
+          "end": 17.871,
+          "speaker": "SPEAKER_01",
+          "start": 17.631,
+          "word": "93%"
+        },
+        {
+          "end": 18.773,
+          "speaker": "SPEAKER_01",
+          "start": 18.533,
+          "word": "upon"
+        },
+        {
+          "end": 19.575,
+          "speaker": "SPEAKER_01",
+          "start": 18.853,
+          "word": "launch."
+        }
+      ]
+    },
+    {
+      "end": 23.786,
+      "speaker": "SPEAKER_01",
+      "start": 19.555,
+      "text": "such a shame that there just seems to keep happening to these very sincere and not scammy people.",
+      "words": [
+        {
+          "end": 19.856,
+          "speaker": "SPEAKER_01",
+          "start": 19.555,
+          "word": "such"
+        },
+        {
+          "end": 19.916,
+          "speaker": "SPEAKER_01",
+          "start": 19.896,
+          "word": "a"
+        },
+        {
+          "end": 20.317,
+          "speaker": "SPEAKER_01",
+          "start": 19.996,
+          "word": "shame"
+        },
+        {
+          "end": 20.437,
+          "speaker": "SPEAKER_01",
+          "start": 20.337,
+          "word": "that"
+        },
+        {
+          "end": 20.578,
+          "speaker": "SPEAKER_01",
+          "start": 20.457,
+          "word": "there"
+        },
+        {
+          "end": 20.738,
+          "speaker": "SPEAKER_01",
+          "start": 20.618,
+          "word": "just"
+        },
+        {
+          "end": 21.159,
+          "speaker": "SPEAKER_01",
+          "start": 20.979,
+          "word": "seems"
+        },
+        {
+          "end": 21.239,
+          "speaker": "SPEAKER_01",
+          "start": 21.199,
+          "word": "to"
+        },
+        {
+          "end": 21.42,
+          "speaker": "SPEAKER_01",
+          "start": 21.28,
+          "word": "keep"
+        },
+        {
+          "end": 21.801,
+          "speaker": "SPEAKER_01",
+          "start": 21.48,
+          "word": "happening"
+        },
+        {
+          "end": 21.901,
+          "speaker": "SPEAKER_01",
+          "start": 21.841,
+          "word": "to"
+        },
+        {
+          "end": 22.062,
+          "speaker": "SPEAKER_01",
+          "start": 21.921,
+          "word": "these"
+        },
+        {
+          "end": 22.302,
+          "speaker": "SPEAKER_01",
+          "start": 22.102,
+          "word": "very"
+        },
+        {
+          "end": 22.744,
+          "speaker": "SPEAKER_01",
+          "start": 22.362,
+          "word": "sincere"
+        },
+        {
+          "end": 22.884,
+          "speaker": "SPEAKER_01",
+          "start": 22.804,
+          "word": "and"
+        },
+        {
+          "end": 23.084,
+          "speaker": "SPEAKER_01",
+          "start": 22.924,
+          "word": "not"
+        },
+        {
+          "end": 23.465,
+          "speaker": "SPEAKER_01",
+          "start": 23.104,
+          "word": "scammy"
+        },
+        {
+          "end": 23.786,
+          "speaker": "SPEAKER_01",
+          "start": 23.506,
+          "word": "people."
+        }
+      ]
+    },
+    {
+      "end": 26.634,
+      "speaker": "SPEAKER_01",
+      "start": 24.047,
+      "text": "And what is just a wild coincidence?",
+      "words": [
+        {
+          "end": 24.709,
+          "speaker": "SPEAKER_01",
+          "start": 24.047,
+          "word": "And"
+        },
+        {
+          "end": 24.909,
+          "speaker": "SPEAKER_01",
+          "start": 24.769,
+          "word": "what"
+        },
+        {
+          "end": 25.07,
+          "speaker": "SPEAKER_01",
+          "start": 25.01,
+          "word": "is"
+        },
+        {
+          "end": 25.31,
+          "speaker": "SPEAKER_01",
+          "start": 25.13,
+          "word": "just"
+        },
+        {
+          "end": 25.391,
+          "speaker": "SPEAKER_01",
+          "start": 25.35,
+          "word": "a"
+        },
+        {
+          "end": 26.012,
+          "speaker": "SPEAKER_01",
+          "start": 25.591,
+          "word": "wild"
+        },
+        {
+          "end": 26.634,
+          "speaker": "SPEAKER_01",
+          "start": 26.072,
+          "word": "coincidence?"
+        }
+      ]
+    },
+    {
+      "end": 31.487,
+      "speaker": "SPEAKER_01",
+      "start": 26.794,
+      "text": "Are President and his wife both also launched meme coins just before the inauguration?",
+      "words": [
+        {
+          "end": 26.895,
+          "speaker": "SPEAKER_01",
+          "start": 26.794,
+          "word": "Are"
+        },
+        {
+          "end": 27.376,
+          "speaker": "SPEAKER_01",
+          "start": 26.935,
+          "word": "President"
+        },
+        {
+          "end": 27.496,
+          "speaker": "SPEAKER_01",
+          "start": 27.436,
+          "word": "and"
+        },
+        {
+          "end": 27.637,
+          "speaker": "SPEAKER_01",
+          "start": 27.536,
+          "word": "his"
+        },
+        {
+          "end": 27.877,
+          "speaker": "SPEAKER_01",
+          "start": 27.677,
+          "word": "wife"
+        },
+        {
+          "end": 28.218,
+          "speaker": "SPEAKER_01",
+          "start": 28.018,
+          "word": "both"
+        },
+        {
+          "end": 28.8,
+          "speaker": "SPEAKER_01",
+          "start": 28.479,
+          "word": "also"
+        },
+        {
+          "end": 29.201,
+          "speaker": "SPEAKER_01",
+          "start": 28.9,
+          "word": "launched"
+        },
+        {
+          "end": 29.542,
+          "speaker": "SPEAKER_01",
+          "start": 29.301,
+          "word": "meme"
+        },
+        {
+          "end": 29.983,
+          "speaker": "SPEAKER_01",
+          "start": 29.602,
+          "word": "coins"
+        },
+        {
+          "end": 30.244,
+          "speaker": "SPEAKER_01",
+          "start": 30.063,
+          "word": "just"
+        },
+        {
+          "end": 30.564,
+          "speaker": "SPEAKER_01",
+          "start": 30.304,
+          "word": "before"
+        },
+        {
+          "end": 30.665,
+          "speaker": "SPEAKER_01",
+          "start": 30.604,
+          "word": "the"
+        },
+        {
+          "end": 31.487,
+          "speaker": "SPEAKER_01",
+          "start": 30.725,
+          "word": "inauguration?"
+        }
+      ]
+    },
+    {
+      "end": 32.048,
+      "speaker": "SPEAKER_01",
+      "start": 31.507,
+      "text": "How about that?",
+      "words": [
+        {
+          "end": 31.607,
+          "speaker": "SPEAKER_01",
+          "start": 31.507,
+          "word": "How"
+        },
+        {
+          "end": 31.828,
+          "speaker": "SPEAKER_01",
+          "start": 31.647,
+          "word": "about"
+        },
+        {
+          "end": 32.048,
+          "speaker": "SPEAKER_01",
+          "start": 31.888,
+          "word": "that?"
+        }
+      ]
+    },
+    {
+      "end": 33.673,
+      "speaker": "SPEAKER_01",
+      "start": 32.109,
+      "text": "It's super cool stuff.",
+      "words": [
+        {
+          "end": 32.229,
+          "speaker": "SPEAKER_01",
+          "start": 32.109,
+          "word": "It's"
+        },
+        {
+          "end": 32.79,
+          "speaker": "SPEAKER_01",
+          "start": 32.349,
+          "word": "super"
+        },
+        {
+          "end": 33.171,
+          "speaker": "SPEAKER_01",
+          "start": 32.81,
+          "word": "cool"
+        },
+        {
+          "end": 33.673,
+          "speaker": "SPEAKER_01",
+          "start": 33.252,
+          "word": "stuff."
+        }
+      ]
+    },
+    {
+      "end": 36.54,
+      "speaker": "SPEAKER_01",
+      "start": 33.693,
+      "text": "How like untraceable and unregulated meme coins are.",
+      "words": [
+        {
+          "end": 33.793,
+          "speaker": "SPEAKER_01",
+          "start": 33.693,
+          "word": "How"
+        },
+        {
+          "end": 33.994,
+          "speaker": "SPEAKER_01",
+          "start": 33.853,
+          "word": "like"
+        },
+        {
+          "end": 34.816,
+          "speaker": "SPEAKER_01",
+          "start": 34.154,
+          "word": "untraceable"
+        },
+        {
+          "end": 34.936,
+          "speaker": "SPEAKER_01",
+          "start": 34.876,
+          "word": "and"
+        },
+        {
+          "end": 35.678,
+          "speaker": "SPEAKER_01",
+          "start": 35.016,
+          "word": "unregulated"
+        },
+        {
+          "end": 35.919,
+          "speaker": "SPEAKER_01",
+          "start": 35.718,
+          "word": "meme"
+        },
+        {
+          "end": 36.28,
+          "speaker": "SPEAKER_01",
+          "start": 35.959,
+          "word": "coins"
+        },
+        {
+          "end": 36.54,
+          "speaker": "SPEAKER_01",
+          "start": 36.42,
+          "word": "are."
+        }
+      ]
+    },
+    {
+      "end": 40.551,
+      "speaker": "SPEAKER_01",
+      "start": 36.701,
+      "text": "They're like now a new way that someone could just shovel a ton of money to the President.",
+      "words": [
+        {
+          "end": 36.901,
+          "speaker": "SPEAKER_01",
+          "start": 36.701,
+          "word": "They're"
+        },
+        {
+          "end": 37.042,
+          "speaker": "SPEAKER_01",
+          "start": 36.921,
+          "word": "like"
+        },
+        {
+          "end": 37.443,
+          "speaker": "SPEAKER_01",
+          "start": 37.102,
+          "word": "now"
+        },
+        {
+          "end": 37.623,
+          "speaker": "SPEAKER_01",
+          "start": 37.563,
+          "word": "a"
+        },
+        {
+          "end": 37.844,
+          "speaker": "SPEAKER_01",
+          "start": 37.724,
+          "word": "new"
+        },
+        {
+          "end": 38.044,
+          "speaker": "SPEAKER_01",
+          "start": 37.884,
+          "word": "way"
+        },
+        {
+          "end": 38.185,
+          "speaker": "SPEAKER_01",
+          "start": 38.064,
+          "word": "that"
+        },
+        {
+          "end": 38.385,
+          "speaker": "SPEAKER_01",
+          "start": 38.205,
+          "word": "someone"
+        },
+        {
+          "end": 38.506,
+          "speaker": "SPEAKER_01",
+          "start": 38.405,
+          "word": "could"
+        },
+        {
+          "end": 38.646,
+          "speaker": "SPEAKER_01",
+          "start": 38.566,
+          "word": "just"
+        },
+        {
+          "end": 39.107,
+          "speaker": "SPEAKER_01",
+          "start": 38.726,
+          "word": "shovel"
+        },
+        {
+          "end": 39.207,
+          "speaker": "SPEAKER_01",
+          "start": 39.167,
+          "word": "a"
+        },
+        {
+          "end": 39.468,
+          "speaker": "SPEAKER_01",
+          "start": 39.268,
+          "word": "ton"
+        },
+        {
+          "end": 39.568,
+          "speaker": "SPEAKER_01",
+          "start": 39.528,
+          "word": "of"
+        },
+        {
+          "end": 39.869,
+          "speaker": "SPEAKER_01",
+          "start": 39.629,
+          "word": "money"
+        },
+        {
+          "end": 39.99,
+          "speaker": "SPEAKER_01",
+          "start": 39.909,
+          "word": "to"
+        },
+        {
+          "end": 40.09,
+          "speaker": "SPEAKER_01",
+          "start": 40.03,
+          "word": "the"
+        },
+        {
+          "end": 40.551,
+          "speaker": "SPEAKER_01",
+          "start": 40.13,
+          "word": "President."
+        }
+      ]
+    }
+  ]
+}
