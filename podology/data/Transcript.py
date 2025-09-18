@@ -1,3 +1,4 @@
+from collections import Counter
 import re
 from types import NoneType
 from typing import List, Optional
@@ -7,342 +8,323 @@ from pathlib import Path
 import dash_bootstrap_components as dbc
 from dash import html
 from loguru import logger
+import pandas as pd
 
 from podology.data.Episode import Episode
 from podology.search.utils import format_time
-from config import TRANSCRIPT_DIR
+from config import TRANSCRIPT_DIR, EMBEDDER_ARGS
 
 
-def highlight_to_html_elements(text):
-    """
-    Turn a string with 1 or more <span [...]>highlighted</span> parts into a list of
-    Dash HTML elements, where the highlighted parts are wrapped in a Span element.
-    """
-    parts = re.split(r"(<span .*?>.*?</span>)", text)
-    span_content = []
-
-    for part in parts:
-        if part.startswith("<span ") and part.endswith("</span>"):
-            match = re.match(r"(<span .*?>)(.*)(</span>)", part)
-            if match:
-                opening_tag = match.group(1)
-                opening_match = re.match(r'.*?="(.*?)"', opening_tag)
-                classname = opening_match.group(1) if opening_match else ""
-                text = match.group(2)
-                span_content.append(
-                    html.Span(
-                        children=[text],
-                        className=classname,
-                    )
-                )
-        else:
-            span_content.append(part)
-
-    span_content.append(" ")
-
-    return span_content
+MIN_WORDS = EMBEDDER_ARGS["min_words"]
+MAX_WORDS = EMBEDDER_ARGS["max_words"]
+OVERLAP = EMBEDDER_ARGS["overlap"]
 
 
 class Transcript:
-    """
-    Represents an Episode's transcript. The Episode object only contains a reference to
-    the raw transcript file. These here methods deliver the transcript in the desired
-    formats:
-
-    - diarized transcript: dict with turns blocked by speaker
-    - the HTML representation of the diarized transcript for use in the transcripts tab
-    """
 
     def __init__(self, episode: Episode):
-        """Initialize the Transcript object.
+        # Take over episode attributes:
+        self.episode = episode
 
-        Copy all episode attributes to the Transcript object. Catalog available
-        episode and segment attributes.
+        if self.episode.transcript.status:
+            path = TRANSCRIPT_DIR / f"{self.episode.eid}.json"
+            if not path.exists():
+                raise ValueError(
+                    f"Transcript not available for episode {self.episode.eid}."
+                )
 
-        - episode_attrs: list of episode attributes available to self.segment()
-        - segment_attrs: list of segment attributes available to self.segment()
+            self.raw_segs = json.load(open(path, "r"))
+            self._set_transcript_data()
 
-        Args:
-            episode (Episode): The episode object containing metadata and transcript
-            information.
+    def _set_transcript_data(self):
+        wordlist = []
 
-        Raises:
-            ValueError: If the transcript file is not available.
-        """
-        episode_attrs = list(episode.__dataclass_fields__.keys())
-        self.episode_attrs = episode_attrs
-        for attr in episode_attrs:
-            self.__setattr__(attr, getattr(episode, attr))
+        # set word and segment df from raw_segs:
+        wid = 0
+        for s, segment in enumerate(self.raw_segs.get("segments", [])):
+            for w, word in enumerate(segment.get("words", [])):
+                wordlist.append(
+                    {
+                        "wid": wid,
+                        "word": word.get("word", ""),
+                        "start": word.get("start", 0),
+                        "end": word.get("end", 0),
+                        "speaker": segment.get("speaker", ""),
+                        "sid": s,
+                    },
+                )
+                wid += 1
 
-        if episode.transcript.status:
-            self.path: Path = TRANSCRIPT_DIR / f"{self.__getattribute__('eid')}.json"
-        if self.path is None or not self.path.exists():
-            raise ValueError(
-                f"Transcript not available for episode {self.__getattribute__('eid')}."
+        # word_df: DataFrame containing word-level information
+        self.word_df = pd.DataFrame(wordlist)[
+            ["wid", "word", "start", "end"]
+        ].set_index("wid")
+
+        # segment_df: DataFrame containing segment-level information
+        self.segment_df = (
+            pd.DataFrame(wordlist)
+            .reset_index()
+            .groupby("sid")
+            .agg(
+                start=("index", "min"),
+                end=("index", "max"),
+                speaker=("speaker", _most_frequent),
             )
-        self.raw_dict = json.load(open(self.path, "r"))
-        self.segment_attrs = set()
-        for seg in self.raw_dict["segments"]:
-            this_attrs = set(seg.keys())
-            self.segment_attrs = self.segment_attrs.union(this_attrs)
-        self.segment_attrs = list(self.segment_attrs)
+            # .reset_index()
+            .rename(
+                columns={
+                    "start": "first_word_idx",
+                    "end": "last_word_idx",
+                }
+            )
+        )
 
-    def _diarized(self) -> list:
-        """
-        Return a JSON representation of the diarized transcript.
-        """
-        segments = self.raw_dict["segments"].copy()
-        turns = []
+        # chunk_df: DataFrame containing chunk-level information
+        min_words = MIN_WORDS
+        max_words = MAX_WORDS
+        overlap = OVERLAP
 
-        while segments:
-            this_segment = segments.pop(0)
-            current_speaker = this_segment["speaker"]
-            start_time = this_segment["start"]
-            end_time = this_segment["end"]
-            texts = [this_segment["text"].strip()]
-
-            while segments and segments[0]["speaker"] == current_speaker:
-                next_segment = segments.pop(0)
-                end_time = next_segment["end"]
-                texts.append(next_segment["text"].strip())
-
-            turn = {
-                "speaker": current_speaker,
-                "start": start_time,
-                "end": end_time,
-                "text": " ".join(texts),
-            }
-            turns.append(turn)
-
-        return turns
-
-    def _chunked(
-        self, min_words: int = 40, max_words: int = 100, overlap: float = 0.0
-    ) -> list:
-        """
-        Return a list of chunks, each containing between min_words and max_words words.
-        Overlap is a float (0.0–0.9) indicating the fraction of each chunk to overlap with the next.
-        """
-        segments = self.raw_dict["segments"]
+        segments = self.raw_segs["segments"]
         n_segments = len(segments)
         chunks = []
-        idx = 0
+        s_idx = 0
+        chunk_word_idx_first = 0
+        chunk_word_idx_last = -1
 
-        def count_words(text):
-            return len(text.strip().split())
-
-        while idx < n_segments:
+        while s_idx < n_segments:
             current_chunk = []
-            current_word_count = 0
-            chunk_start_idx = idx
+            current_chunk_wc = 0
+            chunk_start_idx = s_idx
 
-            # Aggregate segments until min_words is reached, but do not exceed max_words
-            while idx < n_segments and (
-                current_word_count < min_words
+            # Concatenate segments; min_words is hard, max_words is soft:
+            while s_idx < n_segments and (
+                # currently too short (below min_words)
+                current_chunk_wc < min_words
                 or (
-                    current_word_count + count_words(segments[idx]["text"]) <= max_words
+                    # would be in range with this seg (min < _ <= max_words)
+                    current_chunk_wc + len(segments[s_idx]["words"])
+                    <= max_words
                 )
             ):
-                current_chunk.append(segments[idx])
-                current_word_count += count_words(segments[idx]["text"])
-                idx += 1
+                current_seg_wc = len(segments[s_idx]["words"])
+                current_chunk_wc += current_seg_wc
+                current_chunk.append(current_seg_wc)
+                s_idx += 1
 
-            chunk_start = current_chunk[0]["start"]
-            chunk_end = current_chunk[-1]["end"]
-            chunk_text = " ".join([s["text"] for s in current_chunk])
+            chunk_word_idx_first = chunk_word_idx_last + 1
+            chunk_word_idx_last = chunk_word_idx_first + current_chunk_wc - 1
+
             chunks.append(
                 {
-                    "text": chunk_text,
-                    "start": chunk_start,
-                    "end": chunk_end,
+                    "first_word_idx": chunk_word_idx_first,
+                    "last_word_idx": chunk_word_idx_last,
+                    "word_count": current_chunk_wc,
                 }
             )
 
             # Calculate overlap in words
             if overlap > 0.0 and len(current_chunk) > 1:
-                overlap_words = int(current_word_count * overlap)
+                overlap_words = int(current_chunk_wc * overlap)
                 if overlap_words > 0:
                     # Walk backwards from the end of the chunk to find where to restart
                     words_seen = 0
-                    rewind_idx = len(current_chunk) - 1
-                    while rewind_idx > 0 and words_seen < overlap_words:
-                        words_seen += count_words(current_chunk[rewind_idx]["text"])
-                        rewind_idx -= 1
-                    next_start_idx = chunk_start_idx + rewind_idx + 1
+                    rewind_s_idx = len(current_chunk) - 1
+                    while rewind_s_idx > 0 and words_seen < overlap_words:
+                        words_seen += current_chunk[rewind_s_idx]
+                        chunk_word_idx_last -= current_chunk[rewind_s_idx]
+                        rewind_s_idx -= 1
+                    next_start_idx = chunk_start_idx + rewind_s_idx + 1
                     # Only continue if enough segments remain for a new chunk
                     if (
                         next_start_idx >= n_segments
                         or next_start_idx == chunk_start_idx
                     ):
                         break
-                    idx = next_start_idx
+                    s_idx = next_start_idx
                 else:
                     break  # No overlap, so we're done
 
-            while len(chunks) > 1 and chunks[-2]["end"] == chunks[-1]["end"]:
+            while (
+                len(chunks) > 1
+                and chunks[-2]["last_word_idx"] == chunks[-1]["last_word_idx"]
+            ):
                 chunks.pop(-1)
 
-        return chunks
+        chunks = [
+            {
+                "cid": i,
+                "first_word_idx": chunk["first_word_idx"],
+                "last_word_idx": chunk["last_word_idx"],
+                "word_count": chunk["word_count"],
+            }
+            for i, chunk in enumerate(chunks)
+        ]
 
-    def words(self, regularize: bool = False) -> list[tuple[str, float]]:
-        """Return a list of all words and their start times.
+        self.chunk_df = pd.DataFrame(chunks).set_index("cid")
+
+        # Master Dataframe containing word- segment- and chunk level information:
+        self.word_df["sid"] = None
+        for sid, segment in self.segment_df.iterrows():
+            mask = (self.word_df.index >= segment["first_word_idx"]) & (
+                self.word_df.index <= segment["last_word_idx"]
+            )
+            self.word_df.loc[mask, "sid"] = int(sid)
+        self.word_df["sid"] = self.word_df["sid"].astype(int)
+
+        self.word_df["cid"] = None
+        for cid, chunk in self.chunk_df.iterrows():
+            mask = (self.word_df.index >= chunk["first_word_idx"]) & (
+                self.word_df.index <= chunk["last_word_idx"]
+            )
+            self.word_df.loc[mask, "cid"] = int(cid)
+        self.word_df["cid"] = self.word_df["cid"].astype(int)
+
+    def words(self, regularize: bool = False) -> pd.DataFrame:
+        """Return word df.
 
         Args:
-            regularized (bool): lowercase words and remove punctuation from start
-                and end (not apostrophes like "we're").
+            regularize (bool, optional): Whether to regularize the words. Defaults to False.
+            segment_attrs (list | str, optional): Segment attributes to include. Defaults to [].
 
         Returns:
-            list[tuple[str,float]]: A list of word--time tuples.
+            list[dict]: List of words with desired metadata.
         """
-        words = []
-
-        segmentlist = [i["words"] for i in self.raw_dict["segments"]]
-        for wordlist in segmentlist:
-            words.extend((i["word"], i["start"]) for i in wordlist)
-
+        df = self.word_df.copy()[["word", "start"]]
         if regularize:
-            words = [
-                (re.sub(r"(^\W)|(\W$)|('\w\b)", "", word).lower(), start)
-                for word, start in words
+            df.word = df.word.str.lower().str.replace(r"(^\W)|(\W$)", "", regex=True)
+
+        return df
+
+    def segments(self, diarize: bool = False) -> pd.DataFrame:
+        df = self.word_df.copy()[["word", "start", "sid"]]
+        df = df.groupby("sid").agg(
+            text=("word", lambda x: " ".join(x)),
+            start=("start", "min"),
+            end=("start", "max"),
+        )
+        df = df.join(self.segment_df[["speaker"]], how="left")
+
+        if diarize:
+
+            # Create a group identifier for consecutive same speakers
+            df["turn_id"] = (df["speaker"] != df["speaker"].shift()).cumsum().sub(1)
+            df = (
+                df.groupby(["speaker", "turn_id"])
+                .agg(
+                    text=("text", " ".join),
+                    start=("start", "min"),
+                    end=("end", "max"),
+                )
+                .reset_index()
+                # .drop(columns=["turn_id"])
+                .sort_values(["start"])
+            ).reset_index()[
+                [
+                    "text",
+                    "start",
+                    "end",
+                    "speaker",
+                    "turn_id",
+                ]
             ]
 
-        return words
+        df["eid"] = self.episode.eid
+        df["pub_date"] = self.episode.pub_date
+        df["title"] = self.episode.title
 
-    def segments(
-        self,
-        episode_attrs: list | str = [],
-        segment_attrs: list | str = [],
-        diarize: bool = False,
-    ) -> list[dict]:
-        """Return the transcript as a dict.
+        return df
 
-        Use the desired level of partitioning (segments, chunks, diarization) and
-        metadata (segment/chunk and episode-level) to return a list of dicts.
-
-        :param episode_metadata: List of metadata fields about the episode to include.
-        :param transcript_metadata: List of metadata fields about each turn to include.
-        """
-        episode_attrs = (
-            [episode_attrs] if isinstance(episode_attrs, str) else episode_attrs
-        )
-        segment_attrs = (
-            [segment_attrs] if isinstance(segment_attrs, str) else segment_attrs
-        )
-        if "text" not in segment_attrs:
-            segment_attrs.append("text")
-
-        out = []
-        if diarize:
-            segments = self._diarized()
-        else:
-            segments = self.raw_dict["segments"].copy()
-
-        for source_turn in segments:
-            # Copy episode metadata from the object to each turn:
-            turn = {i: getattr(self, i) for i in episode_attrs}
-
-            # Copy transcript metadata from the source turn to each turn:
-            turn.update({k: source_turn.get(k) for k in segment_attrs})
-
-            out.append(turn)
-
-        return out
-
-    def chunks(
-        self,
-        episode_attrs: list | str = [],
-        chunk_attrs: list | str = [],
-        min_words: int = 40,
-        max_words: int = 100,
-        overlap: float = 0.0,
-    ) -> list[dict]:
-        """Return the transcript as a list of chunks.
-
-        This form sets a min and max chunk size in words. Chunks are grown by segments
-        until they reach max_words. Each chunk can contain chunk-level and/or episode-level
-        metadata.
-
-        Args:
-            episode_attrs (list | str, optional): List of metadata fields about the episode
-                to include. Defaults to [].
-            chunk_attrs (list | str, optional): List of metadata fields about each chunk to
-                include. Defaults to [].
-
-        Returns:
-            list[dict]: List of chunks with the specified metadata.
-        """
-        episode_attrs = (
-            [episode_attrs] if isinstance(episode_attrs, str) else episode_attrs
-        )
-        chunk_attrs = [chunk_attrs] if isinstance(chunk_attrs, str) else chunk_attrs
-        if "text" not in chunk_attrs:
-            chunk_attrs.append("text")
-
-        out = []
-        chunks = self._chunked(
-            min_words=min_words, max_words=max_words, overlap=overlap
+    def chunks(self) -> pd.DataFrame:
+        df = self.word_df.copy()[["word", "start", "end", "cid"]]
+        df = df.groupby("cid").agg(
+            text=("word", lambda x: " ".join(x)),
         )
 
-        for source_chunk in chunks:
-            # Copy episode metadata from the object to each chunk:
-            chunk = {i: getattr(self, i) for i in episode_attrs}
-
-            # Copy transcript metadata from the source chunk to each chunk:
-            chunk.update({k: source_chunk.get(k) for k in chunk_attrs})
-
-            out.append(chunk)
-
-        return out
-
-    def _highlight_text(self, text, re_pattern_colorid):
-        """Apply highlighting to text based on term patterns."""
-        if not re_pattern_colorid:
-            return text
-        for pattern, colorid in re_pattern_colorid.items():
-            fmt_str = f'<span class="half-circle-highlight term-color-{colorid} highlight-color-{colorid}">'
-            text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
-        return text
-
-    def _render_segment(self, seg, re_pattern_colorid=None):
-        """Render a single segment as a span with data attributes."""
-        text = self._highlight_text(seg["text"], re_pattern_colorid)
-        return html.Span(
-            highlight_to_html_elements(text),
-            className="transcript-segment",
-            **{
-                "data-start": seg["start"],
-                "data-end": seg["end"],
-                "data-speaker": seg["speaker"],
-            },
-        )
-
-    def _render_turn(self, speaker, start, segments, speaker_class):
-        """Render a speaker turn with header and body."""
-        turn_header = dbc.Row(
-            children=[
-                dbc.Col(
-                    [html.B([speaker + ":"])],
-                    className="text-start text-bf",
-                    width=6,
-                ),
-                dbc.Col(
-                    [format_time(start)],
-                    className="text-end text-secondary",
-                    width=6,
-                ),
-            ],
-            className="mt-2",
-        )
-        turn_body = html.Div(segments, className=speaker_class)
-        return [turn_header, turn_body]
+        return df
 
     def to_html(
-        self, termtuples: List[tuple] | NoneType = None, diarized: bool = False
+        self,
+        termtuples: List[tuple] | NoneType = None,
     ) -> list:
         """HTML representation of the transcript, semantically structured."""
 
         def speaker_class(speaker):
             return f"speaker-{speaker[-2:]}"
+
+        def _render_segment(seg, re_pattern_colorid=None) -> html.Span:
+            """Render a single segment as a span with data attributes."""
+
+            def _highlight_text(text, re_pattern_colorid) -> str:
+                """Apply highlighting to text based on term patterns."""
+                if not re_pattern_colorid:
+                    return text
+
+                for pattern, colorid in re_pattern_colorid.items():
+                    fmt_str = f'<span class="half-circle-highlight term-color-{colorid} highlight-color-{colorid}">'
+                    text = pattern.sub(lambda m: f"{fmt_str}{m.group()}</span>", text)
+                return text
+
+            def _highlight_to_html_elements(text) -> list[html.Span]:
+                """
+                Turn a string with 1 or more <span [...]>highlighted</span> parts into a list of
+                Dash HTML elements, where the highlighted parts are wrapped in a Span element.
+                """
+                parts = re.split(r"(<span .*?>.*?</span>)", text)
+                span_content = []
+
+                for part in parts:
+                    if part.startswith("<span ") and part.endswith("</span>"):
+                        match = re.match(r"(<span .*?>)(.*)(</span>)", part)
+                        if match:
+                            opening_tag = match.group(1)
+                            opening_match = re.match(r'.*?="(.*?)"', opening_tag)
+                            classname = opening_match.group(1) if opening_match else ""
+                            text = match.group(2)
+                            span_content.append(
+                                html.Span(
+                                    children=[text],
+                                    className=classname,
+                                )
+                            )
+                    else:
+                        span_content.append(part)
+
+                span_content.append(" ")
+
+                return span_content
+
+            text = _highlight_text(seg["text"], re_pattern_colorid)
+            return html.Span(
+                _highlight_to_html_elements(text),
+                className="transcript-segment",
+                **{
+                    "data-start": seg["start"],
+                    "data-end": seg["end"],
+                    "data-speaker": seg["speaker"],
+                },
+            )
+
+        def _render_html_turn(
+            speaker, start, segments, speaker_class
+        ) -> tuple[dbc.Row, html.Div]:
+            """Render a speaker turn with header and body."""
+            turn_header = dbc.Row(
+                children=[
+                    dbc.Col(
+                        [html.B([speaker + ":"])],
+                        className="text-start text-bf",
+                        width=6,
+                    ),
+                    dbc.Col(
+                        [format_time(start)],
+                        className="text-end text-secondary",
+                        width=6,
+                    ),
+                ],
+                className="mt-2",
+            )
+            turn_body = html.Div(segments, className=speaker_class)
+            return (turn_header, turn_body)
 
         # Compile search term patterns for case-insensitive matching
         re_pattern_colorid = None
@@ -353,42 +335,40 @@ class Transcript:
             }
 
         turns = []
-        if diarized:
-            # Group by speaker turns, but render each segment as a span
-            diarized_turns = self._diarized()
-            # Map each diarized turn to its original segments
-            all_segments = self.raw_dict["segments"]
-            for turn in diarized_turns:
-                # Find all segments in this turn
-                segs_in_turn = [
-                    seg
-                    for seg in all_segments
-                    if seg["speaker"] == turn["speaker"]
-                    and seg["start"] >= turn["start"]
-                    and seg["end"] <= turn["end"]
-                ]
-                segment_spans = [
-                    self._render_segment(seg, re_pattern_colorid)
-                    for seg in segs_in_turn
-                ]
-                turns.extend(
-                    self._render_turn(
+        # Group by speaker turns, but render each segment as a span
+        diarized_turns = self.segments(diarize=True).to_dict(orient="records")
+        # Map each diarized turn to its original segments
+        all_segments = self.segments(diarize=False).to_dict(orient="records")
+        for turn in diarized_turns:
+            # Find all segments in this turn
+            segs_in_turn = [
+                seg
+                for seg in all_segments
+                if seg["speaker"] == turn["speaker"]
+                and seg["start"] >= turn["start"]
+                and seg["end"] <= turn["end"]
+            ]
+            segment_spans = [
+                _render_segment(seg, re_pattern_colorid) for seg in segs_in_turn
+            ]
+            turns.extend(
+                list(
+                    _render_html_turn(
                         turn["speaker"],
                         turn["start"],
                         segment_spans,
                         speaker_class(turn["speaker"]),
                     )
                 )
-        else:
-            # Not diarized: render each segment as its own turn
-            for seg in self.raw_dict["segments"]:
-                segment_span = self._render_segment(seg, re_pattern_colorid)
-                turns.extend(
-                    self._render_turn(
-                        seg["speaker"],
-                        seg["start"],
-                        [segment_span],
-                        speaker_class(seg["speaker"]),
-                    )
-                )
+            )
+
         return turns
+
+
+def _most_frequent(lst: pd.Series) -> str | None:
+    """Return the most frequent value in a list. If tied, return the earlier occurrence."""
+    counter = Counter(lst)
+    max_count = counter.most_common(1)[0][1]
+
+    # Return first item with max count
+    return next(item for item in lst if counter[item] == max_count)

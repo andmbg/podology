@@ -168,8 +168,8 @@ def plot_transcript_hits(
 
     # Transcript words: list of tuples of regularized lemmas:
     # [('alex', 0.123), ('jones', 0.456), ...] => turned to df
-    timed_words = Transcript(EpisodeStore()[eid]).words(regularize=True)
-    words_df = pd.DataFrame(timed_words, columns=["word", "start"])
+    words_df = Transcript(EpisodeStore()[eid]).words(regularize=True)[["word", "start"]]
+    # words_df = pd.DataFrame(timed_words, columns=["word", "start"])
 
     # Target df: Prepare empty bins in a fixed spacing:
     all_bins = np.arange(nbins)
@@ -181,19 +181,25 @@ def plot_transcript_hits(
     )
 
     allbins_df = pd.DataFrame({"bin": all_bins})
-    
+
     # Process each search term
     for term, colorid in term_colid_dict.items():
         term_words = term.split()  # Split multi-word terms
-        
+
         if len(term_words) == 1:
             # Single word - use existing logic
-            single_word_counts = words_df[words_df.word.eq(term_words[0])].groupby("bin").size()
+            single_word_counts = (
+                words_df[words_df.word.eq(term_words[0])].groupby("bin").size()
+            )
             allbins_df[term] = single_word_counts.reindex(all_bins, fill_value=0)
         else:
             # Multi-word sequence - find consecutive matches
             sequence_matches = find_word_sequences(words_df, term_words)
-            sequence_counts = sequence_matches.groupby("bin").size() if not sequence_matches.empty else pd.Series(dtype=int)
+            sequence_counts = (
+                sequence_matches.groupby("bin").size()
+                if not sequence_matches.empty
+                else pd.Series(dtype=int)
+            )
             allbins_df[term] = sequence_counts.reindex(all_bins, fill_value=0)
 
     allbins_df.set_index("bin", inplace=True)
@@ -246,29 +252,31 @@ def plot_transcript_hits(
     return fig
 
 
-def find_word_sequences(words_df: pd.DataFrame, target_words: List[str]) -> pd.DataFrame:
+def find_word_sequences(
+    words_df: pd.DataFrame, target_words: List[str]
+) -> pd.DataFrame:
     """
     Find consecutive word sequences in the transcript.
-    
+
     Args:
         words_df: DataFrame with columns ['word', 'start', 'bin']
         target_words: List of words to find in sequence (e.g., ['alex', 'jones'])
-    
+
     Returns:
         DataFrame with matches containing the bin of the first word in each sequence
     """
     if len(target_words) == 0:
-        return pd.DataFrame(columns=['bin'])
-    
+        return pd.DataFrame(columns=["bin"])
+
     matches = []
-    words_list = words_df['word'].tolist()
-    
+    words_list = words_df["word"].tolist()
+
     # Sliding window to find sequences
     for i in range(len(words_list) - len(target_words) + 1):
         # Check if the sequence matches
-        if words_list[i:i+len(target_words)] == target_words:
+        if words_list[i : i + len(target_words)] == target_words:
             # Use the bin of the first word in the sequence
-            match_bin = words_df.iloc[i]['bin']
-            matches.append({'bin': match_bin})
-    
+            match_bin = words_df.iloc[i]["bin"]
+            matches.append({"bin": match_bin})
+
     return pd.DataFrame(matches)

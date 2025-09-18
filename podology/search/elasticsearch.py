@@ -12,9 +12,8 @@ from typing import List
 from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
-import requests
 
-from config import DB_PATH, PROJECT_NAME, CHUNKS_DIR
+from config import DB_PATH, PROJECT_NAME
 from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
 from podology.data.Transcript import Transcript
@@ -22,7 +21,6 @@ from podology.data.Transcript import Transcript
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
 STATS_PATH = Path(__file__).parent.parent / "data" / PROJECT_NAME / "stats"
-EMBEDDER_URL_PORT = os.getenv("TRANSCRIBER_URL_PORT")
 MAX_PARALLEL_INDEXING_PROCESSES = 4  # max: multiprocessing.cpu_count()
 
 # the shape of the transcript index:
@@ -63,11 +61,10 @@ def index_segment(episode: Episode) -> None:
 
     transcript = Transcript(episode)
 
-    segments = transcript.segments(
-        episode_attrs=["eid", "pub_date", "title"],
-        segment_attrs=["start", "end", "text"],
-        diarize=False,
-    )
+    segments_df = transcript.segments(diarize=False)[
+        ["eid", "pub_date", "title", "start", "end", "text"]
+    ]
+    segments = segments_df.to_dict(orient="records")
 
     # Abort if the episode is already indexed
     s0 = segments[0]
@@ -106,59 +103,3 @@ def index_segment(episode: Episode) -> None:
         raise
 
 
-def get_chunk_embeddings(episodes: List[Episode]):
-
-    ep_transcribed = [ep for ep in episodes if ep.transcript.status]
-    ep_chunked = [ep for ep in ep_transcribed if Path(CHUNKS_DIR / f"{ep.eid}_chunks.json").exists()]
-    ep_to_do = [ep for ep in ep_transcribed if ep not in ep_chunked]
-
-    for episode in ep_to_do:
-
-        logger.debug(f"{episode.eid}: Getting chunk embeddings from WhisperX service")
-
-        try:
-            assert episode.transcript.status
-            transcript = Transcript(episode)
-
-        except Exception as e:
-            logger.error(f"{episode.eid}: Failed to read transcript file: {e}")
-            return {}
-
-        chunks = transcript.chunks(
-            episode_attrs=["eid", "pub_date", "title"],
-            chunk_attrs=["start", "end", "text"],
-            min_words=20,
-            max_words=70,
-            overlap=0.2,
-        )
-
-        headers = {
-            "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
-            "Content-Type": "application/json",
-        }
-
-        try:
-            response = requests.post(
-                f"{EMBEDDER_URL_PORT}/embed",
-                json={"chunks": chunks},
-                headers=headers,
-                timeout=1800,  # anything > 30 min. is fishy.
-            )
-        except requests.exceptions.ConnectionError as e:
-            raise RuntimeError(f"Failed to connect to WhisperX service: {e}")
-        except requests.exceptions.Timeout as e:
-            raise RuntimeError(f"WhisperX service timeout: {e}")
-
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"WhisperX service failed with status {response.status_code}: {response.text}"
-            )
-
-        result = response.json()
-
-        chunk_path = CHUNKS_DIR / f"{episode.eid}_chunks.json"
-
-        with open(chunk_path, "w") as f:
-            json.dump(result, f, indent=2)
-
-    return

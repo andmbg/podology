@@ -805,7 +805,7 @@ def init_callbacks(app):
 
         # Get the transcript of the selected episode as HTML:
         diarized_script = Transcript(episode=episode)
-        diarized_script_element = diarized_script.to_html(termtuples, diarized=True)
+        diarized_script_element = diarized_script.to_html(termtuples)
 
         # Set the scroll animation word dict to the episode's words:
         ticker_dict = get_ticker_dict(

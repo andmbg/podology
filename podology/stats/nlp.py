@@ -16,6 +16,7 @@ nltk.download("words", quiet=True)
 from nltk import word_tokenize, pos_tag, ne_chunk, Tree
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
@@ -57,7 +58,7 @@ def named_entities_whole_text(text) -> list[tuple[str, str]]:
     return named_entities
 
 
-def get_wordcloud(episode: Episode) -> plt.Figure:
+def get_wordcloud(episode: Episode) -> Figure:
     """
     Create a word cloud Figure for the given episode.
 
@@ -66,7 +67,7 @@ def get_wordcloud(episode: Episode) -> plt.Figure:
     """
     # Plain text of transcript without speaker labels:
     transcript = Transcript(episode)
-    text = " ".join([i["text"] for i in transcript.segments()])
+    text = " ".join(transcript.segments()["text"])
     names = named_entities_whole_text(text)
     names = [i[0] for i in names]
 
@@ -152,15 +153,18 @@ def type_proximity(type_token_dict: dict) -> pd.DataFrame:
     return prox_df
 
 
-def timed_named_entity_tokens(transcript: Transcript) -> List:
+def timed_named_entity_tokens(transcript: Transcript) -> list:
     """
     Extract named entities from the given transcript and associate them with timestamps.
 
-    :param transcript: A list of dictionaries, where each dictionary contains "text", "start", and "end".
-    :return: A list of tuples (entity_name, entity_type, word_index).
+    Args:
+        transcript (Transcript): A Transcript object containing segment information.
+
+    Returns:
+        list: A list of tuples (entity_name, entity_type, word_index).
     """
     argslist = []
-    for segment in transcript.segments(segment_attrs=["text", "start", "end"]):
+    for _, segment in transcript.segments()[["text", "start", "end"]].iterrows():
         timestamp = round((segment["start"] + segment["end"]) / 2, 2)
         argslist.append((segment["text"], timestamp))
 

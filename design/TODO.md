@@ -1,13 +1,13 @@
 # Features to do
 
-- RAG and layout:
+- RAG:
   - Transcript tab looks within-episode.
-    - left of transcript: Prompt relevance
-    - [DONE] **right of transcript (close to scrollbar): word finds** <= imminent
-  - Plot tab looks across episodes.
-    - plot 1: terms
-    - plot 2: prompt => per-episode average relevance
-      - click on episode: add time-series of chunks to transcript, move to transcript tab
+    - next to Transcript or search-hit-col: Prompt relevance as lines (or thin rects);
+      you can input up to 10 term searches or prompt searches. Term searches yield term highlights in the transcript and its search-hit-col. Prompt searches yield a line per prompt whose thickness or opacity indicates relevance.
+    
+    - HOW:
+      - add to each segment span the relevance score per prompt
+      - redesign Transcript class: per segment, hold start/end, turn membership, chunk membership; output methods use this.
 
 - Audio Playback on clicking on transcript
 - click on dot in term plot opens episode
@@ -19,7 +19,7 @@
 
 ## Backend:
 
-- move transcript post-processing into the abstract base transcriber object
+- move transcript post-processing to the API, make the worker flexible so they can receive a job at any point in the pipeline and do everything downstream
 
 ## Meta/Download tab:
 
@@ -35,7 +35,7 @@
 
 ## Terms tab:
 
-- Remove plot when the last term gets deleted
+- Switch between occurrences per 1000 and absolute count on y-axis
 
 ---
 
@@ -58,3 +58,4 @@
 - API has alignment model hardcoded even though some code suggests parameterization.
 - if one search term contains another, highlights in the transcript get messed up.
 - if a search term has spaces in it, it is not marked in the vertical search hit column.
+- when I click a card from the Across tab and in the Within tab delete a tag, the selected episode jumps back to where it was before.

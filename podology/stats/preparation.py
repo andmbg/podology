@@ -5,6 +5,7 @@ by the functions that they apply to the whole corpus.
 """
 
 # pylint: disable=W1514
+import os
 import json
 from pathlib import Path
 from typing import List, Optional
@@ -18,8 +19,9 @@ if TYPE_CHECKING:
 import pandas as pd
 from loguru import logger
 from redis import Redis
+import requests
 
-from config import DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
+from config import CHUNKS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
 from podology.data.Episode import Episode, Status
 from podology.data.Transcript import Transcript
 from podology.stats.nlp import (
@@ -27,9 +29,10 @@ from podology.stats.nlp import (
     get_wordcloud,
     timed_named_entity_tokens,
 )
-from podology.search.elasticsearch import index_segments, get_chunk_embeddings
+from podology.search.elasticsearch import index_segments
 
 redis_conn = Redis()
+EMBEDDER_URL_PORT = os.getenv("TRANSCRIBER_URL_PORT")
 
 
 def post_process_pipeline(
@@ -49,7 +52,7 @@ def post_process_pipeline(
         episodes = [ep for ep in episode_store if ep.transcript.status]
 
     index_segments(episodes)
-    get_chunk_embeddings(episodes)
+    store_chunk_embeddings(episodes)
     get_word_counts(episodes)
     store_wordclouds(episodes)
     store_timed_named_entities(episodes)
@@ -222,7 +225,8 @@ def store_type_proximity(episodes: List[Episode]):
 
         # eids where [v] NEs indexed & [ ] proximities indexed:
         ep_to_do = [
-            row[0] for row in conn.execute(
+            row[0]
+            for row in conn.execute(
                 "SELECT DISTINCT eid FROM named_entity_tokens "
                 "WHERE eid NOT IN (SELECT eid FROM type_proximity_episode)"
             )
@@ -359,3 +363,58 @@ def initialize_stats_db():
             """
         )
 
+
+def store_chunk_embeddings(episodes: List[Episode]):
+
+    ep_transcribed = [ep for ep in episodes if ep.transcript.status]
+    ep_chunked = [
+        ep
+        for ep in ep_transcribed
+        if Path(CHUNKS_DIR / f"{ep.eid}_chunks.json").exists()
+    ]
+    ep_to_do = [ep for ep in ep_transcribed if ep not in ep_chunked]
+
+    for episode in ep_to_do:
+
+        logger.debug(f"{episode.eid}: Getting chunk embeddings from WhisperX service")
+
+        try:
+            assert episode.transcript.status
+            transcript = Transcript(episode)
+
+        except Exception as e:
+            logger.error(f"{episode.eid}: Failed to read transcript file: {e}")
+            return {}
+
+        chunks = transcript.chunks().to_dict(orient="records")
+
+        headers = {
+            "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            response = requests.post(
+                f"{EMBEDDER_URL_PORT}/embed",
+                json={"chunks": chunks},
+                headers=headers,
+                timeout=1800,  # anything > 30 min. is fishy.
+            )
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError(f"Failed to connect to WhisperX service: {e}")
+        except requests.exceptions.Timeout as e:
+            raise RuntimeError(f"WhisperX service timeout: {e}")
+
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"WhisperX service failed with status {response.status_code}: {response.text}"
+            )
+
+        result = response.json()
+
+        chunk_path = CHUNKS_DIR / f"{episode.eid}_chunks.json"
+
+        with open(chunk_path, "w") as f:
+            json.dump(result, f, indent=2)
+
+    return

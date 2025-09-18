@@ -46,10 +46,18 @@ TRANSCRIBER_ARGS = {
 #
 # Settings about sentence embeddings and vector search
 #
+# A word on chunk size:
+# Chunks are made by concatenating transcription segments. Segments are added until the
+# next segment would exceed the maximum chunk size. If leaving this segment away would
+# however yield < min_words, it is included nevertheless. So min_words is a hard limit,
+# max_words a soft limit.
 EMBEDDER_ARGS = {
     "url": os.getenv("TRANSCRIBER_URL_PORT"),
     "model": "all-MiniLM-L6-v2",
     "dims": 384,
+    "min_words": 50,
+    "max_words": 100,
+    "overlap": 0.2,
 }
 
 # Stopwords concern the identification of named entities in scroll video rendering
