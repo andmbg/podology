@@ -19,6 +19,7 @@ class Status(Enum):
 class TranscriptInfo:
     status: Status
     wcstatus: Status
+    chunkstatus: Status
 
 
 @dataclass

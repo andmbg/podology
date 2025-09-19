@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 from loguru import logger
 import pandas as pd
+from numpy import mean
 
 from podology.data.Episode import Episode
 from podology.search.utils import format_time
@@ -80,10 +81,6 @@ class Transcript:
         )
 
         # chunk_df: DataFrame containing chunk-level information
-        min_words = MIN_WORDS
-        max_words = MAX_WORDS
-        overlap = OVERLAP
-
         segments = self.raw_segs["segments"]
         n_segments = len(segments)
         chunks = []
@@ -99,11 +96,11 @@ class Transcript:
             # Concatenate segments; min_words is hard, max_words is soft:
             while s_idx < n_segments and (
                 # currently too short (below min_words)
-                current_chunk_wc < min_words
+                current_chunk_wc < MIN_WORDS
                 or (
                     # would be in range with this seg (min < _ <= max_words)
                     current_chunk_wc + len(segments[s_idx]["words"])
-                    <= max_words
+                    <= MAX_WORDS
                 )
             ):
                 current_seg_wc = len(segments[s_idx]["words"])
@@ -123,8 +120,8 @@ class Transcript:
             )
 
             # Calculate overlap in words
-            if overlap > 0.0 and len(current_chunk) > 1:
-                overlap_words = int(current_chunk_wc * overlap)
+            if OVERLAP > 0.0 and len(current_chunk) > 1:
+                overlap_words = int(current_chunk_wc * OVERLAP)
                 if overlap_words > 0:
                     # Walk backwards from the end of the chunk to find where to restart
                     words_seen = 0
@@ -162,8 +159,11 @@ class Transcript:
 
         self.chunk_df = pd.DataFrame(chunks).set_index("cid")
 
-        # Master Dataframe containing word- segment- and chunk level information:
+        # Update word_df to contain word- segment- and chunk level information:
         self.word_df["sid"] = None
+        self.word_df["cid"] = None
+
+        # Segment info:
         for sid, segment in self.segment_df.iterrows():
             mask = (self.word_df.index >= segment["first_word_idx"]) & (
                 self.word_df.index <= segment["last_word_idx"]
@@ -171,13 +171,23 @@ class Transcript:
             self.word_df.loc[mask, "sid"] = int(sid)
         self.word_df["sid"] = self.word_df["sid"].astype(int)
 
+        # Chunk info:
         self.word_df["cid"] = None
         for cid, chunk in self.chunk_df.iterrows():
-            mask = (self.word_df.index >= chunk["first_word_idx"]) & (
-                self.word_df.index <= chunk["last_word_idx"]
+            mask_no_cid = (
+                (self.word_df.index >= chunk["first_word_idx"])
+                & (self.word_df.index <= chunk["last_word_idx"])
+                & (self.word_df.cid.isna())
             )
-            self.word_df.loc[mask, "cid"] = int(cid)
-        self.word_df["cid"] = self.word_df["cid"].astype(int)
+            mask_has_cid = (
+                (self.word_df.index >= chunk["first_word_idx"])
+                & (self.word_df.index <= chunk["last_word_idx"])
+                & (self.word_df.cid.notna())
+            )
+            self.word_df.loc[mask_no_cid, "cid"] = str(cid)
+            self.word_df.loc[mask_has_cid, "cid"] = self.word_df.loc[
+                mask_has_cid, "cid"
+            ].apply(lambda x: f"{x},{cid}")
 
     def words(self, regularize: bool = False) -> pd.DataFrame:
         """Return word df.
@@ -196,11 +206,12 @@ class Transcript:
         return df
 
     def segments(self, diarize: bool = False) -> pd.DataFrame:
-        df = self.word_df.copy()[["word", "start", "sid"]]
+        df = self.word_df.copy()
         df = df.groupby("sid").agg(
             text=("word", lambda x: " ".join(x)),
             start=("start", "min"),
-            end=("start", "max"),
+            end=("end", "max"),
+            cid=("cid", "first"),
         )
         df = df.join(self.segment_df[["speaker"]], how="left")
 
@@ -236,6 +247,10 @@ class Transcript:
 
     def chunks(self) -> pd.DataFrame:
         df = self.word_df.copy()[["word", "start", "end", "cid"]]
+        df.cid = df.cid.apply(
+            lambda x: mean([int(i) for i in x.split(",")]) if pd.notna(x) else None
+        )
+    
         df = df.groupby("cid").agg(
             text=("word", lambda x: " ".join(x)),
         )
@@ -294,6 +309,8 @@ class Transcript:
                 return span_content
 
             text = _highlight_text(seg["text"], re_pattern_colorid)
+            cids = seg["cid"].split(",")
+
             return html.Span(
                 _highlight_to_html_elements(text),
                 className="transcript-segment",
@@ -372,3 +389,12 @@ def _most_frequent(lst: pd.Series) -> str | None:
 
     # Return first item with max count
     return next(item for item in lst if counter[item] == max_count)
+
+
+def _in_csv(x: int, s: str) -> bool:
+    """Check if integer x is in the comma-separated string s."""
+    try:
+        int_list = [int(i) for i in s.split(",")]
+        return x in int_list
+    except ValueError:
+        return False

@@ -8,7 +8,7 @@ by the functions that they apply to the whole corpus.
 import os
 import json
 from pathlib import Path
-from typing import List, Optional
+from typing import Generator, List, Optional
 import multiprocessing
 import sqlite3
 from typing import TYPE_CHECKING
@@ -21,7 +21,7 @@ from loguru import logger
 from redis import Redis
 import requests
 
-from config import CHUNKS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR
+from config import CHUNKS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, EMBEDDER_ARGS
 from podology.data.Episode import Episode, Status
 from podology.data.Transcript import Transcript
 from podology.stats.nlp import (
@@ -30,9 +30,6 @@ from podology.stats.nlp import (
     timed_named_entity_tokens,
 )
 from podology.search.elasticsearch import index_segments
-
-redis_conn = Redis()
-EMBEDDER_URL_PORT = os.getenv("TRANSCRIBER_URL_PORT")
 
 
 def post_process_pipeline(
@@ -365,56 +362,94 @@ def initialize_stats_db():
 
 
 def store_chunk_embeddings(episodes: List[Episode]):
+    """Store chunk embeddings for the given episodes.
 
-    ep_transcribed = [ep for ep in episodes if ep.transcript.status]
-    ep_chunked = [
+    Args:
+        episodes (List[Episode]): List of episodes to process.
+
+    Raises:
+        RuntimeError: If there is an error while processing episodes.
+
+    Returns:
+        None
+    """
+
+    def _3rows(df: pd.DataFrame):
+        """Custom 3-row sliding window function.
+
+        Args:
+            df (pd.DataFrame): complete df
+
+        Yields:
+            pd.DataFrame: 3-row sliding window DataFrame.
+        """
+        if len(df) < 2:
+            return
+
+        yield df.iloc[0:2]
+
+        start = 1
+        while start + 2 < len(df):
+            yield df.iloc[start : start + 3]
+            start += 2
+
+    # Identify episodes without chunk embeddings indexed:
+    ep_to_do = [
         ep
-        for ep in ep_transcribed
-        if Path(CHUNKS_DIR / f"{ep.eid}_chunks.json").exists()
+        for ep in episodes
+        if ep.transcript.status
+        and not Path(CHUNKS_DIR / f"{ep.eid}_chunks.json").exists()
     ]
-    ep_to_do = [ep for ep in ep_transcribed if ep not in ep_chunked]
 
     for episode in ep_to_do:
-
         logger.debug(f"{episode.eid}: Getting chunk embeddings from WhisperX service")
-
+        transcript = None
+        chunks = None
+        
         try:
-            assert episode.transcript.status
             transcript = Transcript(episode)
+            chunks = []
+            for grp in _3rows(transcript.chunks()):
+                chunks.append({
+                    "cid": ",".join(grp.index.astype(str)),
+                    "text": " ".join(grp["text"]),
+                    "eid": f"{episode.eid}",
+                    "pub_date": f"{episode.pub_date}"
+                })
 
-        except Exception as e:
-            logger.error(f"{episode.eid}: Failed to read transcript file: {e}")
-            return {}
+            headers = {
+                "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
+                "Content-Type": "application/json",
+            }
 
-        chunks = transcript.chunks().to_dict(orient="records")
+            response = None
+            try:
+                response = requests.post(
+                    f"{EMBEDDER_ARGS['url']}/embed",
+                    json={"chunks": chunks},
+                    headers=headers,
+                    timeout=1800,
+                    stream=True  # Stream the response
+                )
 
-        headers = {
-            "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
-            "Content-Type": "application/json",
-        }
+                if response.status_code != 200:
+                    raise RuntimeError(
+                        f"WhisperX service failed with status {response.status_code}: {response.text}"
+                    )
 
-        try:
-            response = requests.post(
-                f"{EMBEDDER_URL_PORT}/embed",
-                json={"chunks": chunks},
-                headers=headers,
-                timeout=1800,  # anything > 30 min. is fishy.
-            )
-        except requests.exceptions.ConnectionError as e:
-            raise RuntimeError(f"Failed to connect to WhisperX service: {e}")
-        except requests.exceptions.Timeout as e:
-            raise RuntimeError(f"WhisperX service timeout: {e}")
+                # Stream directly to file instead of loading into memory
+                chunk_path = CHUNKS_DIR / f"{episode.eid}_chunks.json"
+                with open(chunk_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
 
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"WhisperX service failed with status {response.status_code}: {response.text}"
-            )
-
-        result = response.json()
-
-        chunk_path = CHUNKS_DIR / f"{episode.eid}_chunks.json"
-
-        with open(chunk_path, "w") as f:
-            json.dump(result, f, indent=2)
-
-    return
+            finally:
+                if response:
+                    response.close()  # Explicitly close the response
+                    
+        finally:
+            # Explicit cleanup
+            del transcript
+            del chunks
+            import gc
+            gc.collect()

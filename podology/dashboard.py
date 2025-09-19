@@ -6,6 +6,7 @@ from pathlib import Path
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 from dash.dependencies import ClientsideFunction
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
@@ -96,7 +97,7 @@ def init_dashboard(flask_app, route):
         routes_pathname_prefix=route,
         # relevant for standalone launch, not used by main flask app:
         # FIXME this overrides our custom CSS!
-        external_stylesheets=[dbc.themes.CERULEAN],
+        # external_stylesheets=[dbc.themes.CERULEAN],
         assets_folder=str(Path(__file__).parent / "assets"),
     )
 

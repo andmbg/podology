@@ -13,6 +13,7 @@ from config import (
     AUDIO_DIR,
     TRANSCRIPT_DIR,
     WORDCLOUD_DIR,
+    CHUNKS_DIR,
 )
 from podology.data.transcribers.transcription_worker import transcription_worker
 
@@ -32,6 +33,7 @@ class EpisodeStore:
         self.audio_dir = AUDIO_DIR
         self.transcript_dir = TRANSCRIPT_DIR
         self.wordcloud_dir = WORDCLOUD_DIR
+        self.chunks_dir = CHUNKS_DIR
         self.dummy_audio = DUMMY_AUDIO
         self._ensure_table()
 
@@ -51,7 +53,8 @@ class EpisodeStore:
                     duration TEXT,
                     transcript_status TEXT,
                     transcript_wcstatus TEXT,
-                    audio_status TEXT
+                    audio_status TEXT,
+                    chunk_status TEXT
                 )
             """
             )
@@ -63,8 +66,9 @@ class EpisodeStore:
                 """
                 INSERT OR REPLACE INTO episodes (
                     eid, url, title, pub_date, description, duration,
-                    transcript_status, transcript_wcstatus, audio_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    transcript_status, transcript_wcstatus, audio_status,
+                    chunk_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     episode.eid,
@@ -76,6 +80,7 @@ class EpisodeStore:
                     episode.transcript.status.name if episode.transcript else None,
                     episode.transcript.wcstatus.name if episode.transcript else None,
                     episode.audio.status.name if episode.audio else None,
+                    episode.transcript.chunkstatus.name if episode.transcript else None,
                 ),
             )
             conn.commit()
@@ -92,12 +97,16 @@ class EpisodeStore:
             transcript_status,
             transcript_wcstatus,
             audio_status,
+            chunkstatus,
         ) = row
 
         transcript = TranscriptInfo(
             status=Status[transcript_status] if transcript_status else Status.NOT_DONE,
             wcstatus=(
                 Status[transcript_wcstatus] if transcript_wcstatus else Status.NOT_DONE
+            ),
+            chunkstatus=(
+                Status[chunkstatus] if chunkstatus else Status.NOT_DONE
             ),
         )
 
@@ -149,12 +158,18 @@ class EpisodeStore:
                 if self.wordcloud_dir.joinpath(f"{eid}.png").exists()
                 else Status.NOT_DONE
             )
+            chunks_exist = (
+                Status.DONE
+                if self.chunks_dir.joinpath(f"{eid}_chunks.json").exists()
+                else Status.NOT_DONE
+            )
 
             audio_info = AudioInfo(status=audio_exists)
 
             transcript_info = TranscriptInfo(
                 status=transcript_exists,
                 wcstatus=wordcloud_exists,
+                chunkstatus=chunks_exist,
             )
 
             try:

@@ -6,14 +6,13 @@ import json
 from pathlib import Path
 from datetime import datetime
 import multiprocessing
-import sqlite3
 from typing import List
 
 from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
-from config import DB_PATH, PROJECT_NAME
+from config import PROJECT_NAME, TRANSCRIPT_DIR
 from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
 from podology.data.Transcript import Transcript
@@ -59,22 +58,25 @@ def index_segment(episode: Episode) -> None:
         # ca_certs=basedir / "http_ca.crt"
     )
 
-    transcript = Transcript(episode)
+    # transcript = Transcript(episode)
 
-    segments_df = transcript.segments(diarize=False)[
-        ["eid", "pub_date", "title", "start", "end", "text"]
-    ]
-    segments = segments_df.to_dict(orient="records")
+    # segments_df = transcript.segments(diarize=False)[
+    #     ["eid", "pub_date", "title", "start", "end", "text"]
+    # ]
+    # segments = segments_df.to_dict(orient="records")
 
-    # Abort if the episode is already indexed
-    s0 = segments[0]
-    first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
-    if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
+    # # Abort if the episode is already indexed
+    # s0 = segments[0]
+    # first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
+    # if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
+    if is_indexed(episode, es_client):
         logger.debug(f"{episode.eid} is already indexed.")
         return
 
     # Index segments
+    segments = json.load(open(TRANSCRIPT_DIR / f"{episode.eid}.json", "r"))["segments"]
     logger.debug(f"{episode.eid}: Indexing in Elasticsearch")
+
     actions = []
     try:
         for seg in segments:
@@ -103,3 +105,9 @@ def index_segment(episode: Episode) -> None:
         raise
 
 
+def is_indexed(episode: Episode, es_client: Elasticsearch) -> bool:
+    """Check if episode is already indexed in Elasticsearch."""
+    raw_transcript = json.load(open(TRANSCRIPT_DIR / f"{episode.eid}.json", "r"))
+    s0 = raw_transcript["segments"][0]
+    first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
+    return bool(es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id))

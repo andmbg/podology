@@ -158,6 +158,7 @@ class RSSConnector(Connector):
                 transcript=TranscriptInfo(
                     status=Status.NOT_DONE,
                     wcstatus=Status.NOT_DONE,
+                    chunkstatus=Status.NOT_DONE,
                 ),
             )
 
