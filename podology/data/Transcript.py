@@ -5,7 +5,7 @@ from typing import List, Optional
 import json
 from pathlib import Path
 
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 from dash import html
 from loguru import logger
 import pandas as pd
@@ -323,19 +323,19 @@ class Transcript:
 
         def _render_html_turn(
             speaker, start, segments, speaker_class
-        ) -> tuple[dbc.Row, html.Div]:
+        ) -> tuple[dmc.Grid, html.Div]:
             """Render a speaker turn with header and body."""
-            turn_header = dbc.Row(
+            turn_header = dmc.Grid(
                 children=[
-                    dbc.Col(
+                    dmc.GridCol(
                         [html.B([speaker + ":"])],
                         className="text-start text-bf",
-                        width=6,
+                        span=6,
                     ),
-                    dbc.Col(
+                    dmc.GridCol(
                         [format_time(start)],
                         className="text-end text-secondary",
-                        width=6,
+                        span=6,
                     ),
                 ],
                 className="mt-2",

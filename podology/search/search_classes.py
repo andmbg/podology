@@ -1,6 +1,6 @@
 from datetime import datetime
 
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 from dash import html
 
 
@@ -130,54 +130,48 @@ class ResultCard:
             "%Y-%m-%dT%H:%M:%S",
         ).strftime("%Y-%m-%d")
 
-        return dbc.Button(
-            dbc.Card(
-                dbc.CardBody(
+        return dmc.Card(
+            [
+                dmc.Grid(
                     [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    html.P(
-                                        formatted_date,
-                                        className="text-secondary mb-0 me-1 text-nowrap",
-                                    ),
-                                    width="auto",
-                                    className="text-start fs-6",
-                                ),
-                                dbc.Col(
-                                    html.B(
-                                        self.title,
-                                        className="mb-0 text-truncate text-primary",
-                                    ),
-                                ),
-                                # dbc.Col(
-                                #     html.P(
-                                #         f"{self.term_nhits} hits",
-                                #         className="text-secondary mb-0 text-nowrap",
-                                #     ),
-                                #     width="auto",
-                                #     className="text-end",
-                                # ),
-                            ],
-                            className="g-0",
+                        dmc.GridCol(
+                            html.P(
+                                formatted_date,
+                                className="text-secondary text-nowrap",
+                            ),
+                            span="auto",
+                            className="text-start",
                         ),
-                        dbc.Row(
-                            (
-                                [
-                                    html.Button(
-                                        i,
-                                        className=f"text-secondary hit-count term-color-{self.term_colorid_dict[term]}",
-                                    )
-                                    for term, i in self.term_nhits.items()
-                                ]
-                                if self.term_nhits
-                                else []
+                        dmc.GridCol(
+                            html.B(
+                                self.title,
+                                className="text-truncate text-primary",
                             ),
                         ),
+                        # dbc.Col(
+                        #     html.P(
+                        #         f"{self.term_nhits} hits",
+                        #         className="text-secondary mb-0 text-nowrap",
+                        #     ),
+                        #     width="auto",
+                        #     className="text-end",
+                        # ),
                     ],
-                    className="py-2",
                 ),
-            ),
+                dmc.Grid(
+                    (
+                        [
+                            html.Button(
+                                i,
+                                className=f"text-secondary hit-count term-color-{self.term_colorid_dict[term]}",
+                            )
+                            for term, i in self.term_nhits.items()
+                        ]
+                        if self.term_nhits
+                        else []
+                    ),
+                ),
+            ],
             id={"type": "result-card", "index": self.id},
-            class_name="card-button mb-1 w-100",
+            className="card-button",
         )

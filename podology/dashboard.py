@@ -5,9 +5,9 @@ from pathlib import Path
 
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
-import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 from dash.dependencies import ClientsideFunction
+from dash_iconify import DashIconify
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
 from loguru import logger
@@ -163,288 +163,65 @@ def init_dashboard(flask_app, route):
         },
     ]
 
-    transcribe_tab = dbc.Card(
-        className="m-0 no-top-border",
-        children=dbc.CardBody(
-            [
-                # Episode List
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                html.H5("Episodes"),
-                                dag.AgGrid(
-                                    id="transcribe-episode-list",
-                                    columnDefs=column_defs,
-                                    columnSize="sizeToFit",
-                                    defaultColDef={
-                                        "resizable": True,
-                                        "sortable": True,
-                                        "filter": True,
-                                    },
-                                    rowModelType="clientSide",
-                                    style={
-                                        "height": "calc(100vh - 200px)",
-                                        "width": "100%",
-                                    },
-                                    rowData=get_row_data(episode_store),
-                                    className="ag-theme-quartz",
-                                    getRowId="params.data.eid",
-                                    dashGridOptions={
-                                        "rowSelection": "single",
-                                        "tooltipShowDelay": 500,
-                                        "tooltipHideDelay": 10000,
-                                        "tooltipInteraction": True,
-                                        "popupParent": {
-                                            "function": "setPopupsParent()"
-                                        },
-                                    },
-                                ),
-                            ],
-                            width=12,
-                        ),
-                    ],
-                    className="mt-3",
-                ),
-            ],
+    theme_toggle = dmc.Switch(
+        offLabel=DashIconify(
+            icon="radix-icons:sun",
+            width=20,
+            color=dmc.DEFAULT_THEME["colors"]["yellow"][8],
         ),
+        onLabel=DashIconify(
+            icon="radix-icons:moon",
+            width=20,
+            color=dmc.DEFAULT_THEME["colors"]["yellow"][6],
+        ),
+        id="color-scheme-switch",
+        persistence=True,
+        color="gray",
+        size="lg",
     )
 
-    #
-    #  ____________________
-    # | Search Transcripts |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-    browse_tab = dbc.Card(
-        className="m-0 no-top-border",
-        children=dbc.CardBody(
-            [
-                #
-                # Output
-                # ----------------
-                dbc.Row(
-                    children=[
-                        #
-                        # Animated word cloud (Ticker)
-                        # ----------------------------
-                        dbc.Col(
-                            children=[
-                                dcc.Graph(
-                                    id="scroll-animation",
-                                    figure=empty_scroll_fig,
-                                    config={
-                                        "displayModeBar": False,
-                                        "staticPlot": True,
-                                    },
-                                ),
-                                dcc.Store(
-                                    id="ticker-dict",
-                                    data="",
-                                ),
-                            ],
-                            md=6,
-                            xs=12,
-                        ),
-                        #
-                        # Transcript of selected episode
-                        # ------------------------------
-                        dbc.Col(
-                            children=[
-                                html.Div(
-                                    children=[
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    [
-                                                        dcc.Store(
-                                                            id="playback-time-store",
-                                                            data=0,
-                                                        ),
-                                                        # dbc.Button(
-                                                        #     "⏸",
-                                                        #     id="play",
-                                                        #     color="secondary",
-                                                        #     size="sm",
-                                                        #     className="me-1",
-                                                        # ),
-                                                        html.Audio(
-                                                            id="audio-player",
-                                                            controls=True,
-                                                            src="/audio/LxvbG",
-                                                        ),
-                                                        html.H5(
-                                                            html.B(
-                                                                "Title",
-                                                                id="transcript-episode-title",
-                                                            ),
-                                                            className="mb-0 text-truncate",
-                                                        ),
-                                                    ],
-                                                    width=12,
-                                                    className="d-flex align-items-center",
-                                                ),
-                                            ]
-                                        ),
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    html.P(
-                                                        "",
-                                                        id="transcript-episode-date",
-                                                        className="text-muted mb-0",
-                                                    ),
-                                                    width=6,
-                                                ),
-                                                dbc.Col(
-                                                    html.P(
-                                                        [
-                                                            html.Span(
-                                                                "Duration: ",
-                                                                className="text-secondary",
-                                                            ),
-                                                            html.Span(
-                                                                "",
-                                                                id="transcript-episode-duration",
-                                                            ),
-                                                        ],
-                                                        className="mb-0 text-end",
-                                                    ),
-                                                    width=6,
-                                                ),
-                                            ],
-                                        ),
-                                        dbc.Row(
-                                            [
-                                                dbc.Col(
-                                                    html.Div(
-                                                        id="transcript",
-                                                        className="transcript",
-                                                    ),
-                                                    className="mb-0 flex-grow-1",
-                                                    style={
-                                                        "padding-right": "0",
-                                                        "height": "100%",
-                                                    },
-                                                ),
-                                                dbc.Col(
-                                                    [
-                                                        dcc.Graph(
-                                                            id="search-hit-column",
-                                                            config={
-                                                                "displayModeBar": False,
-                                                                "staticPlot": True,
-                                                            },
-                                                            figure=empty_term_hit_fig,
-                                                            style={"height": "100%"},
-                                                        ),
-                                                    ],
-                                                    className="col-search-hits p-0",
-                                                    style={"height": "100%"},
-                                                ),
-                                            ],
-                                            className="align-items-stretch",
-                                            style={"height": "calc(100vh - 340px)"},
-                                        ),
-                                    ],
-                                    className="mb-3",
-                                ),
-                            ],
-                            xs=12,
-                            md=6,
-                        ),
-                    ],
-                    className="mt-5",
-                ),
-            ]
-        ),
-    )
-
-    #
-    #  _________________
-    # | Across Episodes |
-    #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-    terms_tab = dbc.Card(
-        className="m-0 no-top-border",
-        children=dbc.CardBody(
-            [
-                # Word frequency plot
-                # ----------------------------
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [dcc.Graph(id="word-count-plot", figure=empty_term_fig)],
-                            width=12,
-                        )
-                    ]
-                ),
-                #
-                # List of episodes found in search
-                # --------------------------------
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            id="episode-column",
-                            children=[
-                                dcc.Store(id="selected-episode", data=""),
-                                dcc.Store(id="sorting", data={}),
-                                dcc.Store(id="episode-list-data", data=[]),
-                                dbc.Row(
-                                    id="sort-buttons",
-                                    style={"position": "relative"},
-                                ),
-                                dbc.Row(
-                                    children=[
-                                        html.Div(
-                                            id="episode-list",
-                                            className="episode-list",
-                                            children=["Episodes"],
-                                        )
-                                    ]
-                                ),
-                            ],
-                            xs=12,
-                            md=6,
-                        ),
-                    ],
-                ),
-            ]
-        ),
-    )
-
-    app.layout = html.Div(
-        dbc.Container(
+    app.layout = dmc.MantineProvider(
+        dmc.Container(
             [
                 dcc.Store(id="frequency-dict", data={"": 0}),
                 dcc.Store(id="scroll-position-store", data=0),
                 # Add a hidden div to trigger the scroll listener setup:
                 html.Div(id="scroll-listener-trigger", style={"display": "none"}),
                 # Input (search field)
-                dbc.Row(
+                dmc.Grid(
                     [
-                        dbc.Col(width=2),
-                        dbc.Col(
+                        dmc.GridCol(span=2),
+                        dmc.GridCol(
                             [
-                                dbc.Input(
+                                dmc.TextInput(
                                     id="input",
-                                    type="text",
                                     placeholder="Enter search term",
+                                    label="Search",
+                                    description="Search for terms or prompt for topics",
+                                    size="sm",
+                                    radius="sm",
                                     debounce=True,
                                 ),
                             ],
-                            width=7,
+                            span=7,
                         ),
-                        dbc.Col(
-                            [
-                                dbc.Button("Add", id="add-button", color="secondary"),
-                            ],
-                            width=1,
+                        dmc.GridCol(
+                            [theme_toggle],
+                            span=2,
+                            style={
+                                "display": "flex",
+                                "alignItems": "flex-end",
+                                "justifyContent": "flex-end",
+                            }
                         ),
                     ],
-                    className="mt-3",
+                    # className="mt-3",
                 ),
+                #
                 # Term Tags
                 # ---------
-                dbc.Row(
-                    dbc.Col(
+                dmc.Grid(
+                    dmc.GridCol(
                         [
                             dcc.Store(
                                 id="terms-store",
@@ -458,29 +235,275 @@ def init_dashboard(flask_app, route):
                                 className="d-flex flex-row flex-wrap justify-content-center align-items-center",
                             ),
                         ],
-                        xs=12,
-                        md=12,
+                        span={"base": 12, "md": 12},
                         id="keyword-tags",
-                        className="p-0 d-flex justify-content-center align-items-center",
+                        # className="p-0 d-flex justify-content-center align-items-center",
                     ),
-                    className="mt-3",
+                    # className="mt-3",
                 ),
-                dbc.Tabs(
+                #
+                # Tabs
+                #
+                dmc.Tabs(
                     [
-                        dbc.Tab(transcribe_tab, label="Metadata"),
-                        dbc.Tab(
-                            browse_tab, label="Within Episode", tab_id="Transcripts"
+                        dmc.TabsList(
+                            [
+                                dmc.TabsTab("Metadata", value="metadata"),
+                                dmc.TabsTab("Within Episode", value="within"),
+                                dmc.TabsTab("Across Episode", value="across"),
+                            ]
                         ),
-                        dbc.Tab(terms_tab, label="Across Episodes"),
+                        dmc.TabsPanel(
+                            #  __________
+                            # | Metadata |
+                            #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+                            dmc.Grid(
+                                [
+                                    dmc.GridCol(
+                                        [
+                                            dmc.Title("Episodes", order=2),
+                                            dag.AgGrid(
+                                                id="transcribe-episode-list",
+                                                columnDefs=column_defs,
+                                                columnSize="sizeToFit",
+                                                defaultColDef={
+                                                    "resizable": True,
+                                                    "sortable": True,
+                                                    "filter": True,
+                                                },
+                                                rowModelType="clientSide",
+                                                style={
+                                                    "height": "calc(100vh - 200px)",
+                                                    "width": "100%",
+                                                },
+                                                rowData=get_row_data(episode_store),
+                                                className="ag-theme-quartz",
+                                                getRowId="params.data.eid",
+                                                dashGridOptions={
+                                                    "rowSelection": "single",
+                                                    "tooltipShowDelay": 500,
+                                                    "tooltipHideDelay": 10000,
+                                                    "tooltipInteraction": True,
+                                                    "popupParent": {
+                                                        "function": "setPopupsParent()"
+                                                    },
+                                                },
+                                            ),
+                                        ],
+                                        span=12,
+                                        style={"margin-top": "20px"},
+                                    ),
+                                ],
+                            ),
+                            value="metadata",
+                        ),
+                        dmc.TabsPanel(
+                            #
+                            #     ________________
+                            #    | Within Episode |
+                            #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+                            dmc.Grid(
+                                children=[
+                                    #
+                                    # Animated word cloud (Ticker)
+                                    # ----------------------------
+                                    dmc.GridCol(
+                                        children=[
+                                            dcc.Graph(
+                                                id="scroll-animation",
+                                                figure=empty_scroll_fig,
+                                                config={
+                                                    "displayModeBar": False,
+                                                    "staticPlot": True,
+                                                },
+                                            ),
+                                            dcc.Store(
+                                                id="ticker-dict",
+                                                data="",
+                                            ),
+                                        ],
+                                        span={"md": 5, "xs": 12},
+                                    ),
+                                    #
+                                    # Transcript of selected episode
+                                    # ------------------------------
+                                    dmc.GridCol(
+                                        children=[
+                                            dmc.Paper(
+                                                children=[
+                                                    dmc.Grid(
+                                                        [
+                                                            dmc.GridCol(
+                                                                [
+                                                                    dcc.Store(
+                                                                        id="playback-time-store",
+                                                                        data=0,
+                                                                    ),
+                                                                    html.Audio(
+                                                                        id="audio-player",
+                                                                        controls=True,
+                                                                        src="/audio/LxvbG",
+                                                                    ),
+                                                                    dmc.Title(
+                                                                        "Title",
+                                                                        order=3,
+                                                                        id="transcript-episode-title",
+                                                                    ),
+                                                                ],
+                                                                span=12,
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    dmc.Grid(
+                                                        [
+                                                            dmc.GridCol(
+                                                                dmc.Text(
+                                                                    "",
+                                                                    id="transcript-episode-date",
+                                                                    c="dimmed",
+                                                                ),
+                                                                span=6,
+                                                            ),
+                                                            dmc.GridCol(
+                                                                dmc.Text(
+                                                                    [
+                                                                        dmc.Text(
+                                                                            "Duration: ",
+                                                                            span=True,
+                                                                            c="dimmed",
+                                                                        ),
+                                                                        dmc.Text(
+                                                                            "",
+                                                                            id="transcript-episode-duration",
+                                                                        ),
+                                                                    ],
+                                                                ),
+                                                                span=6,
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    dmc.Grid(
+                                                        [
+                                                            dmc.GridCol(
+                                                                dmc.Paper(
+                                                                    id="transcript",
+                                                                    className="transcript",
+                                                                ),
+                                                                span=11,
+                                                                style={
+                                                                    "padding-right": "0",
+                                                                    "height": "100%",
+                                                                },
+                                                            ),
+                                                            dmc.GridCol(
+                                                                [
+                                                                    dcc.Graph(
+                                                                        id="search-hit-column",
+                                                                        config={
+                                                                            "displayModeBar": False,
+                                                                            "staticPlot": True,
+                                                                        },
+                                                                        figure=empty_term_hit_fig,
+                                                                        style={
+                                                                            "height": "100%",
+                                                                            "width": "100%",
+                                                                        },
+                                                                    )
+                                                                ],
+                                                                span=1,
+                                                                className="col-search-hits",
+                                                                # style={"width": "100%"}
+                                                            ),
+                                                        ],
+                                                        className="align-items-stretch",
+                                                        style={
+                                                            "height": "calc(100vh - 340px)",
+                                                            "min-height": "500px",
+                                                        },
+                                                    ),
+                                                ],
+                                                # className="mb-3",
+                                            ),
+                                        ],
+                                        span=dict(xs=12, md=7),
+                                    ),
+                                ],
+                                style={"margin-top": "20px"},
+                            ),
+                            value="within",
+                        ),
+                        dmc.TabsPanel(
+                            #
+                            #            _________________
+                            #           | Across Episodes |
+                            #  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+                            dmc.Card(
+                                # className="m-0 no-top-border",
+                                children=[
+                                    #
+                                    # Word frequency plot
+                                    # ----------------------------
+                                    dmc.Grid(
+                                        [
+                                            dmc.GridCol(
+                                                dcc.Graph(
+                                                    id="word-count-plot",
+                                                    figure=empty_term_fig,
+                                                ),
+                                                span=12,
+                                            )
+                                        ]
+                                    ),
+                                    #
+                                    # List of episodes found in search
+                                    # --------------------------------
+                                    dmc.Grid(
+                                        [
+                                            dmc.GridCol(
+                                                id="episode-column",
+                                                children=[
+                                                    dcc.Store(
+                                                        id="selected-episode", data=""
+                                                    ),
+                                                    dcc.Store(id="sorting", data={}),
+                                                    dcc.Store(
+                                                        id="episode-list-data", data=[]
+                                                    ),
+                                                    dmc.Grid(
+                                                        id="sort-buttons",
+                                                        style={"position": "relative"},
+                                                    ),
+                                                    dmc.Grid(
+                                                        children=[
+                                                            dmc.Stack(
+                                                                id="episode-list",
+                                                                gap="xs",
+                                                                children=["Episodes"],
+                                                            )
+                                                        ]
+                                                    ),
+                                                ],
+                                                span=dict(xs=12, md=6),
+                                            ),
+                                        ],
+                                    ),
+                                ]
+                            ),
+                            value="across",
+                        ),
                     ],
                     id="tab-container",
-                    className="mt-3",
+                    color="teal",
+                    orientation="horizontal",
+                    variant="default",
+                    value="metadata",
                 ),
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
                 dcc.Interval(id="job-status-update", interval=1000),
                 dcc.Store(id="ongoing-jobs", data=[]),
                 dcc.Store(id="scroll-sync-init", data=0),
-            ]
+            ],
+            size="lg",
         )
     )
 
@@ -510,6 +533,17 @@ def init_callbacks(app):
         Input("scroll-position-store", "data"),
         State("transcript-episode-duration", "children"),
         State("ticker-dict", "data"),
+    )
+
+    app.clientside_callback(
+        """
+        (switchOn) => {
+        document.documentElement.setAttribute('data-mantine-color-scheme', switchOn ? 'dark' : 'light');
+        return window.dash_clientside.no_update
+        }
+        """,
+        Output("color-scheme-switch", "id"),
+        Input("color-scheme-switch", "checked"),
     )
 
     @app.callback(
@@ -572,7 +606,7 @@ def init_callbacks(app):
             return no_update
 
     @app.callback(
-        Output("tab-container", "active_tab"),
+        Output("tab-container", "value"),
         Input("transcribe-episode-list", "cellClicked"),
         Input("word-count-plot", "clickData"),
         Input({"type": "result-card", "index": ALL}, "n_clicks"),
@@ -592,7 +626,7 @@ def init_callbacks(app):
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         if ctx.triggered_id == "word-count-plot":
-            return "Transcripts"
+            return "within"
 
         if ctx.triggered_id == "transcribe-episode-list":
             columnClicked = cellClicked.get("colId", {})
@@ -600,18 +634,18 @@ def init_callbacks(app):
             if eid:
                 episode = episode_store[eid]
                 if episode.transcript.status and columnClicked == "title":
-                    return "Transcripts"
+                    return "within"
 
         # Tricky indirect filtering: switch only if a result card was clicked,
         # not a sorting button:
         if (
-            ctx.triggered_id and 
-            "result-card" in str(ctx.triggered_id) and 
-            episode_list_nclicks and 
-            not all(x is None for x in episode_list_nclicks) and
-            episode_list_id
+            ctx.triggered_id
+            and "result-card" in str(ctx.triggered_id)
+            and episode_list_nclicks
+            and not all(x is None for x in episode_list_nclicks)
+            and episode_list_id
         ):
-            return "Transcripts"
+            return "within"
 
         return no_update
 
@@ -727,6 +761,10 @@ def init_callbacks(app):
         resultcard_id,
         current_eid,
     ):
+        """Update which episode is active in the Within tab.
+
+        Reacts to clicking title in Metadata tab, result card, or word count plot.
+        """
         if not ctx.triggered:
             return no_update
 
@@ -829,14 +867,12 @@ def init_callbacks(app):
         Output("terms-store", "data"),
         Output("input", "value"),
         Input("input", "n_submit"),
-        Input("add-button", "n_clicks"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
         State("terms-store", "data"),
     )
     def update_terms_store(
         n_submit,
-        add_clicks,
         remove_clicks,
         input_term,
         terms_store,
@@ -858,7 +894,7 @@ def init_callbacks(app):
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         # User adds new term by clicking "Add" button or pressing Enter:
-        if trigger_id in ["add-button", "input"] and input_term:
+        if trigger_id == "input" and input_term:
             if len(term_tuples) < 10 and input_term not in terms:
                 # assign the first available color to the new term_colorid:
                 new_term_tuple = (input_term, colorid_stack.pop())

@@ -1,3 +1,20 @@
+html, body {
+    background-color: var(--mantine-color-body) !important;
+    color: var(--mantine-color-text) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure full height coverage */
+html {
+    height: 100%;
+}
+
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
 .result-card-body {
     padding-top: 2px;
     padding-bottom: 2px;
@@ -41,25 +58,25 @@
 
 
 .speaker-00 {
-    background-color: #e3f2fd;
+    background-color: rgba(255, 163, 163, 0.2);
     border-radius: 12px;
     padding: 8px;
 }
 
 .speaker-01 {
-    background-color: #fff3e0;
+    background-color: rgba(122, 208, 255, 0.2);
     border-radius: 12px;
     padding: 8px;
 }
 
 .speaker-02 {
-    background-color: #ffebee;
+    background-color: rgba(255, 229, 116, 0.2);
     border-radius: 12px;
     padding: 8px;
 }
 
 .speaker-03 {
-    background-color: #f1f8e9;
+    background-color: rgba(139, 104, 255, 0.2);
     border-radius: 12px;
     padding: 8px;
 }
@@ -68,13 +85,14 @@
 Search term_colorid tags
 */
 .term-item {
+    color: #111;
     display: flex;
     align-items: center;
     padding: 6px 10px 6px 28px;
     margin: 4px 2px;
     border: 0;
     border-radius: 20px;
-    background-color: #f3f3f3;
+    background-color: rgba(234, 234, 234, 0.6);
     box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
     position: relative;
     cursor: pointer;
@@ -165,8 +183,9 @@ Search term_colorid tags
     background-color: #606805;
 }
 
-.term-color-0 {
+/* .term-color-0 {
     border-color: #4c72b0;
+    color: #000;
 }
 
 .term-color-1 {
@@ -203,7 +222,7 @@ Search term_colorid tags
 
 .term-color-9 {
     border-color: #606805;
-}
+} */
 
 .highlight-color-0 {
     box-shadow: 0 0 7px #4c72b0;
@@ -266,6 +285,7 @@ Term tag alignment within their container
 Half-circle highlight effect for text spans
 */
 .half-circle-highlight {
+    color: #000;
     padding: 0 5px 0 12px;
     /* Add padding around the text */
     position: relative;
@@ -273,7 +293,7 @@ Half-circle highlight effect for text spans
     line-height: 1.2;
     display: inline-block;
     vertical-align: middle;
-    background-color: #fff;
+    background-color: rgba(255, 255, 255, 0.8);
     /* box-shadow: #00000020 5px 5px 5px; */
     border-radius: 12px;
     border: 0px solid white;
@@ -300,6 +320,9 @@ Half-circle highlight effect for text spans
     padding-right: 0;
     box-sizing: border-box;
     position: relative;
+    background-color: var(--mantine-color-body);
+    color: var(--mantine-color-text);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .transcript::before {
@@ -337,9 +360,16 @@ Half-circle highlight effect for text spans
     z-index: 1000;
 }
 
-.transcript-segment.active-segment {
+[data-mantine-color-scheme="light"] .transcript-segment.active-segment {
     color: #224499;
     text-shadow: 0 0 15px #4488ff;
+    transition: text-shadow 0.4s;
+    transition: color 0.4s;
+}
+
+[data-mantine-color-scheme="dark"] .transcript-segment.active-segment {
+    color: #fff;
+    text-shadow: 0 0 35px #fff;
     transition: text-shadow 0.4s;
     transition: color 0.4s;
 }
@@ -350,8 +380,107 @@ Half-circle highlight effect for text spans
 }
 
 .col-search-hits {
+    display: flex !important;
+    flex-direction: column !important;
     flex: 0 0 20px !important;
-    max-width: 20px !important;
-    width: 20px !important;
-    min-width: 20px !important;
+    /* max-width: 20px !important; */
+    /* width: 20px !important;
+    min-width: 20px !important; */
+}
+
+/* AG Grid theme support */
+.ag-theme-quartz {
+    --ag-background-color: var(--mantine-color-body) !important;
+    --ag-header-background-color: var(--mantine-color-default) !important;
+    --ag-odd-row-background-color: var(--mantine-color-body) !important;
+    /* --ag-row-hover-color: var(--mantine-color-gray-1) !important; */
+    --ag-border-color: var(--mantine-color-default-border) !important;
+    --ag-header-column-separator-color: var(--mantine-color-default-border) !important;
+    --ag-font-color: var(--mantine-color-text) !important;
+    --ag-header-foreground-color: var(--mantine-color-text) !important;
+    --ag-data-color: var(--mantine-color-text) !important;
+    --ag-secondary-border-color: var(--mantine-color-default-border) !important;
+    --ag-input-border-color: var(--mantine-color-default-border) !important;
+    --ag-panel-background-color: var(--mantine-color-body) !important;
+    --ag-control-panel-background-color: var(--mantine-color-body) !important;
+}
+
+/* Additional specific overrides for better theming */
+.ag-theme-quartz .ag-header {
+    background-color: var(--mantine-color-default) !important;
+    border-bottom: 1px solid var(--mantine-color-default-border) !important;
+}
+
+.ag-theme-quartz .ag-header-cell {
+    color: var(--mantine-color-text) !important;
+}
+
+.ag-theme-quartz .ag-row {
+    color: var(--mantine-color-text) !important;
+    border-bottom: 1px solid var(--mantine-color-default-border) !important;
+}
+
+[data-mantine-color-scheme="light"] .ag-theme-quartz .ag-row-even {
+    background-color: #ffffff !important;
+}
+
+[data-mantine-color-scheme="light"] .ag-theme-quartz .ag-row-odd {
+    background-color: #f8f9fa !important;
+}
+
+/* Dark theme row colors */
+[data-mantine-color-scheme="dark"] .ag-theme-quartz .ag-row-even {
+    background-color: #25262b !important;
+}
+
+[data-mantine-color-scheme="dark"] .ag-theme-quartz .ag-row-odd {
+    background-color: #2c2e33 !important;
+}
+
+/* Hover states for both themes */
+[data-mantine-color-scheme="light"] .ag-theme-quartz .ag-row:hover {
+    background-color: #e9ecef !important;
+}
+
+[data-mantine-color-scheme="dark"] .ag-theme-quartz .ag-row:hover {
+    background-color: #373a40 !important;
+}
+
+.ag-theme-quartz .ag-cell {
+    color: var(--mantine-color-text) !important;
+}
+
+/* Filter and menu theming */
+.ag-theme-quartz .ag-menu {
+    background-color: var(--mantine-color-body) !important;
+    color: var(--mantine-color-text) !important;
+    border: 1px solid var(--mantine-color-default-border) !important;
+}
+
+.ag-theme-quartz .ag-menu-option {
+    color: var(--mantine-color-text) !important;
+}
+
+.ag-theme-quartz .ag-menu-option:hover {
+    background-color: var(--mantine-color-gray-1) !important;
+}
+
+.ag-theme-quartz .ag-filter {
+    background-color: var(--mantine-color-body) !important;
+    color: var(--mantine-color-text) !important;
+}
+
+.ag-theme-quartz .ag-input-field-input {
+    background-color: var(--mantine-color-body) !important;
+    color: var(--mantine-color-text) !important;
+    border: 1px solid var(--mantine-color-default-border) !important;
+}
+
+/* Selected row theming */
+.ag-theme-quartz .ag-row-selected {
+    background-color: var(--mantine-color-blue-1) !important;
+}
+
+.ag-theme-quartz .ag-row-selected:hover {
+    background-color: var(--mantine-color-blue-2) !important;
 }

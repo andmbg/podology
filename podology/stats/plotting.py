@@ -247,8 +247,6 @@ def plot_transcript_hits(
         bargap=0.02,
     )
 
-    allbins_df.to_csv(f"/tmp/debug_transcript_hits_{eid}.csv", sep=",")
-
     return fig
 
 
