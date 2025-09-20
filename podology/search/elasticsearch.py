@@ -15,7 +15,6 @@ from elasticsearch.helpers import BulkIndexError
 from config import PROJECT_NAME, TRANSCRIPT_DIR
 from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
-from podology.data.Transcript import Transcript
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME)
@@ -58,17 +57,7 @@ def index_segment(episode: Episode) -> None:
         # ca_certs=basedir / "http_ca.crt"
     )
 
-    # transcript = Transcript(episode)
-
-    # segments_df = transcript.segments(diarize=False)[
-    #     ["eid", "pub_date", "title", "start", "end", "text"]
-    # ]
-    # segments = segments_df.to_dict(orient="records")
-
-    # # Abort if the episode is already indexed
-    # s0 = segments[0]
-    # first_segment_id = f"{episode.eid}_{s0['start']}_{s0['end']}"
-    # if es_client.exists(index=TRANSCRIPT_INDEX_NAME, id=first_segment_id):
+    # Using direct access to raw transcription file; using Transcript was slow
     if is_indexed(episode, es_client):
         logger.debug(f"{episode.eid} is already indexed.")
         return
@@ -80,7 +69,9 @@ def index_segment(episode: Episode) -> None:
     actions = []
     try:
         for seg in segments:
-            seg["pub_date"] = datetime.strptime(seg["pub_date"], "%Y-%m-%d")
+            seg["pub_date"] = episode.pub_date
+            seg["eid"] = episode.eid
+            seg["title"] = episode.title
             doc_id = f"{episode.eid}_{seg['start']}_{seg['end']}"
             doc = {
                 "_index": TRANSCRIPT_INDEX_NAME,

@@ -180,6 +180,15 @@ def init_dashboard(flask_app, route):
         size="lg",
     )
 
+    language_toggle = dmc.Switch(
+        onLabel="EN",
+        offLabel="DE",
+        id="language-switch",
+        persistence=True,
+        color="gray",
+        size="lg",
+    )
+
     app.layout = dmc.MantineProvider(
         dmc.Container(
             [
@@ -187,46 +196,87 @@ def init_dashboard(flask_app, route):
                 dcc.Store(id="scroll-position-store", data=0),
                 # Add a hidden div to trigger the scroll listener setup:
                 html.Div(id="scroll-listener-trigger", style={"display": "none"}),
-                # Input (search field)
+                #
+                # Input (search field) and switches
+                #
                 dmc.Grid(
                     [
-                        dmc.GridCol(span=2),
+                        dmc.GridCol(
+                            [
+                                dmc.Switch(
+                                    onLabel=(
+                                        DashIconify(
+                                            icon="iconoir:brain",
+                                            width=20,
+                                            color=dmc.DEFAULT_THEME["colors"]["yellow"][
+                                                6
+                                            ],
+                                        )
+                                    ),
+                                    offLabel=(
+                                        DashIconify(
+                                            icon="iconoir:page-search",
+                                            width=20,
+                                            color=dmc.DEFAULT_THEME["colors"]["gray"][
+                                                6
+                                            ],
+                                        )
+                                    ),
+                                    id="search-mode-switch",
+                                    size="lg",
+                                    persistence=True,
+                                ),
+                            ],
+                            style={
+                                "display": "flex",
+                                "flex-direction": "row-reverse",
+                                "align-items": "center",
+                                "padding-right": "10px",
+                                "padding-top": "50px",
+                            },
+                            span=2,
+                        ),
                         dmc.GridCol(
                             [
                                 dmc.TextInput(
                                     id="input",
                                     placeholder="Enter search term",
                                     label="Search",
-                                    description="Search for terms or prompt for topics",
+                                    description="Search for terms used in the transcript",
                                     size="sm",
                                     radius="sm",
                                     debounce=True,
-                                ),
+                                )
                             ],
+                            id="search-input-container",
                             span=7,
                         ),
                         dmc.GridCol(
-                            [theme_toggle],
-                            span=2,
+                            [theme_toggle, language_toggle],
+                            span=3,
                             style={
                                 "display": "flex",
-                                "alignItems": "flex-end",
-                                "justifyContent": "flex-end",
-                            }
+                                "flex-direction": "row",
+                                "align-items": "center",
+                                "justify-content": "space-around",
+                                "padding-top": "50px",
+                                "padding-left": "30px",
+                                "padding-right": "30px",
+                            },
                         ),
                     ],
                     # className="mt-3",
                 ),
                 #
-                # Term Tags
-                # ---------
+                # Search Tags
+                #
                 dmc.Grid(
                     dmc.GridCol(
                         [
                             dcc.Store(
                                 id="terms-store",
                                 data={
-                                    "termtuples": [],
+                                    "entries": [],
                                     "colorid-stack": [i.id for i in colorway],
                                 },
                             ),
@@ -241,6 +291,8 @@ def init_dashboard(flask_app, route):
                     ),
                     # className="mt-3",
                 ),
+                # DEBUG: Display current term colors
+                dmc.Grid(dmc.GridCol(dmc.Text(id="term-store-display"))),
                 #
                 # Tabs
                 #
@@ -251,7 +303,8 @@ def init_dashboard(flask_app, route):
                                 dmc.TabsTab("Metadata", value="metadata"),
                                 dmc.TabsTab("Within Episode", value="within"),
                                 dmc.TabsTab("Across Episode", value="across"),
-                            ]
+                            ],
+                            style={"marginTop": 20},
                         ),
                         dmc.TabsPanel(
                             #  __________
@@ -382,6 +435,9 @@ def init_dashboard(flask_app, route):
                                                             ),
                                                         ],
                                                     ),
+                                                    #
+                                                    # Transcript and search hit / relevance displays
+                                                    #
                                                     dmc.Grid(
                                                         [
                                                             dmc.GridCol(
@@ -397,6 +453,7 @@ def init_dashboard(flask_app, route):
                                                             ),
                                                             dmc.GridCol(
                                                                 [
+                                                                    # Term occurrences:
                                                                     dcc.Graph(
                                                                         id="search-hit-column",
                                                                         config={
@@ -406,13 +463,15 @@ def init_dashboard(flask_app, route):
                                                                         figure=empty_term_hit_fig,
                                                                         style={
                                                                             "height": "100%",
-                                                                            "width": "100%",
+                                                                            "width": "50%",
                                                                         },
-                                                                    )
+                                                                    ),
                                                                 ],
                                                                 span=1,
                                                                 className="col-search-hits",
-                                                                # style={"width": "100%"}
+                                                                style={
+                                                                    "padding-left": "0"
+                                                                },
                                                             ),
                                                         ],
                                                         className="align-items-stretch",
@@ -422,7 +481,6 @@ def init_dashboard(flask_app, route):
                                                         },
                                                     ),
                                                 ],
-                                                # className="mb-3",
                                             ),
                                         ],
                                         span=dict(xs=12, md=7),
@@ -535,15 +593,28 @@ def init_callbacks(app):
         State("ticker-dict", "data"),
     )
 
+    # Color theme switch:
     app.clientside_callback(
         """
         (switchOn) => {
-        document.documentElement.setAttribute('data-mantine-color-scheme', switchOn ? 'dark' : 'light');
-        return window.dash_clientside.no_update
+            document.documentElement.setAttribute('data-mantine-color-scheme', switchOn ? 'dark' : 'light');
+            return window.dash_clientside.no_update
         }
         """,
         Output("color-scheme-switch", "id"),
         Input("color-scheme-switch", "checked"),
+    )
+
+    # Search mode switch:
+    app.clientside_callback(
+        """
+        (switchOn) => {
+            document.documentElement.setAttribute('data-search-mode', switchOn ? 'semantic' : 'term');
+            return window.dash_clientside.no_update
+        }
+        """,
+        Output("search-mode-switch", "id"),
+        Input("search-mode-switch", "checked"),
     )
 
     @app.callback(
@@ -555,7 +626,6 @@ def init_callbacks(app):
         Table update upon page load or job status update.
         """
         episode_store = EpisodeStore()
-        logger.debug("pageload-trigger went off")
         return get_row_data(episode_store)
 
     @app.callback(
@@ -650,6 +720,39 @@ def init_callbacks(app):
         return no_update
 
     @app.callback(
+        Output("search-input-container", "children"),
+        Input("search-mode-switch", "checked"),
+    )
+    def switch_search_input(search_mode_checked):
+        """
+        Switch between term search and semantic search input based on the search mode toggle.
+        """
+        term_input = dmc.TextInput(
+            id="input",
+            placeholder="Enter search term",
+            label="Search",
+            description="Search for terms used in the transcript",
+            size="sm",
+            radius="sm",
+            debounce=True,
+        )
+
+        semantic_input = dmc.TextInput(
+            id="input",
+            placeholder="Enter prompt",
+            label="Prompt",
+            description="Prompt for topics touched upon",
+            size="sm",
+            radius="sm",
+            debounce=True,
+        )
+
+        if search_mode_checked:  # Brain icon (semantic search)
+            return semantic_input
+        else:  # Page search icon (term search)
+            return term_input
+
+    @app.callback(
         Output("episode-list-data", "data"),
         Input("terms-store", "data"),
         Input({"type": "sort-button", "index": ALL}, "n_clicks"),
@@ -670,7 +773,7 @@ def init_callbacks(app):
         If a sort button was clicked, work with the Store content and re-sort it.
         """
         # Nothing has happened yet, fill target components with defaults:
-        if not ctx.triggered or terms_store_input["termtuples"] == []:
+        if not ctx.triggered or terms_store_input["entries"] == []:
             return []
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -682,7 +785,7 @@ def init_callbacks(app):
             result_set = ResultSet(
                 es_client=app.es_client,
                 index_name=TRANSCRIPT_INDEX_NAME,
-                term_colorids=terms_store_input["termtuples"],
+                term_colorids=terms_store_input["entries"],
             )
             eplist_updated = result_set.hits_by_ep
 
@@ -694,7 +797,7 @@ def init_callbacks(app):
         ):
             sort_btn_id = json.loads(trigger_id)["index"]
             sort_term = [
-                i for i, j in terms_store_state["termtuples"] if j == sort_btn_id
+                i for i, j, _ in terms_store_state["entries"] if j == sort_btn_id
             ][0]
             eplist_updated = dict(
                 sorted(
@@ -722,7 +825,7 @@ def init_callbacks(app):
         if not eplist:
             return []
 
-        term_colorid_dict = {k: v for k, v in terms_store["termtuples"]}
+        term_colorid_dict = {k: v for k, v, _ in terms_store["entries"]}
         result_cards = create_cards(eplist, term_colorid_dict)
 
         result_card_elements = [c.to_html() for c in result_cards]
@@ -738,10 +841,10 @@ def init_callbacks(app):
         Update the sort buttons based on the current terms. So if a search term
         is added, add a sort button and so on.
         """
-        termtuples = terms_store["termtuples"]
+        entries = terms_store["entries"]
 
         out = html.Div(
-            [get_sort_button(i) for i in termtuples],
+            [get_sort_button(i) for i in entries],
         )
 
         return out
@@ -840,11 +943,11 @@ def init_callbacks(app):
             return no_update
 
         episode = episode_store[eid]
-        termtuples = terms_store["termtuples"]
+        entries = [entry for entry in terms_store["entries"] if entry[2] == "term"]
 
         # Get the transcript of the selected episode as HTML:
         diarized_script = Transcript(episode=episode)
-        diarized_script_element = diarized_script.to_html(termtuples)
+        diarized_script_element = diarized_script.to_html(entries)
 
         # Set the scroll animation word dict to the episode's words:
         ticker_dict = get_ticker_dict(
@@ -866,16 +969,19 @@ def init_callbacks(app):
     @app.callback(
         Output("terms-store", "data"),
         Output("input", "value"),
+        Output("term-store-display", "children"),
         Input("input", "n_submit"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
         State("terms-store", "data"),
+        State("search-mode-switch", "checked"),
     )
     def update_terms_store(
         n_submit,
         remove_clicks,
         input_term,
         terms_store,
+        semantic_search,
     ):
         """
         Update the terms Storage by adding the newly entered search term or removing
@@ -884,35 +990,38 @@ def init_callbacks(app):
         At the same time, updates the visual representation of the Store.
         """
         if not ctx.triggered:
-            return terms_store, None
+            return terms_store, "", f"{terms_store}"
+
+        # Search mode routing:
+        termtype = "semantic" if semantic_search else "term"
 
         # Analyse the search term dict into a list of tuples and the color stack:
-        term_tuples = terms_store["termtuples"]
-        terms = [i[0] for i in term_tuples]
+        term_entries = terms_store["entries"]
+        terms = [i[0] for i in term_entries]
         colorid_stack = terms_store["colorid-stack"]
 
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         # User adds new term by clicking "Add" button or pressing Enter:
         if trigger_id == "input" and input_term:
-            if len(term_tuples) < 10 and input_term not in terms:
+            if len(term_entries) < 10 and input_term not in terms:
                 # assign the first available color to the new term_colorid:
-                new_term_tuple = (input_term, colorid_stack.pop())
-                term_tuples.append(new_term_tuple)
+                new_term_tuple = [input_term, colorid_stack.pop(), termtype]
+                term_entries.append(new_term_tuple)
 
         # A tag was clicked for removal:
         elif "remove-term" in trigger_id:
             index = int(json.loads(trigger_id)["index"])
-            if 0 <= index < len(term_tuples):
-                freed_colorid = term_tuples.pop(index)[1]
+            if 0 <= index < len(term_entries):
+                freed_colorid = term_entries.pop(index)[1]
                 colorid_stack.append(freed_colorid)
 
         new_terms_colors_dict = {
-            "termtuples": term_tuples,
+            "entries": term_entries,
             "colorid-stack": colorid_stack,
         }
 
-        return new_terms_colors_dict, None
+        return new_terms_colors_dict, "", f"{new_terms_colors_dict}"
 
     @app.callback(
         Output("terms-list", "children"),
@@ -921,7 +1030,7 @@ def init_callbacks(app):
     def update_terms_lists(terms_store):
         tag_elements = [
             clickable_tag(i, term_colorid)
-            for i, term_colorid in enumerate(terms_store["termtuples"])
+            for i, term_colorid in enumerate(terms_store["entries"])
         ]
         return tag_elements
 
@@ -930,14 +1039,14 @@ def init_callbacks(app):
         Input("terms-store", "data"),
         prevent_initial_call=True,
     )
-    def update_word_freq_plot(terms_dict):
+    def update_word_freq_plot(terms_store):
         """
         Callback that updates the frequency table view.
         """
-        if not terms_dict or terms_dict["termtuples"] == []:
+        if not terms_store or terms_store["entries"] == []:
             return empty_term_fig
 
-        return plot_word_freq(terms_dict["termtuples"], es_client=app.es_client)
+        return plot_word_freq(terms_store["entries"], es_client=app.es_client)
 
     @app.callback(
         Output("search-hit-column", "figure"),
@@ -945,12 +1054,12 @@ def init_callbacks(app):
         Input("selected-episode", "data"),
         prevent_initial_call=True,
     )
-    def update_transcript_hits_plot(terms_dict, eid):
+    def update_transcript_hits_plot(terms_store, eid):
         """
         Update the transcript hits plot when adding/removing search terms or
         changing the selected episode.
         """
-        if not terms_dict or terms_dict["termtuples"] == [] or not eid:
+        if not terms_store or terms_store["entries"] == [] or not eid:
             return empty_term_hit_fig
 
-        return plot_transcript_hits(terms_dict["termtuples"], eid)
+        return plot_transcript_hits(terms_store["entries"], eid)

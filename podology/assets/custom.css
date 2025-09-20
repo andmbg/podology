@@ -183,47 +183,6 @@ Search term_colorid tags
     background-color: #606805;
 }
 
-/* .term-color-0 {
-    border-color: #4c72b0;
-    color: #000;
-}
-
-.term-color-1 {
-    border-color: #3aba57;
-}
-
-.term-color-2 {
-    border-color: #c53a5b;
-}
-
-.term-color-3 {
-    border-color: #8172b3;
-}
-
-.term-color-4 {
-    border-color: #bfa545;
-}
-
-.term-color-5 {
-    border-color: #64b5cd;
-}
-
-.term-color-6 {
-    border-color: #6c4c20;
-}
-
-.term-color-7 {
-    border-color: #e37c4d;
-}
-
-.term-color-8 {
-    border-color: #555555;
-}
-
-.term-color-9 {
-    border-color: #606805;
-} */
-
 .highlight-color-0 {
     box-shadow: 0 0 7px #4c72b0;
 }
@@ -483,4 +442,8 @@ Half-circle highlight effect for text spans
 
 .ag-theme-quartz .ag-row-selected:hover {
     background-color: var(--mantine-color-blue-2) !important;
+}
+
+[data-search-mode="semantic"] #input {
+    box-shadow: 0 0 30px #4489ff8b;
 }

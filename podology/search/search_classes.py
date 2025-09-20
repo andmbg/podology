@@ -1,4 +1,5 @@
 from datetime import datetime
+from loguru import logger
 
 import dash_mantine_components as dmc
 from dash import html
@@ -15,12 +16,12 @@ class ResultSet:
         self.es_client = es_client
         self.index_name = index_name
         self.term_colorids = term_colorids
-        self.term_colorid_dict = {k: v for k, v in term_colorids}
+        self.term_colorid_dict = {k: v for k, v, _ in term_colorids}
         self.term_hits, self.total_hits = self._perform_search()
         self.hits_by_ep = self._count_by_episode()
         self.cards = self._create_cards()
 
-    def _perform_search(self):
+    def _perform_search(self) -> tuple[dict, int]:
         """
         Perform a search for each term individually and store their hits separately.
         Form of self.term_hits:
@@ -33,7 +34,7 @@ class ResultSet:
         term_hits = {}
         total_hits = 0
 
-        for term, _ in self.term_colorids:
+        for term, _, _ in self.term_colorids:
             results = self.es_client.search(
                 index=self.index_name,
                 body={
@@ -125,10 +126,6 @@ class ResultCard:
         """
         Create a Dash HTML representation for the result card.
         """
-        formatted_date = datetime.strptime(
-            self.pub_date,
-            "%Y-%m-%dT%H:%M:%S",
-        ).strftime("%Y-%m-%d")
 
         return dmc.Card(
             [
@@ -136,7 +133,7 @@ class ResultCard:
                     [
                         dmc.GridCol(
                             html.P(
-                                formatted_date,
+                                self.pub_date,
                                 className="text-secondary text-nowrap",
                             ),
                             span="auto",

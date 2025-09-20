@@ -31,8 +31,11 @@ def get_all_episode_term_counts(
     """
     Fetch all episode term counts from Elasticsearch.
     """
+    # Filter out semantic search prompts:
+    term_colid_tuples = [i for i in term_colid_tuples if i[2] == "term"]
+
     term_colid_dict = {i[0]: i[1] for i in term_colid_tuples}
-    terms = term_colid_dict.keys()
+    terms: list[str] = list(term_colid_dict.keys())
     eids = [ep.eid for ep in episode_store if ep.transcript.status]
 
     # Span all episodes & dates for every term:
@@ -146,13 +149,13 @@ def plot_word_freq(
 
 
 def plot_transcript_hits(
-    term_colid_tuples: List[tuple], eid: str, nbins: int = HITS_PLOT_BINS
+    term_colid_tuples: List[list], eid: str, nbins: int = HITS_PLOT_BINS
 ) -> go.Figure:
     """The display next to the transcript scrollbar showing occurrences of
     search terms over time.
 
     Args:
-        term_colid_tuples (List[tuple]): tuples of searchterm--colorid
+        term_colid_tuples (List[list]): tuples of searchterm--colorid
         eid (str): Episode ID
         nbins (int, optional): Number of vertical bins along the scrollbar.
             Defaults to 10.
@@ -160,10 +163,13 @@ def plot_transcript_hits(
     Returns:
         go.Figure
     """
-    # Search terms: Regularize and arrange as dict
+    # Search Terms:
+    # Filter to terms (ignore semantic), regularize and arrange as dict
     # {"alex jones": 0, "alex sense of victimhood": 1, ...}
     term_colid_dict = {
-        re.sub(r"(^\W)|(\W$)|('\w\b)", "", i).lower(): j for i, j in term_colid_tuples
+        re.sub(r"(^\W)|(\W$)|('\w\b)", "", i).lower(): j
+        for i, j, t in term_colid_tuples
+        if t == "term"
     }
 
     # Transcript words: list of tuples of regularized lemmas:
@@ -224,6 +230,13 @@ def plot_transcript_hits(
                 ),
             )
         )
+    
+    # Semantic relevance trends:
+    prompt_colid_dict = {
+        re.sub(r"(^\W)|(\W$)|('\w\b)", "", i).lower(): j
+        for i, j, t in term_colid_tuples
+        if t == "semantic"
+    }
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),

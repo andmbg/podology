@@ -348,7 +348,7 @@ class Transcript:
         if termtuples:
             re_pattern_colorid = {
                 re.compile(rf"\b{term}\b", re.IGNORECASE): colorid
-                for term, colorid in termtuples
+                for term, colorid, _ in termtuples
             }
 
         turns = []
