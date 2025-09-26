@@ -51,7 +51,7 @@ def format_time(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def make_index_name(project_name):
+def make_index_name(project_name, suffix: str = ""):
     """
     Fixes an Elasticsearch index name based on the following rules:
     - Must be lowercase
@@ -70,6 +70,11 @@ def make_index_name(project_name):
     project_name = re.sub(r"^_+", "", project_name)
 
     # Truncate to 255 bytes
-    project_name = project_name.encode("utf-8")[:255].decode("utf-8", "ignore")
+    project_name = project_name.encode("utf-8")[: 255 - len(suffix)].decode(
+        "utf-8", "ignore"
+    )
+
+    # add suffix
+    project_name += suffix
 
     return project_name

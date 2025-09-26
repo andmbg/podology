@@ -140,9 +140,9 @@ class RSSConnector(Connector):
             duration = item.find("{http://www.itunes.com/dtds/podcast-1.0.dtd}duration")
             if duration is None or duration.text is None:
                 logger.error("No duration found in item.")
-                duration = ""
+                duration = 0.0
             else:
-                duration = duration.text
+                duration = parse_duration(duration.text)
 
             eid = episode_hash(url.encode())
 
@@ -165,3 +165,23 @@ class RSSConnector(Connector):
             episodes.append(episode)
 
         return episodes
+
+def parse_duration(duration_str: str) -> float:
+    """
+    Parse a duration string (e.g. '1:30:00') into a float representing the
+    total number of seconds.
+    """
+    parts = duration_str.split(":")
+    if len(parts) == 3:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = int(parts[2])
+    elif len(parts) == 2:
+        hours = 0
+        minutes = int(parts[0])
+        seconds = int(parts[1])
+    else:
+        logger.error(f"Invalid duration format: {duration_str}")
+        return 0.0
+
+    return hours * 3600 + minutes * 60 + seconds

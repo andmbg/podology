@@ -13,7 +13,7 @@ from numpy import mean
 
 from podology.data.Episode import Episode
 from podology.search.utils import format_time
-from config import TRANSCRIPT_DIR, EMBEDDER_ARGS
+from config import TRANSCRIPT_DIR, EMBEDDER_ARGS, CHUNKS_DIR
 
 
 MIN_WORDS = EMBEDDER_ARGS["min_words"]
@@ -56,12 +56,16 @@ class Transcript:
                 )
                 wid += 1
 
+        #
         # word_df: DataFrame containing word-level information
+        #
         self.word_df = pd.DataFrame(wordlist)[
             ["wid", "word", "start", "end"]
         ].set_index("wid")
 
+        #
         # segment_df: DataFrame containing segment-level information
+        #
         self.segment_df = (
             pd.DataFrame(wordlist)
             .reset_index()
@@ -80,7 +84,9 @@ class Transcript:
             )
         )
 
+        #
         # chunk_df: DataFrame containing chunk-level information
+        #
         segments = self.raw_segs["segments"]
         n_segments = len(segments)
         chunks = []
@@ -116,6 +122,13 @@ class Transcript:
                     "first_word_idx": chunk_word_idx_first,
                     "last_word_idx": chunk_word_idx_last,
                     "word_count": current_chunk_wc,
+                    "text": " ".join(
+                        [
+                            word["word"]
+                            for seg in segments[chunk_start_idx:s_idx]
+                            for word in seg["words"]
+                        ]
+                    ),
                 }
             )
 
@@ -153,6 +166,7 @@ class Transcript:
                 "first_word_idx": chunk["first_word_idx"],
                 "last_word_idx": chunk["last_word_idx"],
                 "word_count": chunk["word_count"],
+                "text": chunk["text"],
             }
             for i, chunk in enumerate(chunks)
         ]
@@ -189,8 +203,14 @@ class Transcript:
                 mask_has_cid, "cid"
             ].apply(lambda x: f"{x},{cid}")
 
-    def words(self, regularize: bool = False) -> pd.DataFrame:
-        """Return word df.
+    def words(
+        self,
+        word_attr: list[str] = [],
+        seg_attr: list[str] = [],
+        ep_attr: list[str] = [],
+        regularize: bool = False,
+    ) -> pd.DataFrame:
+        """Return word df. Add any relevant data about the word, segment, and episode.
 
         Args:
             regularize (bool, optional): Whether to regularize the words. Defaults to False.
@@ -199,9 +219,96 @@ class Transcript:
         Returns:
             list[dict]: List of words with desired metadata.
         """
-        df = self.word_df.copy()[["word", "start"]]
+        available_word_attrs = [
+            "word",
+            "start",
+            "end",
+            "idx_within_seg",
+        ]
+
+        available_seg_attrs = [
+            "sid",
+            "first_word_idx",
+            "last_word_idx",
+            "word_count",
+            "speaker",
+            "seg_start",
+            "seg_end",
+        ]
+
+        available_ep_attrs = [
+            "eid",
+            "pub_date",
+            "title",
+        ]
+
+        if not word_attr:
+            word_attr = ["word", "start", "end"]
+
+        # Validate parameters
+        # -------------------
+        assert (
+            all([a in available_word_attrs for a in word_attr])
+            and all([a in available_seg_attrs for a in seg_attr if seg_attr])
+            and all([a in available_ep_attrs for a in ep_attr if ep_attr])
+        )
+
+        # Base df with word_attrs:
+        if seg_attr:
+            word_attr.append("sid")
+        df = self.word_df.copy()[word_attr]
         if regularize:
             df.word = df.word.str.lower().str.replace(r"(^\W)|(\W$)", "", regex=True)
+
+        # Go adding attrs step by step if needed,
+        # From self.segment_df:
+        segment_df_attrs = list(
+            set(seg_attr).intersection({"first_word_idx", "last_word_idx"})
+        )
+        if segment_df_attrs:
+            print(segment_df_attrs)
+            df = pd.merge(
+                df,
+                self.segment_df[segment_df_attrs].reset_index(),
+                on="sid",
+                how="left",
+            )
+
+        if "word_count" in seg_attr:
+            segment_df_wc = self.segment_df.copy().reset_index()
+            segment_df_wc["word_count"] = (
+                segment_df_wc.last_word_idx - segment_df_wc.first_word_idx + 1
+            )
+            df = pd.merge(
+                df,
+                segment_df_wc[["word_count"]],
+                on="sid",
+                how="left",
+            )
+
+        # From self.segments():
+        if "seg_start" in seg_attr or "seg_end" in seg_attr:
+            seg_start_end = self.segments()[["start", "end"]].rename(
+                columns={"start": "seg_start", "end": "seg_end"}
+            )
+            start_end_attrs = list(set(seg_attr).intersection({"seg_start", "seg_end"}))
+            seg_start_end = seg_start_end[start_end_attrs].reset_index()
+            df = pd.merge(
+                df,
+                seg_start_end,
+                on="sid",
+                how="left",
+            )
+
+        if ep_attr:
+            if "eid" in ep_attr:
+                df["eid"] = self.episode.eid
+
+            if "pub_date" in ep_attr:
+                df["pub_date"] = self.episode.pub_date
+
+            if "title" in ep_attr:
+                df["title"] = self.episode.title
 
         return df
 
@@ -245,15 +352,67 @@ class Transcript:
 
         return df
 
-    def chunks(self) -> pd.DataFrame:
-        df = self.word_df.copy()[["word", "start", "end", "cid"]]
-        df.cid = df.cid.apply(
-            lambda x: mean([int(i) for i in x.split(",")]) if pd.notna(x) else None
+    def chunks(self, attrs: list = []) -> pd.DataFrame:
+        """Return a DataFrame of chunks.
+
+        Note that the size and overlap parameters are set at project level.
+
+        Returns:
+            pd.DataFrame: Chunk df
+        """
+        available_attrs = [
+            "text",
+            "start",
+            "end",
+            "first_word_idx",
+            "last_word_idx",
+            "word_count",
+            "vector",
+            "eid",
+            "pub_date",
+            "title",
+        ]
+
+        # Validate parameters
+        # -------------------
+        assert all([a in available_attrs for a in attrs])
+        attrs = [a for a in available_attrs if a in set(attrs).union({"text"})]
+
+        df = self.chunk_df.copy()
+        df = pd.merge(
+            df, self.word_df[["start"]], left_on="first_word_idx", right_index=True
         )
-    
-        df = df.groupby("cid").agg(
-            text=("word", lambda x: " ".join(x)),
+        df = pd.merge(
+            df,
+            self.word_df[["end"]],
+            left_on="last_word_idx",
+            right_index=True,
         )
+
+        df["vector"] = None
+        df["eid"] = self.episode.eid
+        df["pub_date"] = self.episode.pub_date
+        df["title"] = self.episode.title
+
+        df = df[attrs]
+
+        if "vector" not in attrs:
+            return df
+
+        #
+        # Add embedding vectors:
+        vector_path = CHUNKS_DIR / f"{self.episode.eid}_chunks.json"
+        if vector_path.exists():
+            chunk_json = json.load(open(vector_path))
+            vector_df = pd.DataFrame(chunk_json["chunks"])
+
+            try:
+                assert vector_df.shape[0] == df.shape[0]
+                df["vector"] = vector_df["embedding"].tolist()
+            except AssertionError:
+                logger.error(f"Vector shape mismatch: {vector_df.shape[0]} vs {df.shape[0]}")
+
+            return df
 
         return df
 

@@ -74,10 +74,7 @@ empty_term_fig = (
 empty_scroll_fig = (
     go.Figure()
     .add_annotation(
-        text=(
-            "Select an episode<br>"
-            "to see its transcript."
-        ),
+        text=("Select an episode<br>" "to see its transcript."),
         xref="paper",
         yref="paper",
         x=0.5,
@@ -93,12 +90,20 @@ empty_scroll_fig = (
     )
 )
 
-empty_term_hit_fig = (
-    go.Figure()
-    .update_layout(
-        plot_bgcolor="rgba(0,0,0, 0)",
-        paper_bgcolor="rgba(0,0,0, 0)",
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-    )
+empty_term_hit_fig = go.Figure().update_layout(
+    plot_bgcolor="rgba(0,0,0, 0)",
+    paper_bgcolor="rgba(0,0,0, 0)",
+    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
 )
+
+
+def format_duration(duration: float) -> str:
+    """
+    Format a duration in seconds into a human-readable string.
+    """
+    hours, remainder = divmod(int(duration), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02}:{seconds:02}"
+    return f"{minutes}:{seconds:02}"

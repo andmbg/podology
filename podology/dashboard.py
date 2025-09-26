@@ -18,7 +18,7 @@ from podology.data.Transcript import Transcript
 from podology.search.search_classes import ResultSet, create_cards
 from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
 from podology.stats.preparation import post_process_pipeline
-from podology.stats.plotting import plot_transcript_hits, plot_word_freq
+from podology.stats.plotting import plot_transcript_hits_es, plot_word_freq
 from podology.frontend.utils import (
     clickable_tag,
     colorway,
@@ -26,6 +26,7 @@ from podology.frontend.utils import (
     empty_term_fig,
     empty_scroll_fig,
     empty_term_hit_fig,
+    format_duration,
 )
 from podology.frontend.renderers.wordticker import get_ticker_dict
 from config import get_connector, ASSETS_DIR
@@ -48,7 +49,7 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
             "title": ep.title,
             "description": ep.description,
             "description_text": BeautifulSoup(ep.description, "html.parser").get_text(),
-            "duration": ep.duration,
+            "duration": format_duration(ep.duration),
             "status": (
                 Status.DONE.value
                 if (
@@ -292,7 +293,7 @@ def init_dashboard(flask_app, route):
                     # className="mt-3",
                 ),
                 # DEBUG: Display current term colors
-                dmc.Grid(dmc.GridCol(dmc.Text(id="term-store-display"))),
+                # dmc.Grid(dmc.GridCol(dmc.Text(id="term-store-display"))),
                 #
                 # Tabs
                 #
@@ -326,7 +327,7 @@ def init_dashboard(flask_app, route):
                                                 },
                                                 rowModelType="clientSide",
                                                 style={
-                                                    "height": "calc(100vh - 200px)",
+                                                    # "height": "calc(100vh - 300px)",
                                                     "width": "100%",
                                                 },
                                                 rowData=get_row_data(episode_store),
@@ -463,7 +464,7 @@ def init_dashboard(flask_app, route):
                                                                         figure=empty_term_hit_fig,
                                                                         style={
                                                                             "height": "100%",
-                                                                            "width": "50%",
+                                                                            "width": "100%",
                                                                         },
                                                                     ),
                                                                 ],
@@ -476,7 +477,7 @@ def init_dashboard(flask_app, route):
                                                         ],
                                                         className="align-items-stretch",
                                                         style={
-                                                            "height": "calc(100vh - 340px)",
+                                                            # "height": "calc(100vh - 370px)",
                                                             "min-height": "500px",
                                                         },
                                                     ),
@@ -555,6 +556,7 @@ def init_dashboard(flask_app, route):
                     orientation="horizontal",
                     variant="default",
                     value="metadata",
+                    style={"height": "calc(100vh - 500px)"},
                 ),
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
                 dcc.Interval(id="job-status-update", interval=1000),
@@ -959,7 +961,7 @@ def init_callbacks(app):
             diarized_script_element,
             episode.title,
             episode.pub_date,
-            episode.duration,
+            format_duration(episode.duration),
             ticker_dict,
             f"/audio/{eid}",
             0,
@@ -969,7 +971,6 @@ def init_callbacks(app):
     @app.callback(
         Output("terms-store", "data"),
         Output("input", "value"),
-        Output("term-store-display", "children"),
         Input("input", "n_submit"),
         Input({"type": "remove-term", "index": ALL}, "n_clicks"),
         State("input", "value"),
@@ -990,7 +991,7 @@ def init_callbacks(app):
         At the same time, updates the visual representation of the Store.
         """
         if not ctx.triggered:
-            return terms_store, "", f"{terms_store}"
+            return terms_store, ""
 
         # Search mode routing:
         termtype = "semantic" if semantic_search else "term"
@@ -1021,7 +1022,7 @@ def init_callbacks(app):
             "colorid-stack": colorid_stack,
         }
 
-        return new_terms_colors_dict, "", f"{new_terms_colors_dict}"
+        return new_terms_colors_dict, ""
 
     @app.callback(
         Output("terms-list", "children"),
@@ -1043,7 +1044,9 @@ def init_callbacks(app):
         """
         Callback that updates the frequency table view.
         """
-        if not terms_store or terms_store["entries"] == []:
+        termtuples = [t for t in terms_store["entries"] if t[2] == "term"]
+
+        if len(termtuples) == 0:
             return empty_term_fig
 
         return plot_word_freq(terms_store["entries"], es_client=app.es_client)
@@ -1062,4 +1065,7 @@ def init_callbacks(app):
         if not terms_store or terms_store["entries"] == [] or not eid:
             return empty_term_hit_fig
 
-        return plot_transcript_hits(terms_store["entries"], eid)
+        episode = episode_store[eid]
+        logger.info(terms_store["entries"])
+
+        return plot_transcript_hits_es(terms_store["entries"], eid, es_client=app.es_client)

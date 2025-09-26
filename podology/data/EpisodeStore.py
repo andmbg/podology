@@ -50,7 +50,7 @@ class EpisodeStore:
                     title TEXT,
                     pub_date TEXT,
                     description TEXT,
-                    duration TEXT,
+                    duration FLOAT,
                     transcript_status TEXT,
                     transcript_wcstatus TEXT,
                     audio_status TEXT,

@@ -36,7 +36,7 @@ class Episode:
     title: str = ""
     pub_date: str = ""
     description: str = ""
-    duration: str = ""
+    duration: float = 0.0
 
     def __repr__(self):
         out = f"Episode (id '{self.eid}')\n"

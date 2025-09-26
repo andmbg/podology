@@ -607,20 +607,17 @@ tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
 name = "dash"
-version = "2.18.2"
+version = "3.2.0"
 description = "A Python framework for building reactive web-apps. Developed by Plotly."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "dash-2.18.2-py3-none-any.whl", hash = "sha256:0ce0479d1bc958e934630e2de7023b8a4558f23ce1f9f5a4b34b65eb3903a869"},
-    {file = "dash-2.18.2.tar.gz", hash = "sha256:20e8404f73d0fe88ce2eae33c25bbc513cbe52f30d23a401fa5f24dbb44296c8"},
+    {file = "dash-3.2.0-py3-none-any.whl", hash = "sha256:4c1819588d83bed2cbcf5807daa5c2380c8c85789a6935a733f018f04ad8a6a2"},
+    {file = "dash-3.2.0.tar.gz", hash = "sha256:93300b9b99498f8b8ed267e61c455b4ee1282c7e4d4b518600eec87ce6ddea55"},
 ]
 
 [package.dependencies]
-dash-core-components = "2.0.0"
-dash-html-components = "2.0.0"
-dash-table = "5.0.0"
-Flask = ">=1.0.4,<3.1"
+Flask = ">=1.0.4,<3.2"
 importlib-metadata = "*"
 nest-asyncio = "*"
 plotly = ">=5.0.0"
@@ -628,11 +625,12 @@ requests = "*"
 retrying = "*"
 setuptools = "*"
 typing-extensions = ">=4.1.1"
-Werkzeug = "<3.1"
+Werkzeug = "<3.2"
 
 [package.extras]
-celery = ["celery[redis] (>=5.1.2)", "redis (>=3.5.3)"]
-ci = ["black (==22.3.0)", "dash-dangerously-set-inner-html", "dash-flow-example (==0.0.5)", "flake8 (==7.0.0)", "flaky (==3.8.1)", "flask-talisman (==1.0.0)", "jupyterlab (<4.0.0)", "mimesis (<=11.1.0)", "mock (==4.0.3)", "numpy (<=1.26.3)", "openpyxl", "orjson (==3.10.3)", "pandas (>=1.4.0)", "pyarrow", "pylint (==3.0.3)", "pytest-mock", "pytest-rerunfailures", "pytest-sugar (==0.9.6)", "pyzmq (==25.1.2)", "xlrd (>=2.0.1)"]
+async = ["flask[async]"]
+celery = ["celery[redis] (>=5.1.2,<5.4.0)", "kombu (<5.4.0)", "redis (>=3.5.3,<=5.0.4)"]
+ci = ["black (==22.3.0)", "flake8 (==7.0.0)", "flaky (==3.8.1)", "flask-talisman (==1.0.0)", "ipython (<9.0.0)", "jupyterlab (<4.0.0)", "mimesis (<=11.1.0)", "mock (==4.0.3)", "mypy (==1.15.0)", "numpy (<=1.26.3)", "openpyxl", "orjson (==3.10.3)", "pandas (>=1.4.0)", "pyarrow", "pylint (==3.0.3)", "pyright (==1.1.398)", "pytest-mock", "pytest-rerunfailures", "pytest-sugar (==0.9.6)", "pyzmq (==25.1.2)", "xlrd (>=2.0.1)"]
 compress = ["flask-compress"]
 dev = ["PyYAML (>=5.4.1)", "coloredlogs (>=15.0.1)", "fire (>=0.4.0)"]
 diskcache = ["diskcache (>=5.2.1)", "multiprocess (>=0.70.12)", "psutil (>=5.8.0)"]
@@ -657,54 +655,32 @@ dev = ["dash[ci,dev,testing] (>=2.0)", "dash_mantine_components (==0.12.1)", "py
 docs = ["colorlover", "dash (>=2.9.0)", "dash-bootstrap-components (>=1.0.0)", "dash-iconify", "dash-mantine-components", "gunicorn (>=19.9.0)", "pandas (>=1.2.3)", "pyyaml (>=6.0)", "statsmodels", "yfinance"]
 
 [[package]]
-name = "dash-bootstrap-components"
-version = "1.7.1"
-description = "Bootstrap themed components for use in Plotly Dash"
+name = "dash-iconify"
+version = "0.1.2"
+description = "Iconify for Plotly Dash"
 optional = false
-python-versions = "<4,>=3.9"
+python-versions = "*"
 files = [
-    {file = "dash_bootstrap_components-1.7.1-py3-none-any.whl", hash = "sha256:5e8eae7ee1d013f69e272c68c1015b53ab71802460152088f33fffa90d245199"},
-    {file = "dash_bootstrap_components-1.7.1.tar.gz", hash = "sha256:30d48340d6dc89831d6c06e400cd4236f0d5363562c05b2a922f21545695a082"},
+    {file = "dash_iconify-0.1.2-py3-none-any.whl", hash = "sha256:9ab0eda19bb4514e177bf1f8f36947bb9e5b44aba6ce947f22a1cf0f1a45fc14"},
+    {file = "dash_iconify-0.1.2.tar.gz", hash = "sha256:564774be6b11b0ac3a8999b7137c3d17a1d351d69b673aa313c7228eacc9d143"},
+]
+
+[[package]]
+name = "dash-mantine-components"
+version = "2.2.1"
+description = "Plotly Dash Components based on Mantine"
+optional = false
+python-versions = "*"
+files = [
+    {file = "dash_mantine_components-2.2.1-py3-none-any.whl", hash = "sha256:a54acdb8b3e7a80251e9d68947a84b0a1d16285f5ca33363dbc29f287a13ebaa"},
+    {file = "dash_mantine_components-2.2.1.tar.gz", hash = "sha256:cd3aefd3191be365db0435067196fe037e3803c996794c174f0f0409c24efac4"},
 ]
 
 [package.dependencies]
-dash = ">=2.0.0"
+dash = ">=2"
 
 [package.extras]
-pandas = ["numpy (>=2.0.2)", "pandas (>=2.2.3)"]
-
-[[package]]
-name = "dash-core-components"
-version = "2.0.0"
-description = "Core component suite for Dash"
-optional = false
-python-versions = "*"
-files = [
-    {file = "dash_core_components-2.0.0-py3-none-any.whl", hash = "sha256:52b8e8cce13b18d0802ee3acbc5e888cb1248a04968f962d63d070400af2e346"},
-    {file = "dash_core_components-2.0.0.tar.gz", hash = "sha256:c6733874af975e552f95a1398a16c2ee7df14ce43fa60bb3718a3c6e0b63ffee"},
-]
-
-[[package]]
-name = "dash-html-components"
-version = "2.0.0"
-description = "Vanilla HTML components for Dash"
-optional = false
-python-versions = "*"
-files = [
-    {file = "dash_html_components-2.0.0-py3-none-any.whl", hash = "sha256:b42cc903713c9706af03b3f2548bda4be7307a7cf89b7d6eae3da872717d1b63"},
-    {file = "dash_html_components-2.0.0.tar.gz", hash = "sha256:8703a601080f02619a6390998e0b3da4a5daabe97a1fd7a9cebc09d015f26e50"},
-]
-
-[[package]]
-name = "dash-table"
-version = "5.0.0"
-description = "Dash table"
-optional = false
-python-versions = "*"
-files = [
-    {file = "dash_table-5.0.0-py3-none-any.whl", hash = "sha256:19036fa352bb1c11baf38068ec62d172f0515f73ca3276c79dee49b95ddc16c9"},
-    {file = "dash_table-5.0.0.tar.gz", hash = "sha256:18624d693d4c8ef2ddec99a6f167593437a7ea0bf153aa20f318c170c5bc7308"},
-]
+dev = ["black", "build", "dash-iconify", "dash[ci,dev,testing] (>=2)", "pytest (<8.1.0)", "pyyaml (>=5.0)", "selenium (<4.3.0)", "wheel"]
 
 [[package]]
 name = "debugpy"
@@ -4233,4 +4209,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "5390fd4abf246c8a7a33ec254251dc8982b6eec2387d4647e5db786e7a163d86"
+content-hash = "3cb73ee2272f0865420418ea57fc0d4553c019421528d7f1a7aa0f033a3096c4"

@@ -29,7 +29,7 @@ from podology.stats.nlp import (
     get_wordcloud,
     timed_named_entity_tokens,
 )
-from podology.search.elasticsearch import index_segments
+from podology.search.elasticsearch import index_segments, setup_elasticsearch_indices
 
 
 def post_process_pipeline(
@@ -48,6 +48,7 @@ def post_process_pipeline(
         initialize_stats_db()
         episodes = [ep for ep in episode_store if ep.transcript.status]
 
+    setup_elasticsearch_indices()
     index_segments(episodes)
     store_chunk_embeddings(episodes)
     get_word_counts(episodes)
@@ -373,26 +374,6 @@ def store_chunk_embeddings(episodes: List[Episode]):
     Returns:
         None
     """
-
-    def _3rows(df: pd.DataFrame):
-        """Custom 3-row sliding window function.
-
-        Args:
-            df (pd.DataFrame): complete df
-
-        Yields:
-            pd.DataFrame: 3-row sliding window DataFrame.
-        """
-        if len(df) < 2:
-            return
-
-        yield df.iloc[0:2]
-
-        start = 1
-        while start + 2 < len(df):
-            yield df.iloc[start : start + 3]
-            start += 2
-
     # Identify episodes without chunk embeddings indexed:
     ep_to_do = [
         ep
@@ -403,25 +384,20 @@ def store_chunk_embeddings(episodes: List[Episode]):
 
     for episode in ep_to_do:
         logger.debug(f"{episode.eid}: Getting chunk embeddings from WhisperX service")
+
         transcript = None
         chunks = None
-        
+
         try:
             transcript = Transcript(episode)
-            chunks = []
-            for grp in _3rows(transcript.chunks()):
-                chunks.append({
-                    "cid": ",".join(grp.index.astype(str)),
-                    "text": " ".join(grp["text"]),
-                    "eid": f"{episode.eid}",
-                    "pub_date": f"{episode.pub_date}"
-                })
+            chunks = transcript.chunks(
+                attrs=["start", "end", "eid", "title", "pub_date"]
+            ).reset_index().to_dict("records")
 
             headers = {
                 "Authorization": f"Bearer {os.getenv('API_TOKEN')}",
                 "Content-Type": "application/json",
             }
-
             response = None
             try:
                 response = requests.post(
@@ -429,7 +405,7 @@ def store_chunk_embeddings(episodes: List[Episode]):
                     json={"chunks": chunks},
                     headers=headers,
                     timeout=1800,
-                    stream=True  # Stream the response
+                    stream=True,  # Stream the response
                 )
 
                 if response.status_code != 200:
@@ -446,10 +422,11 @@ def store_chunk_embeddings(episodes: List[Episode]):
             finally:
                 if response:
                     response.close()  # Explicitly close the response
-                    
+
         finally:
             # Explicit cleanup
             del transcript
             del chunks
             import gc
+
             gc.collect()
