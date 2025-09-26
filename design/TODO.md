@@ -53,9 +53,8 @@
 
 # Bugs
 
-- failed transcriptions create transcript json files that trip up startup scanning.
+- Search for term "Jones." does not highlight "Jones." in transcript (but in the hits column).
+- if one search term contains another, highlights in the transcript get messed up.
 - When database-writing operations (like transcript post-processing) are done wholesale with concurrent processing, we get sqlite3 lock errors due to the db being locked on file-level. Writes may have to be queued.
 - API has alignment model hardcoded even though some code suggests parameterization.
-- if one search term contains another, highlights in the transcript get messed up.
-- if a search term has spaces in it, it is not marked in the vertical search hit column.
 - when I click a card from the Across tab and in the Within tab delete a tag, the selected episode jumps back to where it was before.

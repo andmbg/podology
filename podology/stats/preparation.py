@@ -29,7 +29,7 @@ from podology.stats.nlp import (
     get_wordcloud,
     timed_named_entity_tokens,
 )
-from podology.search.elasticsearch import index_segments, setup_elasticsearch_indices
+from podology.search.elasticsearch import index_segments, index_chunks, setup_elasticsearch_indices
 
 
 def post_process_pipeline(
@@ -51,6 +51,7 @@ def post_process_pipeline(
     setup_elasticsearch_indices()
     index_segments(episodes)
     store_chunk_embeddings(episodes)
+    index_chunks(episodes)  # depends on store_chunk_embeddings()
     get_word_counts(episodes)
     store_wordclouds(episodes)
     store_timed_named_entities(episodes)
@@ -402,7 +403,10 @@ def store_chunk_embeddings(episodes: List[Episode]):
             try:
                 response = requests.post(
                     f"{EMBEDDER_ARGS['url']}/embed",
-                    json={"chunks": chunks},
+                    json={
+                        "chunks": chunks,
+                        "model": EMBEDDER_ARGS["model"],
+                    },
                     headers=headers,
                     timeout=1800,
                     stream=True,  # Stream the response

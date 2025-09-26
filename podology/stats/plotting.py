@@ -10,18 +10,20 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from elasticsearch import Elasticsearch
+from sentence_transformers import SentenceTransformer
 from loguru import logger
 
-from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
+from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME, CHUNK_INDEX_NAME
 from podology.data.EpisodeStore import EpisodeStore
 from podology.data.Episode import Episode
 from podology.data.Transcript import Transcript
 from podology.search.search_classes import ResultSet
 from podology.stats.preparation import DB_PATH
 from podology.frontend.utils import colorway, empty_term_hit_fig
-from config import HITS_PLOT_BINS
+from config import HITS_PLOT_BINS, EMBEDDER_ARGS
 
 
+model = SentenceTransformer("all-MiniLM-L6-v2")
 episode_store = EpisodeStore()
 colordict = {i[0]: i[1] for i in colorway}
 _transcript_cache = {}
@@ -165,15 +167,19 @@ def plot_transcript_hits_es(
     Use elastic to find terms, glean each hit's timing from a transcript word list
     method usage, cached upon first use.
     """
-    # Filter to terms only and remove leading/trailing punctuation/whitespace:
-    term_colid_dict = {
-        re.sub(r"(^\W)|(\W$)", "", i).lower(): j
-        for i, j, t in term_colid_tuples
-        if t == "term"
-    }
-
-    if not term_colid_dict:
+    if not term_colid_tuples:
         return empty_term_hit_fig
+
+    # Remove leading/trailing punctuation/whitespace:
+    # TODO Necessary?
+    # term_colid_tuples = [
+    #     [
+    #         re.sub(r"(^\W)|(\W$)", "", term).lower(),
+    #         colid,
+    #         term_or_prompt
+    #     ]
+    #     for term, colid, term_or_prompt in term_colid_tuples
+    # ]
 
     # Get episode duration for binning
     episode = EpisodeStore()[eid]
@@ -184,33 +190,43 @@ def plot_transcript_hits_es(
     all_bins = np.arange(nbins)
     allbins_df = pd.DataFrame({"bin": all_bins})
 
-    # Search each term in Elasticsearch
+    # Search each term in Elasticsearch, index and search method depending on term_or_prompt
     # Target shape per term:
     # list(time_1, time_2, ...)
-    for term, colorid in term_colid_dict.items():
-        hit_positions = _search_term_positions(es_client, eid, term)
+    for term, colorid, term_or_semantic in term_colid_tuples:
 
-        # Bin the hit positions
-        if hit_positions:
-            hit_bins = pd.cut(
-                hit_positions, bins=bin_edges, labels=False, include_lowest=True
+        # Textual search terms:
+        if term_or_semantic == "term":
+            hit_positions = _search_term_positions(
+                es_client, eid, term, term_or_semantic
             )
-            term_counts = (
-                pd.Series(hit_bins).value_counts().reindex(all_bins, fill_value=0)
-            )
-        else:
-            term_counts = pd.Series(0, index=all_bins)
 
-        allbins_df[term] = term_counts
+            # Bin the hit positions
+            if hit_positions:
+                hit_bins = pd.cut(
+                    hit_positions, bins=bin_edges, labels=False, include_lowest=True
+                )
+                term_counts = (
+                    pd.Series(hit_bins).value_counts().reindex(all_bins, fill_value=0)
+                )
+
+            else:
+                term_counts = pd.Series(0, index=all_bins)
+
+            allbins_df[term] = term_counts
+
+        elif term_or_semantic == "semantic":
+            relevances = _chunk_similarities(es_client, episode, term, term_or_semantic)
+            allbins_df[term] = relevances["similarity"].values
 
     allbins_df.set_index("bin", inplace=True)
 
     # Create plot (same as before)
-    return _create_term_hits_plot(allbins_df, term_colid_dict)
+    return _create_term_hits_plot(allbins_df, term_colid_tuples)
 
 
 def _create_term_hits_plot(
-    allbins_df: pd.DataFrame, term_colid_dict: dict
+    allbins_df: pd.DataFrame, term_colid_tuples: list[list]
 ) -> go.Figure:
     """
     Create a bar plot for the hit counts of each term.
@@ -223,25 +239,45 @@ def _create_term_hits_plot(
         Plotly Figure object
     """
     maxrange = allbins_df.apply(sum, axis=1).max()
+    max_similarity = 0
+    min_similarity = 0
 
     fig = go.Figure()
 
-    for col in allbins_df.columns:
-        fig.add_trace(
-            go.Bar(
-                y=-allbins_df.index,
-                x=allbins_df[col],
-                orientation="h",
-                marker=dict(
-                    line_width=0,
-                    color=(
-                        colordict[term_colid_dict[col]]
-                        if col in term_colid_dict
-                        else "grey"
+    # col is at the same time part of the tuples (we surmise):
+    for i, col in enumerate(allbins_df.columns):
+        term, colid, term_or_prompt = term_colid_tuples[i]
+
+        if term_or_prompt == "term":
+            fig.add_trace(
+                go.Bar(
+                    y=-allbins_df.index,
+                    x=allbins_df[col],
+                    orientation="h",
+                    marker=dict(
+                        line_width=0,
+                        color=(colordict[colid] if term else "grey"),
                     ),
+                    xaxis="x",
                 ),
             )
-        )
+
+        elif term_or_prompt == "semantic":
+            max_similarity = max(max_similarity, allbins_df[col].max())
+            min_similarity = max(min_similarity, allbins_df[col].min())
+            fig.add_trace(
+                go.Scatter(
+                    y=-allbins_df.index,
+                    x=allbins_df[col],
+                    mode="lines",
+                    line=dict(
+                        width=1,
+                        color=(colordict[colid] if term else "grey"),
+                    ),
+                    opacity=.8,
+                    xaxis="x2",
+                ),
+            )
 
     # Update layout
     fig.update_layout(
@@ -254,6 +290,7 @@ def _create_term_hits_plot(
             showgrid=False,
             showticklabels=False,
             zeroline=False,
+            range=[-allbins_df.index.max(), 0],
         ),
         xaxis=dict(
             title=None,
@@ -261,6 +298,14 @@ def _create_term_hits_plot(
             showticklabels=False,
             zeroline=False,
             range=[0, maxrange],
+        ),
+        xaxis2=dict(
+            title=None,
+            showgrid=False,
+            showticklabels=False,
+            zeroline=False,
+            range=[min_similarity, max_similarity * 1.1 if max_similarity > 0 else 1.0],
+            overlaying="x",  # Overlay on the primary x-axis
         ),
         barmode="stack",
         bargap=0.02,
@@ -270,7 +315,7 @@ def _create_term_hits_plot(
 
 
 def _search_term_positions(
-    es_client: Elasticsearch, eid: str, term: str
+    es_client: Elasticsearch, eid: str, term: str, term_or_prompt: str
 ) -> List[float]:
     """
     Search for term positions using Elasticsearch highlight with positions.
@@ -326,6 +371,55 @@ def _search_term_positions(
         return []
 
 
+def _chunk_similarities(
+    es_client: Elasticsearch, episode: Episode, term: str, term_or_prompt: str
+) -> pd.DataFrame:
+    """
+    Get relevance scores for a term or prompt using Elasticsearch.
+    """
+    vector_query = {
+        "query": {"bool": {"must": [{"match": {"eid": episode.eid}}]}},
+        "knn": {
+            "field": "embedding",
+            "query_vector": _get_embedding(term),
+            "k": 1000,
+            "num_candidates": 1000,
+            "filter": {"term": {"eid": episode.eid}},
+        },
+        # "_source": ["eid", "text", "start", "end", "title"]
+        "size": 1000,  # Adjust as needed
+    }
+
+    response = es_client.search(index=CHUNK_INDEX_NAME, body=vector_query)
+
+    chunk_similarities = [
+        {
+            "start": hit["_source"]["start"],
+            "end": hit["_source"]["end"],
+            "similarity_score": hit["_score"],
+        }
+        for hit in response["hits"]["hits"]
+    ]
+    relevance_df = pd.DataFrame(chunk_similarities).sort_values("start")
+    binned_relevance = bin_relevance_scores(
+        relevance_df, ep_duration=episode.duration, n_bins=HITS_PLOT_BINS
+    )
+
+    return binned_relevance
+
+
+def _get_embedding(term: str) -> List[float]:
+    """
+    Get the embedding vector for a search term using a pre-trained model.
+    """
+    try:
+        embedding = model.encode(term).tolist()
+        return embedding
+    except Exception as e:
+        logger.error(f"Error getting embedding for '{term}': {e}")
+        return [0.0] * EMBEDDER_ARGS["dims"]
+
+
 def _get_transcript_with_elastic_ids(eid: str) -> pd.DataFrame:
     """Prep df in which to find the timing for search terms.
 
@@ -351,3 +445,63 @@ def _get_transcript_with_elastic_ids(eid: str) -> pd.DataFrame:
     # Create lookup dict for faster access
     _transcript_cache[eid] = transcript
     return transcript
+
+
+def bin_relevance_scores(relevance_df, ep_duration, n_bins=500):
+    """
+    Bin relevance scores into time-based bins, averaging overlapping chunks.
+    """
+    if relevance_df.empty:
+        return pd.DataFrame({"bin_start": [], "bin_end": [], "avg_similarity": []})
+
+    # Get the total time span
+    min_time = 0
+    max_time = ep_duration
+
+    # Create bin edges
+    bin_edges = np.linspace(min_time, max_time, n_bins + 1)
+
+    # Calculate bin centers and create result dataframe
+
+    binned_scores = []
+
+    for i in range(n_bins):
+        bin_start = bin_edges[i]
+        bin_end = bin_edges[i + 1]
+
+        # Find chunks that overlap with this bin
+        overlapping_chunks = relevance_df[
+            (relevance_df["start"] < bin_end) & (relevance_df["end"] > bin_start)
+        ]
+
+        if len(overlapping_chunks) > 0:
+            # Calculate overlap weights for averaging
+            weighted_scores = []
+            total_weight = 0
+
+            for _, chunk in overlapping_chunks.iterrows():
+                # Calculate overlap duration
+                overlap_start = max(chunk["start"], bin_start)
+                overlap_end = min(chunk["end"], bin_end)
+                overlap_duration = overlap_end - overlap_start
+
+                if overlap_duration > 0:
+                    # Weight by overlap duration
+                    weighted_scores.append(chunk["similarity_score"] * overlap_duration)
+                    total_weight += overlap_duration
+
+            if total_weight > 0:
+                avg_score = sum(weighted_scores) / total_weight
+            else:
+                avg_score = overlapping_chunks["similarity_score"].mean()
+        else:
+            # No chunks in this bin
+            avg_score = 0.0
+
+        binned_scores.append(avg_score)
+
+    return pd.DataFrame(
+        {
+            "similarity": binned_scores,
+        }
+    )
