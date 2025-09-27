@@ -201,43 +201,43 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
     },
 
     visible_span: {
-        get_visible_span: function(transcript_children, selected_episode) {
+        get_visible_span: function (transcript_children) {
             try {
                 if (!transcript_children || !window.IntersectionObserver) {
                     return "No segments visible";
                 }
-                
+
                 // Clean up existing observer
                 if (window.transcriptObserver) {
                     window.transcriptObserver.disconnect();
                     window.transcriptObserver = null;
                 }
-                
+
                 const transcript = document.getElementById('transcript');
                 if (!transcript) {
                     return "Transcript element not found";
                 }
-                
+
                 // Set up observer after a delay
                 setTimeout(() => {
                     const segments = transcript.querySelectorAll('span[data-start]');
                     console.log(`Setting up observer for ${segments.length} segments`);
-                    
+
                     if (segments.length === 0) {
                         return;
                     }
-                    
+
                     let visibleSegments = new Set();
-                    
+
                     window.transcriptObserver = new IntersectionObserver((entries) => {
                         try {
                             entries.forEach(entry => {
                                 const segmentStart = entry.target.dataset.start;
                                 const segmentEnd = entry.target.dataset.end;
-                                
+
                                 if (segmentStart && segmentEnd) {
                                     const segmentId = `${segmentStart}-${segmentEnd}`;
-                                    
+
                                     if (entry.isIntersecting) {
                                         visibleSegments.add(segmentId);
                                     } else {
@@ -245,19 +245,30 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                                     }
                                 }
                             });
-                            
+
                             // Update display
                             const segments = Array.from(visibleSegments).sort((a, b) => {
                                 return parseFloat(a.split('-')[0]) - parseFloat(b.split('-')[0]);
                             });
-                            
-                            const visibleDiv = document.getElementById('visible-segments');
-                            if (visibleDiv && segments.length > 0) {
-                                const firstTime = parseFloat(segments[0].split('-')[0]).toFixed(1);
-                                const lastTime = parseFloat(segments[segments.length - 1].split('-')[1]).toFixed(1);
-                                visibleDiv.textContent = `Visible: ${firstTime}s → ${lastTime}s [${segments.length} segments]`;
-                            } else if (visibleDiv) {
-                                visibleDiv.textContent = "No segments visible";
+
+                            if (segments.length > 0) {
+                                const firstTime = parseFloat(segments[0].split('-')[0]);
+                                const lastTime = parseFloat(segments[segments.length - 1].split('-')[1]);
+
+                                if (window.dash_clientside && window.dash_clientside.set_props) {
+                                    window.dash_clientside.set_props('visible-segments', {
+                                        data: [firstTime, lastTime]
+                                    });
+                                }
+
+                                console.log(`Visible range: ${firstTime} - ${lastTime}`);
+
+                            } else {
+                                if (window.dash_clientside && window.dash_clientside.set_props) {
+                                    window.dash_clientside.set_props('visible-segments', {
+                                        data: [null, null]
+                                    });
+                                }
                             }
                         } catch (e) {
                             console.error("Error in intersection observer:", e);
@@ -267,18 +278,18 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                         rootMargin: '-10px',
                         threshold: 0.1
                     });
-                    
+
                     segments.forEach(segment => {
                         window.transcriptObserver.observe(segment);
                     });
-                    
+
                 }, 500);
-                
-                return "Setting up segment observer...";
-                
+
+                return [null, null];
+
             } catch (error) {
                 console.error("Error in visible segments callback:", error);
-                return "Error setting up observer";
+                return [null, null];
             }
         }
     }

@@ -293,7 +293,8 @@ def init_dashboard(flask_app, route):
                     # className="mt-3",
                 ),
                 # DEBUG: Display currently visible time span
-                dmc.Grid(dmc.GridCol(dmc.Text(id="visible-segments"))),
+                dcc.Store(id="visible-segments", data=[]),
+                dmc.Grid(dmc.GridCol(dmc.Text(id="visible-segments-display"))),
                 #
                 # Tabs
                 #
@@ -624,9 +625,30 @@ def init_callbacks(app):
         ClientsideFunction(
             namespace="visible_span", function_name="get_visible_span"
         ),
-        Output("visible-segments", "children"),
+        Output("visible-segments", "data"),
         Input("transcript", "children"),
-        Input("selected-episode", "data"),
+    )
+
+    # DEBUG: view the visible time range:
+    app.clientside_callback(
+        """
+        function(visible_segments) {
+            if (!visible_segments || visible_segments.length !== 2) {
+                return "No segments visible";
+            }
+            
+            const firstTime = visible_segments[0];
+            const lastTime = visible_segments[1];
+            
+            if (firstTime === null || lastTime === null) {
+                return "No segments visible";
+            }
+            
+            return `Visible: ${firstTime.toFixed(1)}s → ${lastTime.toFixed(1)}s`;
+        }
+        """,
+        Output("visible-segments-display", "children"),
+        Input("visible-segments", "data"),
     )
 
     @app.callback(
@@ -1067,3 +1089,4 @@ def init_callbacks(app):
         return plot_transcript_hits_es(
             terms_store["entries"], eid, es_client=app.es_client
         )
+
