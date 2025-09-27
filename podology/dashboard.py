@@ -621,88 +621,9 @@ def init_callbacks(app):
 
     # Check which transcript segments are currently visible:
     app.clientside_callback(
-        """
-        function(transcript_children, selected_episode) {
-            try {
-                if (!transcript_children || !window.IntersectionObserver) {
-                    return "No segments visible";
-                }
-                
-                // Clean up existing observer
-                if (window.transcriptObserver) {
-                    window.transcriptObserver.disconnect();
-                    window.transcriptObserver = null;
-                }
-                
-                const transcript = document.getElementById('transcript');
-                if (!transcript) {
-                    return "Transcript element not found";
-                }
-                
-                // Set up observer after a delay
-                setTimeout(() => {
-                    const segments = transcript.querySelectorAll('span[data-start]');
-                    console.log(`Setting up observer for ${segments.length} segments`);
-                    
-                    if (segments.length === 0) {
-                        return;
-                    }
-                    
-                    let visibleSegments = new Set();
-                    
-                    window.transcriptObserver = new IntersectionObserver((entries) => {
-                        try {
-                            entries.forEach(entry => {
-                                const segmentStart = entry.target.dataset.start;
-                                const segmentEnd = entry.target.dataset.end;
-                                
-                                if (segmentStart && segmentEnd) {
-                                    const segmentId = `${segmentStart}-${segmentEnd}`;
-                                    
-                                    if (entry.isIntersecting) {
-                                        visibleSegments.add(segmentId);
-                                    } else {
-                                        visibleSegments.delete(segmentId);
-                                    }
-                                }
-                            });
-                            
-                            // Update display
-                            const segments = Array.from(visibleSegments).sort((a, b) => {
-                                return parseFloat(a.split('-')[0]) - parseFloat(b.split('-')[0]);
-                            });
-                            
-                            const visibleDiv = document.getElementById('visible-segments');
-                            if (visibleDiv && segments.length > 0) {
-                                const firstTime = parseFloat(segments[0].split('-')[0]).toFixed(1);
-                                const lastTime = parseFloat(segments[segments.length - 1].split('-')[1]).toFixed(1);
-                                visibleDiv.textContent = `Visible: ${firstTime}s → ${lastTime}s [${segments.length} segments]`;
-                            } else if (visibleDiv) {
-                                visibleDiv.textContent = "No segments visible";
-                            }
-                        } catch (e) {
-                            console.error("Error in intersection observer:", e);
-                        }
-                    }, {
-                        root: transcript,
-                        rootMargin: '-10px',
-                        threshold: 0.1
-                    });
-                    
-                    segments.forEach(segment => {
-                        window.transcriptObserver.observe(segment);
-                    });
-                    
-                }, 500);
-                
-                return "Setting up segment observer...";
-                
-            } catch (error) {
-                console.error("Error in visible segments callback:", error);
-                return "Error setting up observer";
-            }
-        }
-        """,
+        ClientsideFunction(
+            namespace="visible_span", function_name="get_visible_span"
+        ),
         Output("visible-segments", "children"),
         Input("transcript", "children"),
         Input("selected-episode", "data"),
