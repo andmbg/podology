@@ -79,9 +79,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             }
         },
 
-        update_ticker_from_scroll: function (scroll_percent, episode_duration, ticker_data) {
+        update_ticker_from_scroll: function (visible_time_range, episode_duration, ticker_data) {
             console.log("update_ticker_from_scroll called with:", {
-                scroll_percent,
+                visible_time_range,
                 episode_duration,
                 ticker_data: ticker_data ? "data present" : "no data"
             });
@@ -101,11 +101,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             console.log("Parsed duration:", duration, "seconds from:", episode_duration);
 
             // Calculate time code from scroll position
-            const time_code = scroll_percent * duration;
+            const time_code = (visible_time_range[0] + visible_time_range[1]) / 2;
 
-            const window_width = 120;
-            const window_start = time_code - window_width / 2;
-            const window_end = time_code + window_width / 2;
+            const window_width = 120;  // obsolete
+            const window_start = visible_time_range[0];
+            const window_end = visible_time_range[1];
 
             const annotations = [];
 
@@ -291,6 +291,45 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.error("Error in visible segments callback:", error);
                 return [null, null];
             }
+        },
+
+        scroll_rect: function(visible_segments, episode_duration) {
+            const overlay = document.getElementById('visible-area-overlay');
+            
+            if (!overlay) {
+                console.log("Overlay not found");
+                return window.dash_clientside.no_update;
+            }
+            
+            if (!visible_segments || visible_segments.length !== 2 ||
+                visible_segments[0] === null || visible_segments[1] === null) {
+                // Hide overlay when no segments visible
+                overlay.style.display = 'none';
+                return window.dash_clientside.no_update;
+            }
+            
+            const startTime = visible_segments[0];
+            const endTime = visible_segments[1];
+            
+            console.log(`Positioning overlay: ${startTime}s to ${endTime}s`);
+            
+            // Parse episode duration
+            const duration = window.dash_clientside.ticker.parseDurationToSeconds(episode_duration);
+            
+            // Calculate position as percentage of container height
+            // Time 0 = top (0%), max duration = bottom (100%)
+            const startPercent = (startTime / duration) * 100;
+            const endPercent = (endTime / duration) * 100;
+            const heightPercent = endPercent - startPercent;
+            
+            // Position the overlay using percentage positioning
+            overlay.style.top = `${startPercent}%`;
+            overlay.style.height = `${Math.max(0.1, heightPercent)}%`; // Minimum 0.1% height
+            overlay.style.display = 'block';
+            
+            console.log(`Overlay positioned: top=${startPercent}%, height=${heightPercent}%`);
+            
+            return window.dash_clientside.no_update;
         }
     }
 });

@@ -10,6 +10,7 @@ from dash.dependencies import ClientsideFunction
 from dash_iconify import DashIconify
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
+from flask import app
 from loguru import logger
 
 from podology.data.Episode import Status
@@ -292,9 +293,9 @@ def init_dashboard(flask_app, route):
                     ),
                     # className="mt-3",
                 ),
-                # DEBUG: Display currently visible time span
                 dcc.Store(id="visible-segments", data=[]),
-                dmc.Grid(dmc.GridCol(dmc.Text(id="visible-segments-display"))),
+                # DEBUG: Display currently visible time span
+                # dmc.Grid(dmc.GridCol(dmc.Text(id="visible-segments-display"))),
                 #
                 # Tabs
                 #
@@ -397,43 +398,37 @@ def init_dashboard(flask_app, route):
                                                                     html.Audio(
                                                                         id="audio-player",
                                                                         controls=True,
-                                                                        src="/audio/LxvbG",
-                                                                    ),
-                                                                    dmc.Title(
-                                                                        "Title",
-                                                                        order=3,
-                                                                        id="transcript-episode-title",
+                                                                        src="",
                                                                     ),
                                                                 ],
-                                                                span=12,
+                                                                span=9,
+                                                            ),
+                                                            dmc.GridCol(
+                                                                [
+                                                                    dcc.Store(
+                                                                        id="episode-duration",
+                                                                        data="",
+                                                                    ),
+                                                                    dmc.Text(
+                                                                        "",
+                                                                        id="transcript-episode-date",
+                                                                        c="dimmed",
+                                                                    ),
+                                                                    
+                                                                ],
+                                                                span=3,
                                                             ),
                                                         ]
                                                     ),
                                                     dmc.Grid(
                                                         [
-                                                            dmc.GridCol(
-                                                                dmc.Text(
-                                                                    "",
-                                                                    id="transcript-episode-date",
-                                                                    c="dimmed",
-                                                                ),
-                                                                span=6,
+                                                            dmc.Title(
+                                                                "Title",
+                                                                order=3,
+                                                                id="transcript-episode-title",
                                                             ),
                                                             dmc.GridCol(
-                                                                dmc.Text(
-                                                                    [
-                                                                        dmc.Text(
-                                                                            "Duration: ",
-                                                                            span=True,
-                                                                            c="dimmed",
-                                                                        ),
-                                                                        dmc.Text(
-                                                                            "",
-                                                                            id="transcript-episode-duration",
-                                                                        ),
-                                                                    ],
-                                                                ),
-                                                                span=6,
+                                                                span=12,
                                                             ),
                                                         ],
                                                     ),
@@ -446,33 +441,61 @@ def init_dashboard(flask_app, route):
                                                                 dmc.Paper(
                                                                     id="transcript",
                                                                     className="transcript",
+                                                                    style={
+                                                                        "height": "calc(100vh - 500px)",
+                                                                        "overflow-y": "auto",
+                                                                    },
                                                                 ),
                                                                 span=11,
                                                                 style={
                                                                     "padding-right": "0",
-                                                                    "height": "100%",
+                                                                    "height": "calc(100vh-500px)",
                                                                 },
                                                             ),
                                                             dmc.GridCol(
-                                                                [
-                                                                    # Term occurrences:
-                                                                    dcc.Graph(
-                                                                        id="search-hit-column",
-                                                                        config={
-                                                                            "displayModeBar": False,
-                                                                            "staticPlot": True,
-                                                                        },
-                                                                        figure=empty_term_hit_fig,
-                                                                        style={
-                                                                            "height": "100%",
-                                                                            "width": "100%",
-                                                                        },
-                                                                    ),
-                                                                ],
+                                                                html.Div(
+                                                                    [
+                                                                        # Term occurrences:
+                                                                        dcc.Graph(
+                                                                            id="search-hit-column",
+                                                                            config={
+                                                                                "displayModeBar": False,
+                                                                                "staticPlot": True,
+                                                                            },
+                                                                            figure=empty_term_hit_fig,
+                                                                            style={
+                                                                                "height": "100%",
+                                                                                "width": "100%",
+                                                                            },
+                                                                        ),
+                                                                        html.Div(
+                                                                            id="visible-area-overlay",
+                                                                            style={
+                                                                                "position": "absolute",
+                                                                                "top": "0%",
+                                                                                "left": "0",
+                                                                                "right": "0",
+                                                                                "height": "0",
+                                                                                "background": "rgba(120, 120, 120, 0.2)",
+                                                                                "border-left": "3px solid rgba(120, 120, 120, 1.0)",
+                                                                                "pointer-events": "none",  # Don't block graph interactions
+                                                                                "display": "none",  # Initially hidden
+                                                                                "z-index": "10",
+                                                                            }
+                                                                        ),
+                                                                    ],
+                                                                    style={
+                                                                        "position": "relative",
+                                                                        "height": "calc(100vh - 500px)",
+                                                                        "width": "100%",
+                                                                        "overflow": "hidden",
+                                                                    },
+                                                                ),
                                                                 span=1,
                                                                 className="col-search-hits",
                                                                 style={
-                                                                    "padding-left": "0"
+                                                                    "padding-left": "0",
+                                                                    "height": "calc(100vh - 500px)",
                                                                 },
                                                             ),
                                                         ],
@@ -591,8 +614,8 @@ def init_callbacks(app):
             namespace="ticker", function_name="update_ticker_from_scroll"
         ),
         Output("scroll-animation", "figure"),
-        Input("scroll-position-store", "data"),
-        State("transcript-episode-duration", "children"),
+        Input("visible-segments", "data"),
+        State("episode-duration", "data"),
         State("ticker-dict", "data"),
     )
 
@@ -630,25 +653,46 @@ def init_callbacks(app):
     )
 
     # DEBUG: view the visible time range:
+    # app.clientside_callback(
+    #     """
+    #     function(visible_segments) {
+    #         if (!visible_segments || visible_segments.length !== 2) {
+    #             return "No segments visible";
+    #         }
+            
+    #         const firstTime = visible_segments[0];
+    #         const lastTime = visible_segments[1];
+            
+    #         if (firstTime === null || lastTime === null) {
+    #             return "No segments visible";
+    #         }
+            
+    #         return `Visible: ${firstTime.toFixed(1)}s → ${lastTime.toFixed(1)}s`;
+    #     }
+    #     """,
+    #     Output("visible-segments-display", "children"),
+    #     Input("visible-segments", "data"),
+    # )
+
+    # Move a rectangle over the hit column to mark the current viewport:
+    # app.clientside_callback(
+    #     ClientsideFunction(
+    #         namespace="visible_span", function_name="scroll_rect"
+    #     ),
+    #     Output("search-hit-column", "relayoutData"),
+    #     Input("visible-segments", "data"),
+    #     State("transcript-episode-duration", "children"),
+    #     prevent_initial_call=True,
+    # )
+
     app.clientside_callback(
-        """
-        function(visible_segments) {
-            if (!visible_segments || visible_segments.length !== 2) {
-                return "No segments visible";
-            }
-            
-            const firstTime = visible_segments[0];
-            const lastTime = visible_segments[1];
-            
-            if (firstTime === null || lastTime === null) {
-                return "No segments visible";
-            }
-            
-            return `Visible: ${firstTime.toFixed(1)}s → ${lastTime.toFixed(1)}s`;
-        }
-        """,
-        Output("visible-segments-display", "children"),
+        ClientsideFunction(
+            namespace="visible_span", function_name="scroll_rect"
+        ),
+        Output("visible-area-overlay", "className"),  # Dummy output
         Input("visible-segments", "data"),
+        State("episode-duration", "data"),
+        prevent_initial_call=True,
     )
 
     @app.callback(
@@ -935,7 +979,7 @@ def init_callbacks(app):
         Output("transcript", "children"),
         Output("transcript-episode-title", "children"),
         Output("transcript-episode-date", "children"),
-        Output("transcript-episode-duration", "children"),
+        Output("episode-duration", "data"),
         Output("ticker-dict", "data"),
         Output("audio-player", "src"),
         Output("scroll-position-store", "data"),
