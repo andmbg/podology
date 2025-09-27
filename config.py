@@ -53,10 +53,10 @@ TRANSCRIBER_ARGS = {
 # max_words a soft limit.
 EMBEDDER_ARGS = {
     "url": os.getenv("TRANSCRIBER_URL_PORT"),
-    "model": "all-MiniLM-L6-v2",
-    "dims": 384,
-    "min_words": 50,
-    "max_words": 100,
+    "model": "multi-qa-mpnet-base-dot-v1",
+    "dims": 768,
+    "min_words": 100,
+    "max_words": 150,
     "overlap": 0.2,
 }
 

@@ -327,7 +327,7 @@ def init_dashboard(flask_app, route):
                                                 },
                                                 rowModelType="clientSide",
                                                 style={
-                                                    # "height": "calc(100vh - 300px)",
+                                                    "height": "calc(100vh - 300px)",
                                                     "width": "100%",
                                                 },
                                                 rowData=get_row_data(episode_store),
@@ -477,7 +477,7 @@ def init_dashboard(flask_app, route):
                                                         ],
                                                         className="align-items-stretch",
                                                         style={
-                                                            # "height": "calc(100vh - 370px)",
+                                                            "height": "calc(100vh - 500px)",
                                                             "min-height": "500px",
                                                         },
                                                     ),
@@ -722,37 +722,23 @@ def init_callbacks(app):
         return no_update
 
     @app.callback(
-        Output("search-input-container", "children"),
+        Output("input", "placeholder"),
+        Output("input", "label"),
+        Output("input", "description"),
         Input("search-mode-switch", "checked"),
     )
     def switch_search_input(search_mode_checked):
         """
         Switch between term search and semantic search input based on the search mode toggle.
         """
-        term_input = dmc.TextInput(
-            id="input",
-            placeholder="Enter search term",
-            label="Search",
-            description="Search for terms used in the transcript",
-            size="sm",
-            radius="sm",
-            debounce=True,
-        )
-
-        semantic_input = dmc.TextInput(
-            id="input",
-            placeholder="Enter prompt",
-            label="Prompt",
-            description="Prompt for topics touched upon",
-            size="sm",
-            radius="sm",
-            debounce=True,
-        )
-
         if search_mode_checked:  # Brain icon (semantic search)
-            return semantic_input
+            return ("Enter prompt", "Prompt", "Prompt for topics touched upon")
         else:  # Page search icon (term search)
-            return term_input
+            return (
+                "Enter search term",
+                "Search",
+                "Search for terms used in the transcript",
+            )
 
     @app.callback(
         Output("episode-list-data", "data"),
@@ -1068,4 +1054,6 @@ def init_callbacks(app):
         episode = episode_store[eid]
         logger.info(terms_store["entries"])
 
-        return plot_transcript_hits_es(terms_store["entries"], eid, es_client=app.es_client)
+        return plot_transcript_hits_es(
+            terms_store["entries"], eid, es_client=app.es_client
+        )

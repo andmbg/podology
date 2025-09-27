@@ -52,7 +52,7 @@ CHUNK_INDEX_SETTINGS = {
                 "type": "dense_vector",
                 "dims": EMBEDDER_ARGS["dims"],
                 "index": True,
-                "similarity": "cosine",
+                "similarity": "dot_product",
             },
         }
     },
@@ -149,10 +149,10 @@ def index_chunks(episodes: List[Episode]) -> None:
     Parallelize the indexing of chunks into Elasticsearch.
     """
     with multiprocessing.Pool(processes=MAX_PARALLEL_INDEXING_PROCESSES) as pool:
-        pool.map(index_chunk, episodes)
+        pool.map(index_chunks_episode, episodes)
 
 
-def index_chunk(episode: Episode) -> None:
+def index_chunks_episode(episode: Episode) -> None:
     """Index episode chunks and their vectors in Elasticsearch.
 
     Creates and feeds index "CHUNK_INDEX_NAME".
@@ -169,7 +169,7 @@ def index_chunk(episode: Episode) -> None:
         return
 
     # Index chunks
-    chunks = json.load(open(CHUNKS_DIR / f"{episode.eid}_chunks.json", "r"))["chunks"]
+    chunks = json.load(open(CHUNKS_DIR / f"{episode.eid}_chunks.json", "r"))
     logger.debug(f"{episode.eid}: Indexing chunks in Elasticsearch")
     actions = [
         {
@@ -179,8 +179,6 @@ def index_chunk(episode: Episode) -> None:
         }
         for chunk in chunks
     ]
-
-    print(chunks[5]["embedding"])
 
     # Use the bulk API for efficient indexing
     try:

@@ -23,7 +23,7 @@ from podology.frontend.utils import colorway, empty_term_hit_fig
 from config import HITS_PLOT_BINS, EMBEDDER_ARGS
 
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer(EMBEDDER_ARGS["model"])
 episode_store = EpisodeStore()
 colordict = {i[0]: i[1] for i in colorway}
 _transcript_cache = {}
