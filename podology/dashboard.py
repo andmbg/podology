@@ -30,8 +30,11 @@ from podology.frontend.utils import (
     format_duration,
 )
 from podology.frontend.renderers.wordticker import get_ticker_dict
-from config import get_connector, ASSETS_DIR
+from config import get_connector, ASSETS_DIR, READONLY
 
+
+max_intervals = 1 if READONLY else None
+poll_interval = dcc.Interval(id="job-status-update", interval=1000, max_intervals=max_intervals)
 
 episode_store = EpisodeStore()
 
@@ -460,7 +463,7 @@ def init_dashboard(flask_app, route):
                                                                             id="search-hit-column",
                                                                             config={
                                                                                 "displayModeBar": False,
-                                                                                "staticPlot": True,
+                                                                                "staticPlot": False,
                                                                             },
                                                                             figure=empty_term_hit_fig,
                                                                             style={
@@ -583,7 +586,7 @@ def init_dashboard(flask_app, route):
                     style={"height": "calc(100vh - 500px)"},
                 ),
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
-                dcc.Interval(id="job-status-update", interval=1000),
+                poll_interval,
                 dcc.Store(id="ongoing-jobs", data=[]),
                 dcc.Store(id="scroll-sync-init", data=0),
             ],

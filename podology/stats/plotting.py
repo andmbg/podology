@@ -238,9 +238,15 @@ def _create_term_hits_plot(
     Returns:
         Plotly Figure object
     """
-    maxrange = allbins_df.apply(sum, axis=1).max()
-    max_similarity = 0
-    min_similarity = 0
+
+    semantic_cols = [term for term, _, type in term_colid_tuples if type == "semantic"]
+    term_cols = [term for term, _, type in term_colid_tuples if type == "term"]
+
+    maxrange = allbins_df[term_cols].apply(sum, axis=1).max()
+    max_similarity = allbins_df[semantic_cols].max().max() if semantic_cols else 0
+    min_similarity = allbins_df[semantic_cols].min().min() if semantic_cols else 0
+
+    # allbins_df[semantic_cols] = allbins_df[semantic_cols].apply(np.exp)
 
     fig = go.Figure()
 
@@ -263,8 +269,8 @@ def _create_term_hits_plot(
             )
 
         elif term_or_prompt == "semantic":
-            max_similarity = max(max_similarity, allbins_df[col].max())
-            min_similarity = max(min_similarity, allbins_df[col].min())
+            # max_similarity = max(max_similarity, allbins_df[col].max())
+            # min_similarity = max(min_similarity, allbins_df[col].min())
             fig.add_trace(
                 go.Scatter(
                     y=-allbins_df.index,
@@ -298,14 +304,16 @@ def _create_term_hits_plot(
             showticklabels=False,
             zeroline=False,
             range=[0, maxrange],
+            domain=[0, 1],
         ),
         xaxis2=dict(
             title=None,
             showgrid=False,
             showticklabels=False,
             zeroline=False,
-            range=[min_similarity, max_similarity * 1.1 if max_similarity > 0 else 1.0],
+            range=[min_similarity, max_similarity * 1.01 if max_similarity > 0 else 1.0],
             overlaying="x",  # Overlay on the primary x-axis
+            domain=[0, 1],
         ),
         barmode="stack",
         bargap=0.02,
