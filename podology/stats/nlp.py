@@ -21,11 +21,11 @@ from wordcloud import WordCloud
 import numpy as np
 import pandas as pd
 
-from podology.data.Episode import Episode
-from podology.data.Transcript import Transcript
+from ..data.Episode import Episode
+from ..data.Transcript import Transcript
 
 # from podology.frontend.scrollvid.wordticker import ticker_from_eid
-from config import STOPWORDS
+from ...config import STOPWORDS
 
 stop_words = set(stopwords.words("english"))
 stop_words.update(STOPWORDS)

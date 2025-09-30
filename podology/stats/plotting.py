@@ -13,14 +13,14 @@ from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 from loguru import logger
 
-from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME, CHUNK_INDEX_NAME
-from podology.data.EpisodeStore import EpisodeStore
-from podology.data.Episode import Episode
-from podology.data.Transcript import Transcript
-from podology.search.search_classes import ResultSet
-from podology.stats.preparation import DB_PATH
-from podology.frontend.utils import colorway, empty_term_hit_fig
-from config import HITS_PLOT_BINS, EMBEDDER_ARGS
+from ..search.elasticsearch import TRANSCRIPT_INDEX_NAME, CHUNK_INDEX_NAME
+from ..data.EpisodeStore import EpisodeStore
+from ..data.Episode import Episode
+from ..data.Transcript import Transcript
+from ..search.search_classes import ResultSet
+from ..stats.preparation import DB_PATH
+from ..frontend.utils import colorway, empty_term_hit_fig
+from ...config import HITS_PLOT_BINS, EMBEDDER_ARGS
 
 
 model = SentenceTransformer(EMBEDDER_ARGS["model"])

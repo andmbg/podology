@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import Flask, send_from_directory
 from dotenv import find_dotenv, load_dotenv
 
-from podology.dashboard import init_dashboard
+from dashapps.en.podology.podology import init_dashboard
 from config import PROJECT_NAME
 
 

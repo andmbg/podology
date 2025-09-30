@@ -2,11 +2,11 @@ import time
 
 from loguru import logger
 
-from podology.data.Episode import Status
-from podology.data.transcribers.base import Transcriber
-from podology.stats.preparation import post_process_pipeline
-from podology.data.transcribers.whisperx import WhisperXTranscriber
-from config import TRANSCRIBER_ARGS
+from ...data.Episode import Status
+from ...data.transcribers.base import Transcriber
+from ...stats.preparation import post_process_pipeline
+from ...data.transcribers.whisperx import WhisperXTranscriber
+from ....config import TRANSCRIBER_ARGS
 
 
 def transcription_worker(eid: str, timeout: int = 28800, interval: int = 5):

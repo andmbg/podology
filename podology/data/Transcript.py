@@ -11,9 +11,9 @@ from loguru import logger
 import pandas as pd
 from numpy import mean
 
-from podology.data.Episode import Episode
-from podology.search.utils import format_time
-from config import TRANSCRIPT_DIR, EMBEDDER_ARGS, CHUNKS_DIR
+from ..data.Episode import Episode
+from ..search.utils import format_time
+from ...config import TRANSCRIPT_DIR, EMBEDDER_ARGS, CHUNKS_DIR
 
 
 MIN_WORDS = EMBEDDER_ARGS["min_words"]

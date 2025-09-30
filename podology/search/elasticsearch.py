@@ -12,9 +12,9 @@ from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
 
-from config import PROJECT_NAME, TRANSCRIPT_DIR, CHUNKS_DIR, EMBEDDER_ARGS
-from podology.data.Episode import Episode
-from podology.search.utils import make_index_name
+from ...config import PROJECT_NAME, TRANSCRIPT_DIR, CHUNKS_DIR, EMBEDDER_ARGS
+from ..data.Episode import Episode
+from ..search.utils import make_index_name
 
 
 TRANSCRIPT_INDEX_NAME = make_index_name(PROJECT_NAME, suffix="")
@@ -66,9 +66,11 @@ def setup_elasticsearch_indices() -> None:
         basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
     )
 
+    logger.info(f"index name: '{TRANSCRIPT_INDEX_NAME!r}'")
+
     # Create transcript index
     if not es_client.indices.exists(index=TRANSCRIPT_INDEX_NAME):
-        logger.info(f"Creating transcript index: {TRANSCRIPT_INDEX_NAME}")
+        logger.info(f"Creating transcript index: '{TRANSCRIPT_INDEX_NAME}'")
         es_client.indices.create(
             index=TRANSCRIPT_INDEX_NAME, body=TRANSCRIPT_INDEX_SETTINGS
         )

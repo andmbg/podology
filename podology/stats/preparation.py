@@ -21,15 +21,15 @@ from loguru import logger
 from redis import Redis
 import requests
 
-from config import CHUNKS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, EMBEDDER_ARGS
-from podology.data.Episode import Episode, Status
-from podology.data.Transcript import Transcript
-from podology.stats.nlp import (
+from ...config import CHUNKS_DIR, DB_PATH, WORDCLOUD_DIR, TRANSCRIPT_DIR, EMBEDDER_ARGS
+from ..data.Episode import Episode, Status
+from ..data.Transcript import Transcript
+from ..stats.nlp import (
     type_proximity,
     get_wordcloud,
     timed_named_entity_tokens,
 )
-from podology.search.elasticsearch import index_segments, index_chunks, setup_elasticsearch_indices
+from ..search.elasticsearch import index_segments, index_chunks, setup_elasticsearch_indices
 
 
 def post_process_pipeline(

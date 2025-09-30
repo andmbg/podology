@@ -5,16 +5,14 @@ RSS Connector class
 from xml.etree import ElementTree
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, field
 
 import requests
 from loguru import logger
 
-from config import AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
-from podology.data.connectors.base import Connector
-from podology.data.Episode import Episode, AudioInfo, Status, TranscriptInfo
-from podology.data.utils import episode_hash
-from config import DATA_DIR, PROJECT_NAME
+from ...data.connectors.base import Connector
+from ...data.Episode import Episode, AudioInfo, Status, TranscriptInfo
+from ...data.utils import episode_hash
+from ....config import DATA_DIR, PROJECT_NAME, AUDIO_DIR, TRANSCRIPT_DIR, WORDCLOUD_DIR
 
 
 class RSSConnector(Connector):

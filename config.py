@@ -2,10 +2,12 @@ import os
 import importlib
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
+from elasticsearch import Elasticsearch
 
 
 PROJECT_NAME = "Knowledge Fight"
 SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
+READONLY = True
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
@@ -25,14 +27,14 @@ if test:
 #
 
 # Connector:
-CONNECTOR_CLASS = "podology.data.connectors.rss.RSSConnector"
+CONNECTOR_CLASS = "dashapps.en.podology.podology.data.connectors.rss.RSSConnector"
 CONNECTOR_ARGS = {"remote_resource": SOURCE}
 
 # Transcriber:
 # Dummy audio is for testing: no audio files are downloaded. If True and using
 # the WhisperX transcriber API, its endpoint should be set to "dummytranscribe" below.
 DUMMY_AUDIO = False
-TRANSCRIBER_CLASS = "podology.data.transcribers.whisperx.WhisperXTranscriber"
+TRANSCRIBER_CLASS = "dashapps.en.podology.podology.data.transcribers.whisperx.WhisperXTranscriber"
 TRANSCRIBER_ARGS = {
     "whisperx_url": os.getenv("TRANSCRIBER_URL_PORT"),
     "api_token": os.getenv("API_TOKEN"),
@@ -132,3 +134,23 @@ def get_connector():
 def get_transcriber():
     cls = get_class(TRANSCRIBER_CLASS)
     return cls(**TRANSCRIBER_ARGS)
+
+# -----------------------------------------------------------------------------
+
+#
+# Central ES client
+#
+def get_es_client():
+    host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+    port = os.getenv("ELASTICSEARCH_PORT", "9200")
+    user = os.getenv("ELASTIC_USER", "")
+    password = os.getenv("ELASTIC_PASSWORD", "")
+    scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")
+
+    if user and password:
+        return Elasticsearch(
+            f"{scheme}://{host}:{port}",
+            basic_auth=(user, password),
+        )
+    else:
+        return Elasticsearch(f"{scheme}://{host}:{port}")

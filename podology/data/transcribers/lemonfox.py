@@ -5,7 +5,7 @@ import requests
 from loguru import logger
 from dotenv import load_dotenv, find_dotenv
 
-from podology.data.transcribers.base import Transcriber
+from ...data.transcribers.base import Transcriber
 
 
 load_dotenv(find_dotenv())

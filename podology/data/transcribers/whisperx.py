@@ -4,17 +4,15 @@ The transcriber class that sends audio files directly to a WhisperX microservice
 
 import os
 import json
-import tempfile
 from pathlib import Path
-import time
 from typing import Dict, Optional
 from dotenv import find_dotenv, load_dotenv
 
 from loguru import logger
 import requests
 
-from podology.data.transcribers.base import Transcriber
-from config import TRANSCRIPT_DIR, TRANSCRIBER_ARGS
+from ...data.transcribers.base import Transcriber
+from ....config import TRANSCRIPT_DIR, TRANSCRIBER_ARGS
 
 load_dotenv(find_dotenv(), override=True)
 

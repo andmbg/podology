@@ -1,13 +1,12 @@
 from pathlib import Path
 import time
-import json
 from loguru import logger
 from dataclasses import dataclass
 import random
 
 import lorem
 
-from podology.data.transcribers.base import Transcriber
+from ...data.transcribers.base import Transcriber
 
 @dataclass
 class DummyTranscriber(Transcriber):
