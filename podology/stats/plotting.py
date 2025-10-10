@@ -2,7 +2,7 @@
 Plotting functions
 """
 
-import re
+import os
 from typing import List
 import sqlite3
 

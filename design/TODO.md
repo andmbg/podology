@@ -54,6 +54,7 @@
 # Bugs
 
 - Search for term "Jones." does not highlight "Jones." in transcript (but in the hits column).
+- Search for "Pamporio" highlights "Pamporio's" inline but doesn't show a hit. It requires searching "Pamporio's".
 - if one search term contains another, highlights in the transcript get messed up.
 - When database-writing operations (like transcript post-processing) are done wholesale with concurrent processing, we get sqlite3 lock errors due to the db being locked on file-level. Writes may have to be queued.
 - API has alignment model hardcoded even though some code suggests parameterization.

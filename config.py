@@ -1,18 +1,30 @@
 import os
+import sys
 import importlib
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
+from loguru import logger
 
+
+load_dotenv(find_dotenv())
+
+logger.remove()
+logger.add(
+    sink=sys.stdout,
+    level=os.getenv("LOG_LEVEL", "INFO"),
+)
 
 PROJECT_NAME = "Knowledge Fight"
 SOURCE = "http://feeds.libsyn.com/92106/rss"  # your RSS feed
+# If READONLY is True, no new jobs can be started from the dashboard and the
+# 1 Hz polling for download/transcription status is turned off:
+READONLY = True
 
 # PROJECT_NAME = "Decoding"
 # SOURCE = "https://feeds.captivate.fm/decoding-the-gurus/"  # your RSS feed
 
 # -----------------------------------------------------------------------------
 
-load_dotenv(find_dotenv())
 
 # If developing, use the Test project:
 test = os.getenv("TEST", "False") == "True"
@@ -53,8 +65,8 @@ TRANSCRIBER_ARGS = {
 # max_words a soft limit.
 EMBEDDER_ARGS = {
     "url": os.getenv("TRANSCRIBER_URL_PORT"),
-    "model": "multi-qa-mpnet-base-dot-v1",
-    "dims": 768,
+    "model": os.getenv("EMBEDDER_MODEL", "multi-qa-mpnet-base-dot-v1"),
+    "dims": int(os.getenv("EMBEDDER_DIMS", 768)),
     "min_words": 100,
     "max_words": 150,
     "overlap": 0.2,
@@ -117,6 +129,7 @@ CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 WORDCLOUD_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+ES_PORT = int(os.getenv("ELASTICSEARCH_PORT", 0))
 
 def get_class(class_path):
     module_name, class_name = class_path.rsplit(".", 1)

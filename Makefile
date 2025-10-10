@@ -21,11 +21,11 @@ stop-workers:
 	@if [ -f .worker1.pid ]; then kill `cat .worker1.pid` 2>/dev/null || true; rm .worker1.pid; fi
 
 app:
-	poetry run python main.py
+	poetry run python app.py
 
 # Combined targets
 run: elastic-up workers app stop-workers
 
 dev: workers
-	TEST=True poetry run python main.py
+	TEST=True poetry run python app.py
 	$(MAKE) stop-workers

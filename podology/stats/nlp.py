@@ -1,13 +1,18 @@
 """NLP-related computations"""
 
+import os
 from typing import List
 import multiprocessing
 
 import nltk
 
+nltk_data_dir = os.getenv("NLTK_DATA", "~/nltk_data")
+
+if not os.path.exists(os.path.join(nltk_data_dir, "tokenizers", "punkt_tab")):
+    nltk.download("punkt_tab", quiet=True)
+
 nltk.download("stopwords", quiet=True)
 nltk.download("punkt", quiet=True)
-nltk.download("punkt_tab", quiet=True)
 nltk.download("averaged_perceptron_tagger", quiet=True)
 nltk.download("averaged_perceptron_tagger_eng", quiet=True)
 nltk.download("maxent_ne_chunker_tab", quiet=True)

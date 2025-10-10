@@ -3,6 +3,7 @@
 # pylint: disable=W1514
 import os
 import json
+import time
 from pathlib import Path
 from datetime import datetime
 import multiprocessing
@@ -11,8 +12,9 @@ from typing import List
 from loguru import logger
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.helpers import BulkIndexError
+from elastic_transport import ConnectionError
 
-from config import PROJECT_NAME, TRANSCRIPT_DIR, CHUNKS_DIR, EMBEDDER_ARGS
+from config import PROJECT_NAME, TRANSCRIPT_DIR, CHUNKS_DIR, EMBEDDER_ARGS, ES_PORT
 from podology.data.Episode import Episode
 from podology.search.utils import make_index_name
 
@@ -59,12 +61,36 @@ CHUNK_INDEX_SETTINGS = {
 }
 
 
+def get_es_client(max_retries=10, retry_delay=5) -> Elasticsearch:
+    ES_HOST = os.getenv("ELASTICSEARCH_HOST", "localhost")
+    ES_PORT = int(os.getenv("ELASTICSEARCH_PORT", 9200))
+
+    for attempt in range(max_retries):
+        try:
+            es_client = Elasticsearch(
+                f"http://{ES_HOST}:{ES_PORT}",
+                basic_auth=(
+                    os.getenv("ELASTIC_USER", ""),
+                    os.getenv("ELASTIC_PASSWORD", ""),
+                ),
+            )
+            if es_client.ping():
+                return es_client
+        except ConnectionError as e:
+            logger.warning(
+                f"Elasticsearch connection attempt {attempt + 1}/{max_retries} failed: {e}"
+            )
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+
+    raise ConnectionError(
+        f"Failed to connect to Elasticsearch after {max_retries} attempts"
+    )
+
+
 def setup_elasticsearch_indices() -> None:
     """Create all required Elasticsearch indices with proper settings."""
-    es_client = Elasticsearch(
-        "http://localhost:9200",
-        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
-    )
+    es_client = get_es_client()
 
     # Create transcript index
     if not es_client.indices.exists(index=TRANSCRIPT_INDEX_NAME):
@@ -98,12 +124,7 @@ def index_segment(episode: Episode) -> None:
 
     Feeds index "TRANSCRIPT_INDEX_NAME".
     """
-    es_client = Elasticsearch(
-        "http://localhost:9200",
-        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
-        # verify_certs=True,
-        # ca_certs=basedir / "http_ca.crt"
-    )
+    es_client = get_es_client()
 
     # Using direct access to raw transcription file; using Transcript was slow
     if is_indexed_by_eid(episode.eid, es_client, TRANSCRIPT_INDEX_NAME):
@@ -144,6 +165,7 @@ def index_segment(episode: Episode) -> None:
             logger.error(json.dumps(err, indent=2))
         raise
 
+
 def index_chunks(episodes: List[Episode]) -> None:
     """
     Parallelize the indexing of chunks into Elasticsearch.
@@ -157,12 +179,7 @@ def index_chunks_episode(episode: Episode) -> None:
 
     Creates and feeds index "CHUNK_INDEX_NAME".
     """
-    es_client = Elasticsearch(
-        "http://localhost:9200",
-        basic_auth=(os.getenv("ELASTIC_USER"), os.getenv("ELASTIC_PASSWORD")),
-        # verify_certs=True,
-        # ca_certs=basedir / "http_ca.crt"
-    )
+    es_client = get_es_client()
 
     if is_indexed_by_eid(episode.eid, es_client, CHUNK_INDEX_NAME):
         logger.debug(f"{episode.eid} chunks are already indexed.")

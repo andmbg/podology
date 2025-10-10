@@ -7,13 +7,48 @@ services:
       - ELASTIC_PASSWORD=06h1yvYGw6mtZ9Ex3K+FfBuksHGdp1UC
       - xpack.security.enabled=false
       - xpack.security.http.ssl.enabled=false
-
     ports:
       - 9200:9200
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
       - ./certs:/usr/share/elasticsearch/config/certs
     mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - 6379:6379
+
+  app:
+    build:
+      context: .
+      args:
+        EMBEDDER_MODEL: multi-qa-mpnet-base-dot-v1
+        EMBEDDER_DIMS: 768
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORT=8080
+      - EMBEDDER_MODEL=multi-qa-mpnet-base-dot-v1
+      - EMBEDDER_DIMS=768
+    ports:
+      - 8080:8080
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
 
 volumes:
   elasticsearch-data:
+

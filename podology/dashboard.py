@@ -9,15 +9,13 @@ import dash_mantine_components as dmc
 from dash.dependencies import ClientsideFunction
 from dash_iconify import DashIconify
 from bs4 import BeautifulSoup
-from elasticsearch import Elasticsearch
-from flask import app
 from loguru import logger
 
 from podology.data.Episode import Status
 from podology.data.EpisodeStore import EpisodeStore
 from podology.data.Transcript import Transcript
 from podology.search.search_classes import ResultSet, create_cards
-from podology.search.elasticsearch import TRANSCRIPT_INDEX_NAME
+from podology.search.elasticsearch import get_es_client, TRANSCRIPT_INDEX_NAME
 from podology.stats.preparation import post_process_pipeline
 from podology.stats.plotting import plot_transcript_hits_es, plot_word_freq
 from podology.frontend.utils import (
@@ -81,18 +79,7 @@ def init_dashboard(flask_app, route):
     Main function to initialize the dashboard.
     """
     # Fill the ES index with transcripts:
-    try:
-        user = os.getenv("ELASTIC_USER") or ""
-        pwd = os.getenv("ELASTIC_PASSWORD") or ""
-        es_client = Elasticsearch(
-            "http://localhost:9200",
-            basic_auth=(user, pwd),
-            # verify_certs=True,
-            # ca_certs=basedir / "http_ca.crt"
-        )
-    except TypeError:
-        print("Elasticsearch client not initialized. Check environment variables.")
-        raise
+    es_client = get_es_client()
 
     post_process_pipeline(episode_store=episode_store)
 
@@ -463,7 +450,7 @@ def init_dashboard(flask_app, route):
                                                                             id="search-hit-column",
                                                                             config={
                                                                                 "displayModeBar": False,
-                                                                                "staticPlot": False,
+                                                                                "staticPlot": True,
                                                                             },
                                                                             figure=empty_term_hit_fig,
                                                                             style={

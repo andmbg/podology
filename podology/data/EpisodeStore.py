@@ -1,3 +1,4 @@
+import os
 from typing import Iterator
 import sqlite3
 
@@ -18,7 +19,7 @@ from config import (
 from podology.data.transcribers.transcription_worker import transcription_worker
 
 
-redis_conn = Redis()
+redis_conn = Redis(host=os.getenv("REDIS_HOST", "localhost"), port=int(os.getenv("REDIS_PORT") or 6379))
 transcription_q = Queue(connection=redis_conn, name="transcription")
 
 
