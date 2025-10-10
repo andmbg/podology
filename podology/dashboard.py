@@ -172,6 +172,7 @@ def init_dashboard(flask_app, route):
         size="lg",
     )
 
+    # Currently unused:
     language_toggle = dmc.Switch(
         onLabel="EN",
         offLabel="DE",
@@ -244,7 +245,10 @@ def init_dashboard(flask_app, route):
                             span=7,
                         ),
                         dmc.GridCol(
-                            [theme_toggle, language_toggle],
+                            [
+                                theme_toggle,
+                                # language_toggle,
+                            ],
                             span=3,
                             style={
                                 "display": "flex",

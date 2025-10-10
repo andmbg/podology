@@ -37,10 +37,13 @@ RUN python -m nltk.downloader \
 
 # download ML models to avoid doing it at runtime
 ARG EMBEDDER_MODEL=multi-qa-mpnet-base-dot-v1
-ENV EMBEDDER_MODEL=$EMBEDDER_MODEL
-ENV EMBEDDER_DIMS=768
+ENV HF_HOME=/app/.cache/huggingface/transformers \
+    SENTENCE_TRANSFORMERS_HOME=/app/.cache/huggingface/sentence_transformers \
+    EMBEDDER_MODEL=$EMBEDDER_MODEL \
+    EMBEDDER_DIMS=768
 RUN poetry run python -c "from sentence_transformers import SentenceTransformer; \
-                          model = SentenceTransformer('$EMBEDDER_MODEL')"
+                          import os; \
+                          SentenceTransformer(os.getenv('EMBEDDER_MODEL'))"
 
 # copy project files
 COPY . /app
