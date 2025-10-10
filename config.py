@@ -32,6 +32,11 @@ if test:
     PROJECT_NAME = "Test"
     SOURCE = "./tests/Test_RSS.rss"  # your RSS feed
 
+# Make the app prefix-aware:
+BASE_PATH = os.getenv("DASH_URL_PREFIX", "/")
+if not BASE_PATH.endswith("/"):
+    BASE_PATH += "/"
+
 #
 # Settings about the transcription and rendering APIs
 #

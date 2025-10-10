@@ -36,11 +36,12 @@ RUN python -m nltk.downloader \
     words
 
 # download ML models to avoid doing it at runtime
-ARG EMBEDDER_MODEL=multi-qa-mpnet-base-dot-v1
+ARG EMBEDDER_MODEL=multi-qa-mpnet-base-dot-v1 \
+    EMBEDDER_DIMS=768
 ENV HF_HOME=/app/.cache/huggingface/transformers \
     SENTENCE_TRANSFORMERS_HOME=/app/.cache/huggingface/sentence_transformers \
     EMBEDDER_MODEL=$EMBEDDER_MODEL \
-    EMBEDDER_DIMS=768
+    EMBEDDER_DIMS=$EMBEDDER_DIMS
 RUN poetry run python -c "from sentence_transformers import SentenceTransformer; \
                           import os; \
                           SentenceTransformer(os.getenv('EMBEDDER_MODEL'))"
@@ -59,7 +60,7 @@ ENV DASH_ENV=production
 EXPOSE 8080
 
 CMD [ \
-    "poetry", "run", "gunicorn", "app:flask_app", \
+    "poetry", "run", "gunicorn", "app:server", \
     "--bind", "0.0.0.0:8080", \
     "-k", "gthread", \
     "--workers", "1", \

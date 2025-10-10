@@ -2,6 +2,8 @@ import os
 import json
 from typing import List
 from pathlib import Path
+from urllib.parse import urljoin
+from flask import url_for
 
 import dash_ag_grid as dag
 from dash import Dash, dcc, html, Input, Output, State, ALL, ctx, no_update
@@ -28,11 +30,13 @@ from podology.frontend.utils import (
     format_duration,
 )
 from podology.frontend.renderers.wordticker import get_ticker_dict
-from config import get_connector, ASSETS_DIR, READONLY
+from config import get_connector, ASSETS_DIR, READONLY, BASE_PATH
 
 
 max_intervals = 1 if READONLY else None
-poll_interval = dcc.Interval(id="job-status-update", interval=1000, max_intervals=max_intervals)
+poll_interval = dcc.Interval(
+    id="job-status-update", interval=1000, max_intervals=max_intervals
+)
 
 episode_store = EpisodeStore()
 
@@ -40,6 +44,11 @@ for pub_ep in get_connector().fetch_episodes():
     episode_store.add_or_update(pub_ep)
 
 episode_store.update_from_files()
+
+
+def with_prefix(path: str) -> str:
+    # Builds /podology/<path> (or /<path> when no prefix)
+    return urljoin(BASE_PATH, path.lstrip("/"))
 
 
 def get_row_data(episode_store: EpisodeStore) -> List[dict]:
@@ -62,15 +71,12 @@ def get_row_data(episode_store: EpisodeStore) -> List[dict]:
             ),
         }
         wc_path = ASSETS_DIR / "wordclouds" / f"{ep.eid}.png"
-        wc_url = str(wc_path).replace(str(ASSETS_DIR), "/assets")
-
         if wc_path.exists():
-            row["wordcloud_url"] = wc_url
+            wc_url = with_prefix(f"assets/wordclouds/{ep.eid}.png")
         else:
-            row["wordcloud_url"] = ""
-
+            wc_url = ""
+        row["wordcloud_url"] = wc_url
         rowdata.append(row)
-
     return rowdata
 
 
@@ -83,14 +89,15 @@ def init_dashboard(flask_app, route):
 
     post_process_pipeline(episode_store=episode_store)
 
+    logger.info(f"Route to podology: {route}")
+
     app = Dash(
         __name__,
         server=flask_app,
+        requests_pathname_prefix=route,
         routes_pathname_prefix=route,
-        # relevant for standalone launch, not used by main flask app:
-        # FIXME this overrides our custom CSS!
-        # external_stylesheets=[dbc.themes.CERULEAN],
-        assets_folder=str(Path(__file__).parent / "assets"),
+        suppress_callback_exceptions=True,
+        assets_folder=f"{Path(__file__).parent / 'assets'}",
     )
 
     app.es_client = es_client
@@ -408,7 +415,6 @@ def init_dashboard(flask_app, route):
                                                                         id="transcript-episode-date",
                                                                         c="dimmed",
                                                                     ),
-                                                                    
                                                                 ],
                                                                 span=3,
                                                             ),
@@ -475,7 +481,7 @@ def init_dashboard(flask_app, route):
                                                                                 "pointer-events": "none",  # Don't block graph interactions
                                                                                 "display": "none",  # Initially hidden
                                                                                 "z-index": "10",
-                                                                            }
+                                                                            },
                                                                         ),
                                                                     ],
                                                                     style={
@@ -639,9 +645,7 @@ def init_callbacks(app):
 
     # Check which transcript segments are currently visible:
     app.clientside_callback(
-        ClientsideFunction(
-            namespace="visible_span", function_name="get_visible_span"
-        ),
+        ClientsideFunction(namespace="visible_span", function_name="get_visible_span"),
         Output("visible-segments", "data"),
         Input("transcript", "children"),
     )
@@ -653,14 +657,14 @@ def init_callbacks(app):
     #         if (!visible_segments || visible_segments.length !== 2) {
     #             return "No segments visible";
     #         }
-            
+
     #         const firstTime = visible_segments[0];
     #         const lastTime = visible_segments[1];
-            
+
     #         if (firstTime === null || lastTime === null) {
     #             return "No segments visible";
     #         }
-            
+
     #         return `Visible: ${firstTime.toFixed(1)}s → ${lastTime.toFixed(1)}s`;
     #     }
     #     """,
@@ -680,9 +684,7 @@ def init_callbacks(app):
     # )
 
     app.clientside_callback(
-        ClientsideFunction(
-            namespace="visible_span", function_name="scroll_rect"
-        ),
+        ClientsideFunction(namespace="visible_span", function_name="scroll_rect"),
         Output("visible-area-overlay", "className"),  # Dummy output
         Input("visible-segments", "data"),
         State("episode-duration", "data"),
@@ -1013,13 +1015,16 @@ def init_callbacks(app):
             window_width=120,
         )
 
+        # Get prefix-aware audio URL:
+        audio_url = url_for("serve_audio", eid=episode.eid)
+
         return (
             diarized_script_element,
             episode.title,
             episode.pub_date,
             format_duration(episode.duration),
             ticker_dict,
-            f"/audio/{eid}",
+            audio_url,
             0,
         )
 
@@ -1127,4 +1132,3 @@ def init_callbacks(app):
         return plot_transcript_hits_es(
             terms_store["entries"], eid, es_client=app.es_client
         )
-

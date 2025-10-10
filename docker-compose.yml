@@ -25,11 +25,7 @@ services:
       - 6379:6379
 
   app:
-    build:
-      context: .
-      args:
-        EMBEDDER_MODEL: multi-qa-mpnet-base-dot-v1
-        EMBEDDER_DIMS: 768
+    image: podology-app:latest
     depends_on:
       elasticsearch:
         condition: service_healthy
