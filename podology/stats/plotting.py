@@ -30,7 +30,7 @@ _transcript_cache = {}
 
 
 def plot_word_freq(
-    term_colid_tuples: List[tuple], es_client: Elasticsearch
+    term_colid_tuples: List[tuple], es_client: Elasticsearch, template: str = "plotly"
 ) -> go.Figure:
     """Time series plot of word frequencies in the Across Episodes tab.
 
@@ -70,6 +70,7 @@ def plot_word_freq(
         )
 
         fig.update_layout(
+            template=template,
             font=dict(size=14),
             plot_bgcolor="rgba(0,0,0, .0)",
             paper_bgcolor="rgba(255,255,255, .0)",
@@ -81,11 +82,19 @@ def plot_word_freq(
         )
 
         fig.update_yaxes(
-            gridcolor="rgba(0,0,0, .1)",
+            gridcolor=(
+                "rgba(255,255,255, .2)" if template == "plotly_dark" else "rgba(0,0,0, .3)"
+            ),
+            gridwidth=1,
+            griddash="2, 5, 2, 5",
             title=dict(
                 text="Occurrences per 1000",
+                font=dict(
+                    color="rgba(128,128,128, .6)",
+                    size=22,
+                ),
             ),
-            zerolinecolor="rgba(0,0,0, .5)",
+            zerolinecolor="rgba(128,128,128, .5)",
             range=[0, df["freq1k"].max() * 1.1],
         )
 

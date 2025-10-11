@@ -442,14 +442,17 @@ def init_dashboard(flask_app, route):
                                                                     id="transcript",
                                                                     className="transcript",
                                                                     style={
-                                                                        "height": "calc(100vh - 500px)",
+                                                                        "height": "calc(100vh - 350px)",
                                                                         "overflow-y": "auto",
+                                                                        "overflow-x": "hidden",
+                                                                        "word-wrap": "break-word",
+                                                                        "padding": "15px",
                                                                     },
                                                                 ),
                                                                 span=11,
                                                                 style={
                                                                     "padding-right": "0",
-                                                                    "height": "calc(100vh-500px)",
+                                                                    "height": "calc(100vh - 350px)",
                                                                 },
                                                             ),
                                                             dmc.GridCol(
@@ -464,7 +467,7 @@ def init_dashboard(flask_app, route):
                                                                             },
                                                                             figure=empty_term_hit_fig,
                                                                             style={
-                                                                                "height": "100%",
+                                                                                "height": "calc(100vh - 350px)",
                                                                                 "width": "100%",
                                                                             },
                                                                         ),
@@ -486,7 +489,7 @@ def init_dashboard(flask_app, route):
                                                                     ],
                                                                     style={
                                                                         "position": "relative",
-                                                                        "height": "calc(100vh - 500px)",
+                                                                        "height": "calc(100vh - 350px)",
                                                                         "width": "100%",
                                                                         "overflow": "hidden",
                                                                     },
@@ -495,14 +498,14 @@ def init_dashboard(flask_app, route):
                                                                 className="col-search-hits",
                                                                 style={
                                                                     "padding-left": "0",
-                                                                    "height": "calc(100vh - 500px)",
+                                                                    "height": "calc(100vh - 350px)",
                                                                 },
                                                             ),
                                                         ],
                                                         className="align-items-stretch",
                                                         style={
-                                                            "height": "calc(100vh - 500px)",
-                                                            "min-height": "500px",
+                                                            "height": "calc(100vh - 350px)",
+                                                            "min-height": "450px",
                                                         },
                                                     ),
                                                 ],
@@ -532,6 +535,9 @@ def init_dashboard(flask_app, route):
                                                 dcc.Graph(
                                                     id="word-count-plot",
                                                     figure=empty_term_fig,
+                                                    config={
+                                                        "displayModeBar": False,
+                                                    }
                                                 ),
                                                 span=12,
                                             )
@@ -576,11 +582,11 @@ def init_dashboard(flask_app, route):
                         ),
                     ],
                     id="tab-container",
-                    color="teal",
+                    color="#4488ff",
                     orientation="horizontal",
                     variant="default",
                     value="metadata",
-                    style={"height": "calc(100vh - 500px)"},
+                    style={"height": "calc(100vh - 250px)"},
                 ),
                 dcc.Interval(id="pageload-trigger", interval=100, max_intervals=1),
                 poll_interval,
@@ -670,17 +676,6 @@ def init_callbacks(app):
     #     """,
     #     Output("visible-segments-display", "children"),
     #     Input("visible-segments", "data"),
-    # )
-
-    # Move a rectangle over the hit column to mark the current viewport:
-    # app.clientside_callback(
-    #     ClientsideFunction(
-    #         namespace="visible_span", function_name="scroll_rect"
-    #     ),
-    #     Output("search-hit-column", "relayoutData"),
-    #     Input("visible-segments", "data"),
-    #     State("transcript-episode-duration", "children"),
-    #     prevent_initial_call=True,
     # )
 
     app.clientside_callback(
@@ -1099,9 +1094,10 @@ def init_callbacks(app):
     @app.callback(
         Output("word-count-plot", "figure"),
         Input("terms-store", "data"),
+        Input("color-scheme-switch", "checked"),
         prevent_initial_call=True,
     )
-    def update_word_freq_plot(terms_store):
+    def update_word_freq_plot(terms_store, color_scheme_checked):
         """
         Callback that updates the frequency table view.
         """
@@ -1110,7 +1106,9 @@ def init_callbacks(app):
         if len(termtuples) == 0:
             return empty_term_fig
 
-        return plot_word_freq(terms_store["entries"], es_client=app.es_client)
+        template = "plotly_dark" if color_scheme_checked else "plotly"
+
+        return plot_word_freq(terms_store["entries"], es_client=app.es_client, template=template)
 
     @app.callback(
         Output("search-hit-column", "figure"),
