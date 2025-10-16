@@ -1,6 +1,9 @@
 # Exclude the data folder
 data/
 
+# Exclude generated assets
+podology/assets/wordclouds/
+
 # Exclude Python cache files
 __pycache__/
 *.pyc

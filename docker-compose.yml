@@ -43,6 +43,7 @@ services:
       - 8080:8080
     volumes:
       - ./data:/app/data
+      - "./data/Knowledge Fight/wordclouds:/app/podology/assets/wordclouds"
     restart: unless-stopped
 
 volumes:

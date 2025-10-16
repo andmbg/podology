@@ -46,13 +46,15 @@ RUN poetry run python -c "from sentence_transformers import SentenceTransformer;
                           import os; \
                           SentenceTransformer(os.getenv('EMBEDDER_MODEL'))"
 
+RUN useradd --create-home --home-dir /home/appuser -u 1000 appuser \
+ && mkdir -p /app/data
+
 # copy project files
 COPY . /app
 
-# create non-root runtime user and give ownership of app dir
-RUN useradd --create-home --home-dir /nonroot -u 1000 nonroot \
- && chown -R nonroot:nonroot /app
-USER nonroot
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 ENV FLASK_ENV=production
 ENV DASH_ENV=production

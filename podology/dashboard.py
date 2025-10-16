@@ -306,7 +306,7 @@ def init_dashboard(flask_app, route):
                             [
                                 dmc.TabsTab("Metadata", value="metadata"),
                                 dmc.TabsTab("Within Episode", value="within"),
-                                dmc.TabsTab("Across Episode", value="across"),
+                                dmc.TabsTab("Across Episodes", value="across"),
                             ],
                             style={"marginTop": 20},
                         ),
@@ -558,19 +558,19 @@ def init_dashboard(flask_app, route):
                                                     dcc.Store(
                                                         id="episode-list-data", data=[]
                                                     ),
-                                                    dmc.Grid(
-                                                        id="sort-buttons",
-                                                        style={"position": "relative"},
-                                                    ),
-                                                    dmc.Grid(
-                                                        children=[
-                                                            dmc.Stack(
-                                                                id="episode-list",
-                                                                gap="xs",
-                                                                children=["Episodes"],
-                                                            )
-                                                        ]
-                                                    ),
+                                                    # dmc.Grid(
+                                                    #     id="sort-buttons",
+                                                    #     style={"position": "relative"},
+                                                    # ),
+                                                    # dmc.Grid(
+                                                    #     children=[
+                                                    #         dmc.Stack(
+                                                    #             id="episode-list",
+                                                    #             gap="xs",
+                                                    #             children=["Episodes"],
+                                                    #         )
+                                                    #     ]
+                                                    # ),
                                                 ],
                                                 span=dict(xs=12, md=6),
                                             ),
