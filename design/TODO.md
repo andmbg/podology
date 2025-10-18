@@ -48,7 +48,7 @@
   
 # IMMINENT
 
-- in dev, the download table still shows the real project
+- make the project choice and RSS URL into parameters to set in the podology docker-compose.yml
 
 
 # Bugs
